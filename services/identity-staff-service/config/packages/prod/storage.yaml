@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=../../../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+#
+# ПРОД-СХОВИЩА identity-staff-service (розділ 10.5).
+#
+# Цей файл читається ЛИШЕ при APP_ENV=prod, тому dev і test лишаються на
+# InMemory-реалізаціях із config/services.yaml і не потребують ані MongoDB,
+# ані Redis, ані розширень ext-mongodb / ext-redis.
+#
+# Тут доменні інтерфейси переприв'язуються з InMemory на реальні реалізації:
+#   Mongo — staff_users, refresh_tokens, login_attempts, role_audit;
+#   Redis — denylist jti access-токенів (AUTH-17, AUTH-28, AUTH-32).
+#
+# Сервіси описані з ЯВНИМИ аргументами (autowire вимкнено): конструктори
+# інфраструктурних класів приймають скалярні DSN/назви баз, які беруться
+# з env-змінних сервісу — MONGODB_URI, MONGODB_DB, REDIS_DSN.
+
+services:
+    _defaults:
+        autowire: false
+        autoconfigure: false
+        public: false
+
+    # --- MongoDB 7.x, БД identity_staff (10.5) ---------------------------
+    App\Infrastructure\Mongo\MongoConnection:
+        arguments:
+            $uri: '%env(MONGODB_URI)%'
+            $database: '%env(MONGODB_DB)%'
+
+    # staff_users
+    App\Infrastructure\Mongo\MongoStaffUserRepository:
+        arguments:
+            $connection: '@App\Infrastructure\Mongo\MongoConnection'
+    App\Domain\Identity\StaffUserRepository: '@App\Infrastructure\Mongo\MongoStaffUserRepository'
+
+    # refresh_tokens (AUTH-30: у базі лише SHA-256-хеш токена)
+    App\Infrastructure\Mongo\MongoRefreshTokenRepository:
+        arguments:
+            $connection: '@App\Infrastructure\Mongo\MongoConnection'
+    App\Domain\Auth\RefreshTokenRepository: '@App\Infrastructure\Mongo\MongoRefreshTokenRepository'
+
+    # login_attempts (AUTH-50, AUTH-52)
+    App\Infrastructure\Mongo\MongoLoginAttemptRepository:
+        arguments:
+            $connection: '@App\Infrastructure\Mongo\MongoConnection'
+    App\Domain\Auth\LoginAttemptRepository: '@App\Infrastructure\Mongo\MongoLoginAttemptRepository'
+
+    # role_audit (RBAC-29, RBAC-30: append-only)
+    App\Infrastructure\Mongo\MongoRoleAuditRepository:
+        arguments:
+            $connection: '@App\Infrastructure\Mongo\MongoConnection'
+    App\Domain\UserManagement\RoleAuditRepository: '@App\Infrastructure\Mongo\MongoRoleAuditRepository'
+
+    # --- Redis: denylist jti (AUTH-17, AUTH-28, AUTH-32) ------------------
+    # Підключення будується з REDIS_DSN штатною фабрикою symfony/cache,
+    # яка для DSN redis:// повертає екземпляр ext-redis \Redis.
+    app.redis.connection:
+        class: Redis
+        factory: ['Symfony\Component\Cache\Adapter\RedisAdapter', 'createConnection']
+        arguments:
+            $dsn: '%env(REDIS_DSN)%'
+
+    App\Infrastructure\Redis\RedisAccessTokenDenylist:
+        arguments:
+            $redis: '@app.redis.connection'
+            $clock: '@App\Domain\Shared\Clock'
+    App\Domain\Auth\AccessTokenDenylist: '@App\Infrastructure\Redis\RedisAccessTokenDenylist'
+
+    # --- Без реальної реалізації -----------------------------------------
+    # App\Domain\Auth\TwoFactorChallengeStore лишається на
+    # App\Infrastructure\InMemory\InMemoryTwoFactorChallengeStore
+    # (Mongo/Redis-реалізації цього інтерфейсу в кодовій базі НЕМАЄ).

@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+
+# Прод-сховища notification-service.
+#
+# Єдине місце, де доменні інтерфейси сховищ звʼязуються з реальними
+# реалізаціями на MongoDB. Файл вантажиться лише при APP_ENV=prod
+# (config/packages/<env>/*.yaml), тому dev і тести лишаються на InMemory —
+# див. блоки when@dev / when@test у config/services.yaml.
+#
+# ПОРЯДОК ЗАВАНТАЖЕННЯ (важливо, якщо правитимете config/services.yaml):
+# MicroKernelTrait імпортує config/packages/prod/*.yaml ПЕРЕД
+# config/services.yaml. Тому ці визначення діють лише доти, доки
+# config/services.yaml не оголошує ті самі id у кореневому блоці services —
+# інакше він мовчки перезапише прод-звʼязування. Саме тому Mongo-аліаси
+# звідти прибрані.
+#
+# Підключення ліниве: MongoConnectionFactory створює клієнта лише при
+# першому зверненні до колекції, тож cache:clear і lint:container не
+# потребують запущеного сервера MongoDB.
+#
+# DSN і назва бази беруться з env цього сервісу — MONGODB_URI і MONGODB_DB
+# (параметри app.mongodb.uri / app.mongodb.database у config/services.yaml).
+# Сам сервіс MongoConnectionFactory визначено там же, бо консольна команда
+# app:notifications:init-storage потребує його в усіх середовищах.
+
+services:
+    # --- Сховища на MongoDB ---
+    App\Infrastructure\Mongo\MongoNotificationRepository:
+        arguments:
+            $connection: '@App\Infrastructure\Mongo\MongoConnectionFactory'
+
+    App\Infrastructure\Mongo\MongoScheduledReminderRepository:
+        arguments:
+            $connection: '@App\Infrastructure\Mongo\MongoConnectionFactory'
+
+    # --- Доменні інтерфейси → реальні реалізації ---
+    App\Domain\Notification\NotificationRepository: '@App\Infrastructure\Mongo\MongoNotificationRepository'
+    App\Domain\Reminder\ScheduledReminderRepository: '@App\Infrastructure\Mongo\MongoScheduledReminderRepository'
+
+    # App\Domain\Preference\OptOutRegistry і App\Domain\Reschedule\RescheduleRegistry
+    # свідомо НЕ переприв'язані: персистентних реалізацій (Mongo або Redis) для них
+    # у src/Infrastructure/ не існує. У проді вони й далі працюють на InMemory
+    # з config/services.yaml, тобто їхній стан не переживає HTTP-запит.
+    # Для RescheduleRegistry (NOT-16) це функціональна прогалина: пара подій
+    # BookingCreated + BookingCancelled може прийти в різних процесах.

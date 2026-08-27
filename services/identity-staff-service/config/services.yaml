@@ -53,24 +53,12 @@ services:
             $clock: '@App\Domain\Shared\Clock'
     App\Domain\Auth\TokenSigner: '@App\Infrastructure\Security\FirebaseJwtSigner'
 
-    # --- Сховища: InMemory як типова реалізація без MongoDB ---------------
-    App\Infrastructure\InMemory\InMemoryStaffUserRepository: ~
-    App\Domain\Identity\StaffUserRepository: '@App\Infrastructure\InMemory\InMemoryStaffUserRepository'
-
-    App\Infrastructure\InMemory\InMemoryRefreshTokenRepository: ~
-    App\Domain\Auth\RefreshTokenRepository: '@App\Infrastructure\InMemory\InMemoryRefreshTokenRepository'
-
-    App\Infrastructure\InMemory\InMemoryLoginAttemptRepository: ~
-    App\Domain\Auth\LoginAttemptRepository: '@App\Infrastructure\InMemory\InMemoryLoginAttemptRepository'
-
-    App\Infrastructure\InMemory\InMemoryAccessTokenDenylist: ~
-    App\Domain\Auth\AccessTokenDenylist: '@App\Infrastructure\InMemory\InMemoryAccessTokenDenylist'
-
-    App\Infrastructure\InMemory\InMemoryTwoFactorChallengeStore: ~
-    App\Domain\Auth\TwoFactorChallengeStore: '@App\Infrastructure\InMemory\InMemoryTwoFactorChallengeStore'
-
-    App\Infrastructure\InMemory\InMemoryRoleAuditRepository: ~
-    App\Domain\UserManagement\RoleAuditRepository: '@App\Infrastructure\InMemory\InMemoryRoleAuditRepository'
+    # --- Сховища ----------------------------------------------------------
+    # Звʼязування доменних інтерфейсів зі сховищами винесені в:
+    #   config/packages/storage.yaml       — типове (InMemory, усі оточення);
+    #   config/packages/prod/storage.yaml  — прод (MongoDB + Redis).
+    # Саме такий порядок імпорту (packages → packages/{env} → services.yaml)
+    # дозволяє прод-файлу перекрити типові аліаси.
 
     # --- Доменні сервіси --------------------------------------------------
     App\Domain\Identity\AccessDecider: ~

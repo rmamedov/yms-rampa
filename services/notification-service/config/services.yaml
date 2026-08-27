@@ -63,20 +63,24 @@ services:
     App\Infrastructure\Http\ProblemJsonFactory: ~
 
     # --- Сховища: MongoDB (прод) і InMemory (dev/test) ---
+    # Підключення до Mongo визначене тут, а не в prod-конфізі, бо команда
+    # app:notifications:init-storage потребує його в усіх середовищах.
+    # Саме звʼязування «інтерфейс → Mongo-репозиторій» живе в
+    # config/packages/prod/storage.yaml — у кореневому блоці services його
+    # оголошувати не можна: config/services.yaml вантажиться ПІСЛЯ
+    # config/packages/prod/*.yaml і мовчки перезаписав би прод-налаштування.
     App\Infrastructure\Mongo\MongoConnectionFactory:
         arguments:
             $uri: '%app.mongodb.uri%'
             $database: '%app.mongodb.database%'
-    App\Infrastructure\Mongo\MongoNotificationRepository: ~
-    App\Infrastructure\Mongo\MongoScheduledReminderRepository: ~
 
     App\Infrastructure\InMemory\InMemoryNotificationRepository: ~
     App\Infrastructure\InMemory\InMemoryScheduledReminderRepository: ~
     App\Infrastructure\InMemory\InMemoryOptOutRegistry: ~
     App\Infrastructure\InMemory\InMemoryRescheduleRegistry: ~
 
-    App\Domain\Notification\NotificationRepository: '@App\Infrastructure\Mongo\MongoNotificationRepository'
-    App\Domain\Reminder\ScheduledReminderRepository: '@App\Infrastructure\Mongo\MongoScheduledReminderRepository'
+    # Персистентних реалізацій цих двох реєстрів поки не існує — InMemory в усіх
+    # середовищах, включно з прод (див. коментар у config/packages/prod/storage.yaml).
     App\Domain\Preference\OptOutRegistry: '@App\Infrastructure\InMemory\InMemoryOptOutRegistry'
     App\Domain\Reschedule\RescheduleRegistry: '@App\Infrastructure\InMemory\InMemoryRescheduleRegistry'
 
@@ -115,6 +119,7 @@ services:
     App\Domain\Transport\TransportRegistry: '@App\Infrastructure\Transport\ChannelTransportRegistry'
 
 # Dev і test працюють без MongoDB: сховища тримаються в памʼяті.
+# Прод бере реальні реалізації з config/packages/prod/storage.yaml.
 when@dev:
     services:
         App\Domain\Notification\NotificationRepository: '@App\Infrastructure\InMemory\InMemoryNotificationRepository'

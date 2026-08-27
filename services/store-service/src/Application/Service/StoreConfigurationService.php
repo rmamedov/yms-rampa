@@ -79,16 +79,20 @@ final readonly class StoreConfigurationService
         $this->catalog->requireBranch($storeId);
 
         $now = $this->clock->now();
-        $effectiveFrom = $payload->dateTime('effectiveFrom') ?? $this->tomorrowLocalMidnight($now);
+        $version = $this->configurations->nextVersion($storeId);
+        $isFirstVersion = 1 === $version;
 
-        $this->assertEffectiveFrom($effectiveFrom, $now);
+        $effectiveFrom = $payload->dateTime('effectiveFrom')
+            ?? ($isFirstVersion ? $this->todayLocalMidnight($now) : $this->tomorrowLocalMidnight($now));
+
+        $this->assertEffectiveFrom($effectiveFrom, $now, $isFirstVersion);
 
         $slotSize = SlotSize::fromMinutes($payload->requireInt('slotSizeMinutes'));
 
         $config = new StoreConfiguration(
             id: Uuid::v4(),
             storeId: $storeId,
-            version: $this->configurations->nextVersion($storeId),
+            version: $version,
             effectiveFrom: $effectiveFrom,
             receivingWindows: $this->windows($payload),
             slotSize: $slotSize,
@@ -110,20 +114,30 @@ final readonly class StoreConfigurationService
     }
 
     /**
-     * STC-60: дата набрання чинності для змін сітки слотів — не раніше завтра
-     * за локальним часом магазину.
+     * STC-60: зміна сітки слотів набирає чинності не раніше завтра — щоб
+     * не зламати вже наявні бронювання на сьогодні.
+     *
+     * Виняток — ПЕРША конфігурація магазину: доти сітки не існувало, отже
+     * не існує й бронювань, які треба захищати. Без цього винятку філію
+     * неможливо налаштувати й активувати того самого дня, чого вимагає
+     * сценарій онбордингу магазину E2E-01.
      */
-    private function assertEffectiveFrom(\DateTimeImmutable $effectiveFrom, \DateTimeImmutable $now): void
-    {
-        $tomorrow = $this->tomorrowLocalMidnight($now);
+    private function assertEffectiveFrom(
+        \DateTimeImmutable $effectiveFrom,
+        \DateTimeImmutable $now,
+        bool $isFirstVersion,
+    ): void {
+        $earliest = $isFirstVersion ? $this->todayLocalMidnight($now) : $this->tomorrowLocalMidnight($now);
 
-        if ($effectiveFrom < $tomorrow) {
+        if ($effectiveFrom < $earliest) {
             throw ValidationException::config(
                 \sprintf(
                     'Зміни сітки слотів можуть набирати чинності не раніше %s',
-                    $tomorrow->setTimezone(Timezone::storeLocal())->format('Y-m-d'),
+                    $earliest->setTimezone(Timezone::storeLocal())->format('Y-m-d'),
                 ),
-                ['effectiveFrom' => 'Дата набрання чинності — не раніше завтра'],
+                ['effectiveFrom' => $isFirstVersion
+                    ? 'Дата набрання чинності — не раніше сьогодні'
+                    : 'Дата набрання чинності — не раніше завтра'],
             );
         }
     }
@@ -133,6 +147,14 @@ final readonly class StoreConfigurationService
         return $now
             ->setTimezone(Timezone::storeLocal())
             ->modify('tomorrow midnight')
+            ->setTimezone(Timezone::storage());
+    }
+
+    private function todayLocalMidnight(\DateTimeImmutable $now): \DateTimeImmutable
+    {
+        return $now
+            ->setTimezone(Timezone::storeLocal())
+            ->modify('today midnight')
             ->setTimezone(Timezone::storage());
     }
 

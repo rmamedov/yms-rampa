@@ -68,8 +68,10 @@ final class StoreConfigurationServiceTest extends TestCase
     }
 
     /** STC-60: зміни сітки набирають чинності не раніше завтра. */
-    public function testEffectiveFromCannotBeToday(): void
+    public function testEffectiveFromCannotBeTodayForSubsequentVersions(): void
     {
+        $this->configurations->createVersion(BranchFactory::KYIV_ID, $this->payload());
+
         $this->expectException(ValidationException::class);
         $this->expectExceptionMessage('не раніше');
 
@@ -79,8 +81,38 @@ final class StoreConfigurationServiceTest extends TestCase
         );
     }
 
+    /**
+     * Перша конфігурація магазину може діяти вже сьогодні: сітки досі не
+     * існувало, отже немає бронювань, які треба захищати. Без цього філію
+     * неможливо налаштувати й активувати того самого дня (сценарій E2E-01).
+     */
+    public function testFirstConfigurationMayTakeEffectToday(): void
+    {
+        $result = $this->configurations->createVersion(
+            BranchFactory::KYIV_ID,
+            $this->payload(['effectiveFrom' => '2026-08-26T21:00:00+00:00']),
+        );
+
+        self::assertSame(1, $result['version']);
+        self::assertSame('2026-08-26T21:00:00+00:00', $result['effectiveFrom']);
+    }
+
+    /** Дата в минулому неприйнятна навіть для першої версії. */
+    public function testFirstConfigurationCannotTakeEffectInThePast(): void
+    {
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('не раніше');
+
+        $this->configurations->createVersion(
+            BranchFactory::KYIV_ID,
+            $this->payload(['effectiveFrom' => '2026-08-20T00:00:00+00:00']),
+        );
+    }
+
     public function testEffectiveFromDefaultsToTomorrowLocalMidnight(): void
     {
+        // Перша версія діє з сьогодні, тому дефолт «завтра» перевіряємо на другій.
+        $this->configurations->createVersion(BranchFactory::KYIV_ID, $this->payload());
         $result = $this->configurations->createVersion(BranchFactory::KYIV_ID, $this->payload());
 
         // Завтра опівночі за Києвом = 2026-08-27T21:00:00Z (літній час UTC+3).

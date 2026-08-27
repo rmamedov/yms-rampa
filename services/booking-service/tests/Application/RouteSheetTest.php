@@ -1,0 +1,220 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tests\Application;
+
+use App\Application\RouteSheet\RouteSheetService;
+use App\Domain\Access\AccessDeniedException;
+use App\Domain\RouteSheet\RouteSheetEntry;
+use App\Tests\Support\Scenario;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\TestCase;
+
+/**
+ * Маршрутні листи RSHT-01..RSHT-04 і DATA-15.
+ */
+#[CoversClass(RouteSheetService::class)]
+final class RouteSheetTest extends TestCase
+{
+    /** RSHT-01: лист створюється автоматично при першому бронюванні дати. */
+    public function testSheetIsCreatedOnFirstBooking(): void
+    {
+        $scenario = new Scenario();
+        $booking = $scenario->book('2026-08-28 10:00');
+
+        $sheet = $scenario->routeSheetRepository->findBySupplierAndDate(Scenario::SUPPLIER_ID, '2026-08-28');
+
+        self::assertNotNull($sheet);
+        self::assertSame([$booking->id], array_map(
+            static fn (RouteSheetEntry $entry) => $entry->bookingId,
+            $sheet->entries(),
+        ));
+        self::assertSame($sheet->id, $scenario->reload($booking)->routeSheetId());
+    }
+
+    /** RSHT-01 / RSHT-03: точки впорядковані за часом слоту. */
+    public function testEntriesAreOrderedBySlotTime(): void
+    {
+        $scenario = new Scenario();
+        $late = $scenario->book('2026-08-28 12:00', rampId: 'r1');
+        $early = $scenario->book('2026-08-28 10:00', rampId: 'r1');
+
+        $sheet = $scenario->routeSheets->sync(Scenario::SUPPLIER_ID, '2026-08-28');
+
+        self::assertSame([$early->id, $late->id], array_map(
+            static fn (RouteSheetEntry $entry) => $entry->bookingId,
+            $sheet->entries(),
+        ));
+        self::assertSame([1, 2], array_map(
+            static fn (RouteSheetEntry $entry) => $entry->sortOrder,
+            $sheet->entries(),
+        ));
+    }
+
+    /** DATA-15: скасування виключає точку і інкрементує printVersion. */
+    public function testCancelledBookingIsRemovedFromSheet(): void
+    {
+        $scenario = new Scenario();
+        $first = $scenario->book('2026-08-28 10:00');
+        $second = $scenario->book('2026-08-28 12:00');
+
+        $before = $scenario->routeSheets->sync(Scenario::SUPPLIER_ID, '2026-08-28')->printVersion();
+        $scenario->lifecycle->cancel($scenario->supplier(), $first->id, $scenario->now());
+        $after = $scenario->routeSheets->sync(Scenario::SUPPLIER_ID, '2026-08-28');
+
+        self::assertSame([$second->id], array_map(
+            static fn (RouteSheetEntry $entry) => $entry->bookingId,
+            $after->entries(),
+        ));
+        self::assertGreaterThan($before, $after->printVersion());
+    }
+
+    /** RSHT-02: призначення водія на весь лист. */
+    public function testDriverAssignedToWholeSheet(): void
+    {
+        $scenario = new Scenario();
+        $first = $scenario->book('2026-08-28 10:00');
+        $second = $scenario->book('2026-08-28 12:00');
+
+        $sheet = $scenario->routeSheets->assignDriverToSheet(
+            $scenario->supplier(),
+            Scenario::SUPPLIER_ID,
+            '2026-08-28',
+            'du-7',
+            $scenario->now(),
+        );
+
+        self::assertSame(['du-7', 'du-7'], array_map(
+            static fn (RouteSheetEntry $entry) => $entry->driverId,
+            $sheet->entries(),
+        ));
+        self::assertSame('du-7', $scenario->reload($first)->driverId());
+        self::assertSame('du-7', $scenario->reload($second)->driverId());
+    }
+
+    /** RSHT-02: призначення на окреме бронювання перекриває призначення листа. */
+    public function testBookingLevelDriverOverridesSheetDriver(): void
+    {
+        $scenario = new Scenario();
+        $first = $scenario->book('2026-08-28 10:00');
+        $second = $scenario->book('2026-08-28 12:00');
+
+        $scenario->routeSheets->assignDriverToSheet(
+            $scenario->supplier(),
+            Scenario::SUPPLIER_ID,
+            '2026-08-28',
+            'du-7',
+            $scenario->now(),
+        );
+        $sheet = $scenario->routeSheets->assignDriverToBooking(
+            $scenario->supplier(),
+            $second->id,
+            'du-8',
+            $scenario->now(),
+        );
+
+        self::assertSame('du-7', $sheet->driverFor($first->id));
+        self::assertSame('du-8', $sheet->driverFor($second->id));
+        self::assertSame('du-8', $scenario->reload($second)->driverId());
+    }
+
+    /** RSHT-04: водій бачить лише власні точки. */
+    public function testDriverSeesOnlyOwnPoints(): void
+    {
+        $scenario = new Scenario();
+        $first = $scenario->book('2026-08-28 10:00');
+        $second = $scenario->book('2026-08-28 12:00');
+
+        $scenario->routeSheets->assignDriverToBooking($scenario->supplier(), $first->id, 'du-7', $scenario->now());
+        $scenario->routeSheets->assignDriverToBooking($scenario->supplier(), $second->id, 'du-8', $scenario->now());
+
+        $sheets = $scenario->routeSheets->forDriver('du-7', '2026-08-28');
+
+        self::assertCount(1, $sheets);
+        self::assertCount(1, $sheets[0]['points']);
+        self::assertSame($first->id, $sheets[0]['points'][0]['bookingId']);
+    }
+
+    /** RSHT-02: без призначення водій бронювання не бачить. */
+    public function testUnassignedBookingIsInvisibleToDrivers(): void
+    {
+        $scenario = new Scenario();
+        $scenario->book('2026-08-28 10:00');
+
+        self::assertSame([], $scenario->routeSheets->forDriver('du-7', '2026-08-28'));
+    }
+
+    /** RSHT-03: склад друкованої версії. */
+    public function testPrintViewContainsRequiredFields(): void
+    {
+        $scenario = new Scenario();
+        $booking = $scenario->creation->create(
+            $scenario->supplier(),
+            $scenario->request('2026-08-28 10:00', orderId: 'ORD-55871'),
+            $scenario->now(),
+        );
+        $scenario->routeSheets->assignDriverToBooking($scenario->supplier(), $booking->id, 'du-7', $scenario->now());
+
+        $view = $scenario->routeSheets->printView($scenario->supplier(), Scenario::SUPPLIER_ID, '2026-08-28');
+        $point = $view['points'][0];
+
+        self::assertSame('ТОВ Молокія', $view['supplierName']);
+        self::assertSame('2026-08-28', $view['date']);
+        self::assertSame('Київ', $point['city']);
+        self::assertSame('вул. Хрещатик, 12', $point['address']);
+        self::assertSame('10:00', $point['localTime']);
+        self::assertSame('r1', $point['rampId']);
+        self::assertSame('ORD-55871', $point['orderId']);
+        self::assertSame(8, $point['palletsCount']);
+        self::assertSame('du-7', $point['driverId']);
+    }
+
+    /** Лист чужого постачальника недоступний. */
+    public function testForeignSupplierCannotReadRouteSheet(): void
+    {
+        $scenario = new Scenario();
+        $scenario->book('2026-08-28 10:00');
+
+        $this->expectException(AccessDeniedException::class);
+        $scenario->routeSheets->printView(
+            $scenario->supplier(Scenario::OTHER_SUPPLIER_ID),
+            Scenario::SUPPLIER_ID,
+            '2026-08-28',
+        );
+    }
+
+    /** EDIT-05: зміна водія бронювання оновлює листи обох водіїв негайно. */
+    public function testDriverChangeMovesPointBetweenDrivers(): void
+    {
+        $scenario = new Scenario();
+        $booking = $scenario->book('2026-08-28 10:00', driverId: 'du-7');
+        $scenario->routeSheets->assignDriverToBooking($scenario->supplier(), $booking->id, 'du-7', $scenario->now());
+
+        $scenario->lifecycle->reassign(
+            actor: $scenario->supplier(),
+            bookingId: $booking->id,
+            now: $scenario->now(),
+            driverId: 'du-8',
+            driverProvided: true,
+        );
+
+        self::assertSame([], $scenario->routeSheets->forDriver('du-7', '2026-08-28'));
+        self::assertCount(1, $scenario->routeSheets->forDriver('du-8', '2026-08-28'));
+    }
+
+    /** Walk-in магазину до маршрутних листів постачальника не потрапляє. */
+    public function testWalkInIsNotAddedToRouteSheet(): void
+    {
+        $scenario = new Scenario();
+        $scenario->creation->registerWalkIn(
+            $scenario->storeStaff(),
+            $scenario->walkInRequest('2026-08-27 09:00'),
+            $scenario->now(),
+        );
+
+        $sheet = $scenario->routeSheetRepository->findBySupplierAndDate(Scenario::SUPPLIER_ID, '2026-08-27');
+
+        self::assertNull($sheet);
+    }
+}

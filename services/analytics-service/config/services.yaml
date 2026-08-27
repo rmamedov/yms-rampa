@@ -15,20 +15,43 @@ services:
     # Годинник: домен не звертається до системного часу напряму.
     App\Domain\Clock\Clock: '@App\Infrastructure\System\SystemClock'
 
+    # Аргументи Mongo-клієнта задаються САМЕ тут, а не в
+    # config/packages/prod/storage.yaml. Причина — порядок імпорту
+    # (MicroKernelTrait::configureContainer):
+    #
+    #     config/packages/prod/*.yaml  ->  config/services.yaml
+    #
+    # PSR-4-глоб `App\: resource: '../src/'` вище перереєстровує КОЖЕН клас із
+    # src/, тож явне визначення MongoConnection у prod-файлі було б затерте
+    # автовайринговим, і конструктор мовчки отримав би дефолти з коду
+    # (mongodb://127.0.0.1:27017 / yms_analytics) замість MONGODB_URL і
+    # MONGODB_DB. Алiаси інтерфейсів такої проблеми не мають: глоб пропускає
+    # інтерфейси, тому вони живуть у prod-файлі.
+    #
+    # У dev/test цей сервіс скомпільований, але не використовується (там активні
+    # InMemory-репозиторії), а зʼєднання ліниве — Manager не створюється.
     App\Infrastructure\Mongo\MongoConnection:
         arguments:
             $dsn: '%analytics.mongo.dsn%'
             $database: '%analytics.mongo.database%'
 
-    # Дефолтні реалізації репозиторіїв — InMemory: сервіс піднімається і працює
-    # без MongoDB та без розширення ext-mongodb (dev, тести).
-    App\Domain\Fact\BookingFactRepository: '@App\Infrastructure\InMemory\InMemoryBookingFactRepository'
-    App\Domain\Slot\SlotFactRepository: '@App\Infrastructure\InMemory\InMemorySlotFactRepository'
-    App\Domain\Stats\DailyStoreStatsRepository: '@App\Infrastructure\InMemory\InMemoryDailyStoreStatsRepository'
-
-when@prod:
+# Дефолтні реалізації репозиторіїв — InMemory: сервіс піднімається і працює
+# без MongoDB та без розширення ext-mongodb.
+#
+# Оголошені окремо для dev і test, а НЕ безумовно. Причина та сама, що вище:
+# config/packages/prod/storage.yaml читається РАНІШЕ за цей файл, тож
+# безумовний алiас тут перекрив би прод-звʼязування і прод мовчки поїхав би
+# на InMemory.
+when@dev:
     services:
-        # У проді read-моделі зберігаються в MongoDB 7.x.
-        App\Domain\Fact\BookingFactRepository: '@App\Infrastructure\Mongo\MongoBookingFactRepository'
-        App\Domain\Slot\SlotFactRepository: '@App\Infrastructure\Mongo\MongoSlotFactRepository'
-        App\Domain\Stats\DailyStoreStatsRepository: '@App\Infrastructure\Mongo\MongoDailyStoreStatsRepository'
+        App\Domain\Fact\BookingFactRepository: '@App\Infrastructure\InMemory\InMemoryBookingFactRepository'
+        App\Domain\Slot\SlotFactRepository: '@App\Infrastructure\InMemory\InMemorySlotFactRepository'
+        App\Domain\Stats\DailyStoreStatsRepository: '@App\Infrastructure\InMemory\InMemoryDailyStoreStatsRepository'
+
+when@test:
+    services:
+        App\Domain\Fact\BookingFactRepository: '@App\Infrastructure\InMemory\InMemoryBookingFactRepository'
+        App\Domain\Slot\SlotFactRepository: '@App\Infrastructure\InMemory\InMemorySlotFactRepository'
+        App\Domain\Stats\DailyStoreStatsRepository: '@App\Infrastructure\InMemory\InMemoryDailyStoreStatsRepository'
+
+# Прод-звʼязування (MongoDB) — у config/packages/prod/storage.yaml.

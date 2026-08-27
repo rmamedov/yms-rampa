@@ -52,6 +52,9 @@ services:
             $database: '%store.mongo_database%'
 
     # --- Репозиторії: InMemory за замовчуванням ---
+    # У проді ці п'ять аліасів переприв'язуються на Mongo — див.
+    # config/packages/prod/storage.yaml (єдине джерело правди прод-сховищ),
+    # який імпортується останнім через config/services_prod.yaml.
     App\Domain\Branch\BranchRepository: '@App\Infrastructure\InMemory\InMemoryBranchRepository'
     App\Domain\Configuration\StoreConfigurationRepository: '@App\Infrastructure\InMemory\InMemoryStoreConfigurationRepository'
     App\Domain\Configuration\ReservedSlotRuleRepository: '@App\Infrastructure\InMemory\InMemoryReservedSlotRuleRepository'
@@ -66,11 +69,9 @@ services:
         arguments:
             $defaultFixturePath: '%store.branches_fixture%'
 
-# У проді довідник живе в MongoDB (10.2), а події йдуть у RabbitMQ.
-when@prod:
-    services:
-        App\Domain\Branch\BranchRepository: '@App\Infrastructure\Mongo\MongoBranchRepository'
-        App\Domain\Configuration\StoreConfigurationRepository: '@App\Infrastructure\Mongo\MongoStoreConfigurationRepository'
-        App\Domain\Configuration\ReservedSlotRuleRepository: '@App\Infrastructure\Mongo\MongoReservedSlotRuleRepository'
-        App\Domain\Configuration\SlotBlockRepository: '@App\Infrastructure\Mongo\MongoSlotBlockRepository'
-        App\Domain\Sync\SyncLogRepository: '@App\Infrastructure\Mongo\MongoSyncLogRepository'
+# У проді довідник живе в MongoDB (10.2).
+#
+# Блок `when@prod` тут свідомо ВІДСУТНІЙ: прод-звʼязування описані в
+# config/packages/prod/storage.yaml, щоб профіль сховища жив в одному файлі
+# (як у notification-service та identity-*-service). Не дублюйте їх тут —
+# два джерела правди рано чи пізно розʼїдуться.

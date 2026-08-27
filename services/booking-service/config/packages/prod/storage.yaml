@@ -1,0 +1,88 @@
+# yaml-language-server: $schema=../../../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+#
+# ПРОД-СХОВИЩА booking-service.
+#
+# Файл читається ЛИШЕ при APP_ENV=prod, тому dev і тести лишаються на
+# InMemory-звʼязуваннях із config/packages/storage.yaml і не потребують ані
+# MongoDB, ані Redis, ані розширень ext-mongodb / ext-redis.
+#
+# Класи src/Infrastructure/Mongo та src/Infrastructure/Redis виключені з
+# глоба App\ у config/services.yaml (розширень може не бути на машині
+# розробника), тому тут вони реєструються явно.
+#
+# ПОРЯДОК ЗАВАНТАЖЕННЯ (важливо, якщо правитимете config/services.yaml):
+#     config/packages/*.yaml → config/packages/prod/*.yaml → config/services.yaml
+# Прод-аліаси нижче перекривають типові з config/packages/storage.yaml, але
+# будь-який аліас тих самих id у config/services.yaml мовчки перезапише їх.
+
+parameters:
+    # Дефолти env-змінних сервісу; на проді значення приходять з оточення.
+    env(MONGODB_URI): 'mongodb://127.0.0.1:27017'
+    env(MONGODB_DATABASE): 'bookings'
+    env(REDIS_URL): 'redis://127.0.0.1:6379'
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    # --- Адаптери MongoDB ---------------------------------------------------
+    #
+    # Драйвер підключається ліниво: конструктор Manager лише розбирає DSN,
+    # тому збірка контейнера не потребує піднятої MongoDB.
+    MongoDB\Driver\Manager:
+        arguments:
+            - '%env(MONGODB_URI)%'
+
+    App\Infrastructure\Mongo\MongoConnection:
+        arguments:
+            $manager: '@MongoDB\Driver\Manager'
+            $database: '%env(MONGODB_DATABASE)%'
+
+    App\Infrastructure\Mongo\MongoOutboxStore:
+        arguments:
+            $connection: '@App\Infrastructure\Mongo\MongoConnection'
+
+    App\Infrastructure\Mongo\MongoBookingRepository:
+        arguments:
+            $connection: '@App\Infrastructure\Mongo\MongoConnection'
+            $outbox: '@App\Infrastructure\Mongo\MongoOutboxStore'
+
+    App\Infrastructure\Mongo\MongoRouteSheetRepository:
+        arguments:
+            $connection: '@App\Infrastructure\Mongo\MongoConnection'
+
+    # Використовується під час деплою (yms:mongo:install-indexes, DATA-12).
+    App\Infrastructure\Mongo\MongoIndexInstaller:
+        arguments:
+            $connection: '@App\Infrastructure\Mongo\MongoConnection'
+
+    # --- Адаптери Redis -----------------------------------------------------
+    #
+    # На відміну від Mongo, RedisFactory::create() відкриває зʼєднання одразу.
+    # Сам сервіс контейнер створює лише за потреби (перший запит із холдами
+    # слотів), але в цей момент Redis має бути доступний — інакше RedisException.
+    # Збірці контейнера (cache:clear, lint:container) Redis не потрібен.
+    Redis:
+        class: Redis
+        factory: ['App\Infrastructure\Redis\RedisFactory', 'create']
+        arguments:
+            - '%env(REDIS_URL)%'
+
+    App\Infrastructure\Redis\RedisSlotHoldStore:
+        arguments:
+            $redis: '@Redis'
+
+    # --- Порти домену → продакшн-адаптери -----------------------------------
+    App\Domain\Outbox\OutboxStore: '@App\Infrastructure\Mongo\MongoOutboxStore'
+    App\Domain\Booking\BookingRepository: '@App\Infrastructure\Mongo\MongoBookingRepository'
+    App\Domain\RouteSheet\RouteSheetRepository: '@App\Infrastructure\Mongo\MongoRouteSheetRepository'
+    App\Domain\Hold\SlotHoldStore: '@App\Infrastructure\Redis\RedisSlotHoldStore'
+
+    # Порти без Mongo/Redis-реалізацій лишаються на аліасах із config/services.yaml
+    # і в проді теж працюють у памʼяті, тобто їхній стан не переживає процес:
+    #   App\Domain\Slot\SlotOverlayProvider    → InMemorySlotOverlayProvider
+    #   App\Domain\Supplier\SupplierDirectory  → InMemorySupplierDirectory
+    #   App\Domain\Store\StoreConfigProvider   → FixtureStoreConfigProvider
+    # (для StoreConfigProvider існує HTTP-адаптер HttpStoreConfigProvider —
+    #  його вмикають окремо разом зі STORE_SERVICE_BASE_URL, це не сховище.)

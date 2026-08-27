@@ -5,9 +5,9 @@
 # See also https://symfony.com/doc/current/service_container/import.html
 
 parameters:
-    # Підключення до інфраструктури; реальні значення приходять з .env
-    yms.mongodb_uri: '%env(default::MONGODB_URI)%'
-    yms.mongodb_database: '%env(default::MONGODB_DATABASE)%'
+    # Підключення до інфраструктури; реальні значення приходять з .env.
+    # MONGODB_URI / MONGODB_DATABASE / REDIS_URL читає безпосередньо
+    # config/packages/prod/storage.yaml — там же лежать їхні дефолти.
     yms.store_service_base_url: '%env(default::STORE_SERVICE_BASE_URL)%'
 
 services:
@@ -31,39 +31,27 @@ services:
 
     # --- Порти домену → адаптери -------------------------------------------
     #
-    # Дефолтна збірка (dev/test) працює повністю в памʼяті: MongoDB-сервер
-    # може бути ще не піднятий, а юніт-тести не мають від нього залежати.
-    # Для прода аліаси перемикаються на Mongo/Redis-реалізації (див. нижче).
+    # Порти сховищ (OutboxStore, BookingRepository, RouteSheetRepository,
+    # SlotHoldStore) звʼязані НЕ тут, а в:
+    #   config/packages/storage.yaml       — типово, InMemory (dev/test);
+    #   config/packages/prod/storage.yaml  — прод, MongoDB + Redis.
+    # Оголошувати їх у цьому файлі не можна: ядро імпортує
+    # config/packages/{env}/*.yaml ПЕРЕД config/services.yaml, тож тутешній
+    # аліас мовчки перезаписав би прод-звʼязування.
+    #
+    # Нижче — порти, для яких Mongo/Redis-адаптерів немає: час, генерація id
+    # і довідники, що в усіх оточеннях (включно з прод) працюють у памʼяті.
     App\Domain\Shared\Clock: '@App\Infrastructure\Clock\SystemClock'
     App\Domain\Shared\IdGenerator: '@App\Infrastructure\Shared\RandomIdGenerator'
-    App\Domain\Outbox\OutboxStore: '@App\Infrastructure\InMemory\InMemoryOutboxStore'
-    App\Domain\Booking\BookingRepository: '@App\Infrastructure\InMemory\InMemoryBookingRepository'
-    App\Domain\RouteSheet\RouteSheetRepository: '@App\Infrastructure\InMemory\InMemoryRouteSheetRepository'
-    App\Domain\Hold\SlotHoldStore: '@App\Infrastructure\InMemory\InMemorySlotHoldStore'
     App\Domain\Slot\SlotOverlayProvider: '@App\Infrastructure\InMemory\InMemorySlotOverlayProvider'
     App\Domain\Supplier\SupplierDirectory: '@App\Infrastructure\InMemory\InMemorySupplierDirectory'
     App\Domain\Store\StoreConfigProvider: '@App\Infrastructure\Store\FixtureStoreConfigProvider'
 
-    # --- Продакшн-адаптери --------------------------------------------------
+    # --- Конфігурація магазинів по HTTP -------------------------------------
     #
-    # Розкоментувати після встановлення MongoDB, Redis і відповідних
-    # PHP-розширень; аліаси вище тоді вказують на ці сервіси.
-    #
-    # MongoDB\Driver\Manager:
-    #     arguments: ['%yms.mongodb_uri%']
-    #
-    # App\Infrastructure\Mongo\MongoConnection:
-    #     arguments: ['@MongoDB\Driver\Manager', '%yms.mongodb_database%']
-    #
-    # App\Infrastructure\Mongo\MongoOutboxStore: ~
-    # App\Infrastructure\Mongo\MongoBookingRepository: ~
-    # App\Infrastructure\Mongo\MongoRouteSheetRepository: ~
-    #
-    # Redis:
-    #     factory: ['App\Infrastructure\Redis\RedisFactory', 'create']
-    #     arguments: ['%env(REDIS_URL)%']
-    #
-    # App\Infrastructure\Redis\RedisSlotHoldStore: ~
+    # Ще не ввімкнено: потребує піднятого store-service за
+    # %yms.store_service_base_url%. Вмикати разом із переприв'язкою
+    # App\Domain\Store\StoreConfigProvider на HttpStoreConfigProvider.
     #
     # App\Infrastructure\Store\CurlStoreServiceClient:
     #     arguments: ['%yms.store_service_base_url%']

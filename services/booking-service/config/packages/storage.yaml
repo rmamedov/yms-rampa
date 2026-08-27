@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=../../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+#
+# Сховища booking-service — ТИПОВА (базова) конфігурація для всіх оточень.
+#
+# Доменні порти звʼязані з InMemory-реалізаціями: локальна розробка і юніт-тести
+# не потребують ані MongoDB, ані Redis, ані розширень ext-mongodb / ext-redis.
+#
+# ПРОД перекриває ці звʼязування у config/packages/prod/storage.yaml.
+# Файл лежить саме в config/packages/, а не в config/services.yaml, бо ядро
+# (MicroKernelTrait::configureContainer) імпортує конфіги в такому порядку:
+#     config/packages/*.yaml  →  config/packages/{env}/*.yaml  →  config/services.yaml
+# тобто перекрити аліас із config/packages/prod/ можна лише тоді, коли типове
+# звʼязування оголошене РАНІШЕ — у config/packages/. (Ті самі порти в
+# config/services.yaml мовчки затерли б прод-конфігурацію.)
+#
+# Самі InMemory-класи реєструються глобом App\ у config/services.yaml.
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\Domain\Outbox\OutboxStore: '@App\Infrastructure\InMemory\InMemoryOutboxStore'
+    App\Domain\Booking\BookingRepository: '@App\Infrastructure\InMemory\InMemoryBookingRepository'
+    App\Domain\RouteSheet\RouteSheetRepository: '@App\Infrastructure\InMemory\InMemoryRouteSheetRepository'
+    App\Domain\Hold\SlotHoldStore: '@App\Infrastructure\InMemory\InMemorySlotHoldStore'

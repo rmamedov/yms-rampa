@@ -548,13 +548,24 @@ final class Booking
     /** EDIT-03: скасоване бронювання миттєво повертає слот у пул. */
     public function slotReleasedEvent(DateTimeImmutable $now): DomainEvent
     {
+        return $this->slotReleasedEventForRamp($this->rampId, $now);
+    }
+
+    /**
+     * Звільнення конкретної рампи. Потрібне окремо для EDIT-06: після
+     * переведення бронювання рампа вже змінена, а звільняється попередня.
+     */
+    public function slotReleasedEventForRamp(string $rampId, DateTimeImmutable $now): DomainEvent
+    {
+        $key = new SlotKey($this->storeId, $rampId, $this->slotStart);
+
         return new DomainEvent(
             type: EventType::SlotReleased,
             aggregateType: 'slot',
-            aggregateId: $this->slotKey()->toString(),
+            aggregateId: $key->toString(),
             payload: [
                 'storeId' => $this->storeId,
-                'rampId' => $this->rampId,
+                'rampId' => $rampId,
                 'slotStart' => $this->slotStart->format('Y-m-d\TH:i:s\Z'),
                 'slotEnd' => $this->slotEnd->format('Y-m-d\TH:i:s\Z'),
                 'releasedBookingId' => $this->id,

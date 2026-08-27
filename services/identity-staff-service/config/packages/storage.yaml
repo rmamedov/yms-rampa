@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=../../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+#
+# Сховища identity-staff-service — ТИПОВА (базова) конфігурація для всіх оточень.
+#
+# Тут доменні інтерфейси звʼязані з InMemory-реалізаціями: локальна розробка і
+# тести не потребують ані MongoDB, ані Redis, ані розширень ext-mongodb/ext-redis.
+#
+# ПРОД перекриває ці звʼязування у config/packages/prod/storage.yaml.
+# Файл лежить саме в config/packages/, а не в config/services.yaml, бо ядро
+# (MicroKernelTrait::configureContainer) імпортує конфіги в такому порядку:
+#     config/packages/*.yaml  →  config/packages/{env}/*.yaml  →  config/services.yaml
+# тобто перекрити аліас із config/packages/prod/ можна лише тоді, коли типове
+# звʼязування оголошене РАНІШЕ — у config/packages/.
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\Infrastructure\InMemory\InMemoryStaffUserRepository: ~
+    App\Domain\Identity\StaffUserRepository: '@App\Infrastructure\InMemory\InMemoryStaffUserRepository'
+
+    App\Infrastructure\InMemory\InMemoryRefreshTokenRepository: ~
+    App\Domain\Auth\RefreshTokenRepository: '@App\Infrastructure\InMemory\InMemoryRefreshTokenRepository'
+
+    App\Infrastructure\InMemory\InMemoryLoginAttemptRepository: ~
+    App\Domain\Auth\LoginAttemptRepository: '@App\Infrastructure\InMemory\InMemoryLoginAttemptRepository'
+
+    App\Infrastructure\InMemory\InMemoryAccessTokenDenylist: ~
+    App\Domain\Auth\AccessTokenDenylist: '@App\Infrastructure\InMemory\InMemoryAccessTokenDenylist'
+
+    App\Infrastructure\InMemory\InMemoryTwoFactorChallengeStore: ~
+    App\Domain\Auth\TwoFactorChallengeStore: '@App\Infrastructure\InMemory\InMemoryTwoFactorChallengeStore'
+
+    App\Infrastructure\InMemory\InMemoryRoleAuditRepository: ~
+    App\Domain\UserManagement\RoleAuditRepository: '@App\Infrastructure\InMemory\InMemoryRoleAuditRepository'

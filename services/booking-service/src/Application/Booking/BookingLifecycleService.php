@@ -142,10 +142,13 @@ final readonly class BookingLifecycleService
             throw new SlotAlreadyBookedException($targetKey);
         }
 
+        $previousRampId = $booking->rampId();
+        $reassigned = $booking->moveToRamp($actor, $rampId, $now);
+
         $this->bookings->save($booking, [
-            $booking->moveToRamp($actor, $rampId, $now),
+            $reassigned,
             // Стара рампа звільняється для інших бронювань цього слота.
-            $booking->slotReleasedEvent($now),
+            $booking->slotReleasedEventForRamp($previousRampId, $now),
         ]);
 
         return $booking;

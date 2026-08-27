@@ -1,0 +1,85 @@
+# yaml-language-server: $schema=../../../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+#
+# ПРОД-СХОВИЩА store-service (розділ 10.2).
+#
+# Єдине місце, де доменні порти сховищ звʼязуються з реальними реалізаціями на
+# MongoDB. Файл читається ЛИШЕ при APP_ENV=prod, тому dev і test лишаються на
+# InMemory-реалізаціях із config/services.yaml і не потребують ані запущеного
+# сервера MongoDB, ані розширення ext-mongodb.
+#
+# ПОРЯДОК ЗАВАНТАЖЕННЯ (важливо, якщо правитимете config/services.yaml).
+# MicroKernelTrait::configureContainer імпортує:
+#
+#   config/packages/*.yaml
+#   → config/packages/prod/*.yaml      ← цей файл
+#   → config/services.yaml             ← перетирає аліаси, оголошені вище
+#   → config/services_prod.yaml
+#
+# Тобто config/services.yaml вантажиться ПІСЛЯ цього файлу, і його аліаси на
+# InMemory мовчки перетерли б прод-звʼязування. Саме тому config/services_prod.yaml
+# імпортує цей файл ще раз, останнім. Не переносьте ці id у кореневий блок
+# `services:` файлу config/services.yaml — прод знову опиниться на InMemory.
+#
+# DSN і назва бази беруться з env-змінних сервісу — MONGODB_URL і MONGODB_DB
+# (параметри store.mongo_dsn / store.mongo_database). Сам сервіс MongoConnection
+# визначено в config/services.yaml, бо консольна команда yms:mongo:init потребує
+# його в усіх середовищах. Підключення ліниве: обʼєкт драйвера створюється лише
+# при першому запиті, тож cache:clear і lint:container не потребують живої Mongo.
+
+services:
+    _defaults:
+        # Аргументи описані явно, щоб прод-профіль був самодостатнім і не залежав
+        # від того, як саме автовайринг розвʼязує MongoConnection.
+        autowire: false
+        autoconfigure: false
+        public: false
+
+    # --- Колекція branches (10.2.1) --------------------------------------
+    App\Infrastructure\Mongo\MongoBranchRepository:
+        arguments:
+            $connection: '@App\Infrastructure\Mongo\MongoConnection'
+    App\Domain\Branch\BranchRepository: '@App\Infrastructure\Mongo\MongoBranchRepository'
+
+    # --- Колекція store_configs: версіонована конфігурація (10.2.2) ------
+    App\Infrastructure\Mongo\MongoStoreConfigurationRepository:
+        arguments:
+            $connection: '@App\Infrastructure\Mongo\MongoConnection'
+    App\Domain\Configuration\StoreConfigurationRepository: '@App\Infrastructure\Mongo\MongoStoreConfigurationRepository'
+
+    # --- Колекція reserved_slot_rules (10.2.3, STC-40..43) ---------------
+    App\Infrastructure\Mongo\MongoReservedSlotRuleRepository:
+        arguments:
+            $connection: '@App\Infrastructure\Mongo\MongoConnection'
+    App\Domain\Configuration\ReservedSlotRuleRepository: '@App\Infrastructure\Mongo\MongoReservedSlotRuleRepository'
+
+    # --- Колекція slot_blocks (10.2.3, STC-50..52) -----------------------
+    App\Infrastructure\Mongo\MongoSlotBlockRepository:
+        arguments:
+            $connection: '@App\Infrastructure\Mongo\MongoConnection'
+    App\Domain\Configuration\SlotBlockRepository: '@App\Infrastructure\Mongo\MongoSlotBlockRepository'
+
+    # --- Колекція sync_log, TTL 180 днів (10.2.3, INT-11) ----------------
+    App\Infrastructure\Mongo\MongoSyncLogRepository:
+        arguments:
+            $connection: '@App\Infrastructure\Mongo\MongoConnection'
+    App\Domain\Sync\SyncLogRepository: '@App\Infrastructure\Mongo\MongoSyncLogRepository'
+
+    # --- Індекси колекцій (команда yms:mongo:init) -----------------------
+    App\Infrastructure\Mongo\MongoIndexInitializer:
+        arguments:
+            $connection: '@App\Infrastructure\Mongo\MongoConnection'
+
+    # --- Порти БЕЗ персистентної реалізації ------------------------------
+    # Redis-реалізацій у src/Infrastructure/ немає взагалі (ані холдів слотів,
+    # ані denylist-а токенів, ані throttling-а), тому REDIS_DSN тут свідомо не
+    # використовується.
+    #
+    # App\Domain\Event\EventPublisher лишається на
+    # App\Infrastructure\InMemory\InMemoryEventPublisher: Mongo-outbox або
+    # Messenger-транспорту RabbitMQ у цьому сервісі ще не реалізовано, тож
+    # доменні події BranchSynced / StoreConfigChanged / SlotReleased у проді
+    # нікуди не виходять за межі HTTP-запиту.
+    #
+    # App\Domain\Sync\BranchSource лишається на
+    # App\Infrastructure\Fixture\FixtureBranchSource: HTTP-клієнта до MCP
+    # (розділ 11.1) у кодовій базі немає, синхронізація читає файл фікстури.

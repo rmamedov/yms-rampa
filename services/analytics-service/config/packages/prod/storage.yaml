@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=../../../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+
+# Прод-сховище analytics-service: read-моделі живуть у MongoDB 7.x.
+#
+# Файл лежить саме в config/packages/prod/, тому dev і test лишаються на
+# InMemory-реалізаціях (див. config/services.yaml) і не потребують ані
+# піднятої бази, ані розширення ext-mongodb.
+#
+# ПОРЯДОК ІМПОРТУ (MicroKernelTrait::configureContainer):
+#
+#     config/packages/*.yaml
+#  -> config/packages/prod/*.yaml      <- цей файл
+#  -> config/services.yaml
+#
+# Наслідки, які тут важливі:
+#
+# 1. Цей файл читається РАНІШЕ за config/services.yaml, тож будь-який
+#    БЕЗУМОВНИЙ алiас там перекрив би звʼязування нижче. Саме тому дефолтні
+#    InMemory-алiаси в config/services.yaml оголошені під when@dev / when@test.
+#    Якщо колись повернути їх у безумовний блок — прод мовчки поїде на InMemory,
+#    і дані знову перестануть переживати HTTP-запит.
+#
+# 2. Тут можна оголошувати лише АЛIАСИ ІНТЕРФЕЙСІВ. Конкретні класи з src/
+#    оголошувати марно: PSR-4-глоб `App\: resource: '../src/'` у
+#    config/services.yaml перереєстрував би їх автовайринговими і затер би
+#    аргументи. Тому налаштування самого MongoConnection (DSN + база з
+#    MONGODB_URL / MONGODB_DB) лишається в config/services.yaml.
+
+services:
+    # Доменні інтерфейси -> Mongo-реалізації.
+    # Колекції: booking_facts, slot_facts, daily_store_stats.
+    App\Domain\Fact\BookingFactRepository: '@App\Infrastructure\Mongo\MongoBookingFactRepository'
+    App\Domain\Slot\SlotFactRepository: '@App\Infrastructure\Mongo\MongoSlotFactRepository'
+    App\Domain\Stats\DailyStoreStatsRepository: '@App\Infrastructure\Mongo\MongoDailyStoreStatsRepository'

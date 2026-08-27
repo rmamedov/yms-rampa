@@ -1,0 +1,66 @@
+# yaml-language-server: $schema=../../../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+#
+# Прод-профіль сховища identity-partner-service.
+#
+# Тільки для APP_ENV=prod: dev і test лишаються на InMemory-реалізаціях із
+# config/services.yaml, тому сервіс піднімається і тести проходять на машині
+# без MongoDB.
+#
+# Джерело значень — змінні оточення сервісу:
+#   MONGODB_URL — DSN кластера (parameter app.mongo.uri з config/services.yaml);
+#   MONGODB_DB  — назва бази контуру (за замовчуванням identity_partner).
+#
+# Redis-реалізацій у src/Infrastructure/ немає (ані холдів, ані denylist-а
+# токенів, ані throttling-а), тому REDIS_DSN тут свідомо не використовується:
+# лічильник невдалих логінів веде Mongo-колекція login_attempts (AUTH-50).
+
+parameters:
+    # Навмисно окремий ключ, а не app.mongo.database: config/services.yaml
+    # імпортується ПІСЛЯ config/packages/prod/*.yaml, тож переозначення
+    # app.mongo.database тут було б перетерте фіксованим значенням.
+    app.mongo.default_prod_database: 'identity_partner'
+    app.mongo.prod_database: '%env(default:app.mongo.default_prod_database:MONGODB_DB)%'
+
+services:
+    _defaults:
+        # Аргументи описані явно: класи з src/Infrastructure/Mongo/ виключені
+        # з автореєстрації в config/services.yaml.
+        autowire: false
+        autoconfigure: false
+
+    # --- Клієнт MongoDB ------------------------------------------------------
+    # Низькорівневий Manager з ext-mongodb (обгортка MongoSupport працює саме з
+    # ним). Фабрика додатково перевіряє наявність розширення.
+    MongoDB\Driver\Manager:
+        factory: ['App\Infrastructure\Mongo\MongoManagerFactory', 'create']
+        arguments:
+            $uri: '%app.mongo.uri%'
+
+    # --- Репозиторії (10.6) --------------------------------------------------
+    App\Infrastructure\Mongo\MongoPartnerAccountRepository:
+        arguments:
+            $manager: '@MongoDB\Driver\Manager'
+            $database: '%app.mongo.prod_database%'
+
+    App\Infrastructure\Mongo\MongoRefreshTokenRepository:
+        arguments:
+            $manager: '@MongoDB\Driver\Manager'
+            $database: '%app.mongo.prod_database%'
+
+    App\Infrastructure\Mongo\MongoLoginAttemptRepository:
+        arguments:
+            $manager: '@MongoDB\Driver\Manager'
+            $database: '%app.mongo.prod_database%'
+
+    # --- Переприв'язка доменних інтерфейсів ---------------------------------
+    App\Domain\Account\PartnerAccountRepository: '@App\Infrastructure\Mongo\MongoPartnerAccountRepository'
+    App\Domain\Session\RefreshTokenRepository: '@App\Infrastructure\Mongo\MongoRefreshTokenRepository'
+    App\Domain\Session\LoginAttemptRepository: '@App\Infrastructure\Mongo\MongoLoginAttemptRepository'
+
+    # --- Консольні команди ---------------------------------------------------
+    # Індекси мають створюватись у тій самій базі, що й читає застосунок.
+    App\Command\InitMongoIndexesCommand:
+        arguments:
+            $mongoUri: '%app.mongo.uri%'
+            $database: '%app.mongo.prod_database%'
+        tags: ['console.command']

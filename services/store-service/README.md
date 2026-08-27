@@ -25,10 +25,32 @@ src/
 ```
 
 Репозиторії описані **інтерфейсами в домені**. У `dev`/`test` вони прив'язані до
-InMemory-реалізацій (MongoDB може бути ще не піднято), у `prod` — до Mongo-реалізацій
-(`config/services.yaml`, секція `when@prod`). Відсутність розширення `ext-mongodb`
-не ламає ні автозавантаження, ні контейнер, ні тести: перевірка виконується в рантаймі
-через `MongoConnection::isAvailable()`.
+InMemory-реалізацій (MongoDB може бути ще не піднято) у `config/services.yaml`,
+у `prod` — до Mongo-реалізацій у `config/packages/prod/storage.yaml`. Відсутність
+розширення `ext-mongodb` не ламає ні автозавантаження, ні контейнер, ні тести:
+перевірка виконується в рантаймі через `MongoConnection::isAvailable()`.
+
+### Прод-профіль сховища
+
+`config/packages/prod/storage.yaml` — **єдине джерело правди** для звʼязування
+доменних портів із MongoDB (`MONGODB_URL`, `MONGODB_DB`). Через порядок імпорту
+в `MicroKernelTrait`:
+
+```
+config/packages/*.yaml → config/packages/prod/*.yaml → config/services.yaml → config/services_prod.yaml
+```
+
+`config/services.yaml` вантажиться **після** `config/packages/prod/`, тож його
+аліаси на InMemory мовчки перетерли б прод-звʼязування. Тому `config/services_prod.yaml`
+імпортує прод-профіль ще раз, останнім. Не переносьте ці id у кореневий блок
+`services:` файлу `config/services.yaml` — прод знову опиниться на InMemory.
+
+Перевірка звʼязування без запущеної MongoDB:
+
+```bash
+APP_ENV=prod php bin/console cache:clear --no-interaction
+APP_ENV=prod php bin/console lint:container
+```
 
 ## Команди
 
