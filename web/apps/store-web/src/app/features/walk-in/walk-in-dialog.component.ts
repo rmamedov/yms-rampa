@@ -1,0 +1,145 @@
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  OnInit,
+  output,
+  signal,
+} from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { ModalComponent } from '../../shared/modal.component';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { WalkInPayload } from '../../core/models/booking.model';
+import { Slot } from '../../core/models/store.model';
+import { BoardStore } from '../../core/data/board.store';
+import { AuthService } from '../../core/auth/auth.service';
+import { StoreGateway } from '../../core/data/gateways';
+import { validateWalkInForm } from '../../core/util/booking-rules.util';
+import { formatTime, toKyivDateKey } from '../../core/util/date.util';
+
+interface FreeSlotOption {
+  readonly value: string;
+  readonly label: string;
+  readonly rampId: string;
+  readonly slotStart: string;
+}
+
+/** Реєстрація позапланового прибуття (STW-37…39). */
+@Component({
+  selector: 'app-walk-in-dialog',
+  standalone: true,
+  imports: [FormsModule, ModalComponent, TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  templateUrl: './walk-in-dialog.component.html',
+})
+export class WalkInDialogComponent implements OnInit {
+  private readonly store = inject(BoardStore);
+  private readonly auth = inject(AuthService);
+  private readonly gateway = inject(StoreGateway);
+
+  readonly closed = output<void>();
+
+  readonly suppliers = this.store.suppliers;
+  readonly maxWeight = computed(
+    () => this.store.config()?.maxVehicleWeightTons ?? 10,
+  );
+
+  readonly useExternal = signal(false);
+  readonly supplierId = signal<string | null>(null);
+  readonly externalName = signal('');
+  readonly plate = signal('');
+  readonly weight = signal<number | null>(null);
+  readonly pallets = signal<number | null>(null);
+  readonly orderId = signal('');
+  readonly slotKey = signal<string | null>(null);
+  readonly submitted = signal(false);
+  readonly slots = signal<readonly Slot[]>([]);
+
+  readonly options = computed<FreeSlotOption[]>(() => {
+    const ramps = this.store.ramps();
+    const nowMs = Date.now();
+    return this.slots()
+      .filter(
+        (slot) =>
+          slot.state === 'available' &&
+          new Date(slot.slotEnd).getTime() > nowMs - 30 * 60_000,
+      )
+      .sort((a, b) => a.slotStart.localeCompare(b.slotStart))
+      .slice(0, 40)
+      .map((slot) => ({
+        value: `${slot.rampId}|${slot.slotStart}`,
+        rampId: slot.rampId,
+        slotStart: slot.slotStart,
+        label: `${formatTime(slot.slotStart)}–${formatTime(slot.slotEnd)} · ${
+          ramps.find((r) => r.rampId === slot.rampId)?.name ?? slot.rampId
+        }`,
+      }));
+  });
+
+  readonly selectedOption = computed(() =>
+    this.options().find((o) => o.value === this.slotKey()) ?? null,
+  );
+
+  readonly errors = computed(() =>
+    validateWalkInForm(
+      {
+        supplierId: this.supplierId(),
+        externalSupplierName: this.externalName(),
+        useExternalSupplier: this.useExternal(),
+        plateNumber: this.plate(),
+        weightTons: this.weight(),
+        palletsCount: this.pallets(),
+        orderId: this.orderId(),
+        rampId: this.selectedOption()?.rampId ?? null,
+        slotStart: this.selectedOption()?.slotStart ?? null,
+      },
+      this.maxWeight(),
+    ),
+  );
+
+  readonly busy = computed(() => this.store.busyBookingId() === 'walk-in');
+
+  ngOnInit(): void {
+    const store = this.auth.selectedStore();
+    if (!store) return;
+    this.gateway
+      .getSlots(store.storeId, toKyivDateKey(new Date()))
+      .subscribe({ next: (slots) => this.slots.set(slots) });
+  }
+
+  setMode(external: boolean): void {
+    this.useExternal.set(external);
+  }
+
+  submit(): void {
+    this.submitted.set(true);
+    if (!this.errors().valid) return;
+    const option = this.selectedOption();
+    if (!option) return;
+
+    const payload: WalkInPayload = {
+      supplierId: this.useExternal() ? null : this.supplierId(),
+      externalSupplierName: this.useExternal()
+        ? this.externalName().trim()
+        : null,
+      plateNumber: this.plate().trim(),
+      weightTons: this.weight() as number,
+      palletsCount: this.pallets() as number,
+      orderId: this.orderId().trim() || null,
+      rampId: option.rampId,
+      slotStart: option.slotStart,
+    };
+    this.store.createWalkIn(payload, () => this.closed.emit());
+  }
+
+  setNumber(target: 'weight' | 'pallets', raw: string): void {
+    const parsed = Number(raw);
+    const value = raw.trim() === '' || !Number.isFinite(parsed) ? null : parsed;
+    if (target === 'weight') {
+      this.weight.set(value);
+    } else {
+      this.pallets.set(value === null ? null : Math.trunc(value));
+    }
+  }
+}

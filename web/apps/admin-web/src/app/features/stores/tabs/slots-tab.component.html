@@ -1,0 +1,110 @@
+<div class="card">
+  <div class="card-title">{{ 'slots.size' | t }}</div>
+  <div class="grid-2">
+    <div class="field">
+      <label for="slot-size">{{ 'slots.size' | t }}</label>
+      <select
+        id="slot-size"
+        [value]="draftSize() ?? ''"
+        [disabled]="!canEdit()"
+        (change)="setSize($event)"
+      >
+        <option value="">{{ 'common.notSet' | t }}</option>
+        @for (size of sizes; track size) {
+          <option [value]="size">{{ 'slots.size.minutes' | t: { n: size } }}</option>
+        }
+      </select>
+    </div>
+    <div class="field">
+      <div class="field-label">{{ 'slots.preview' | t }}</div>
+      <div class="kpi" style="padding: 12px 16px">
+        <div class="kpi-value">{{ previewCount() }}</div>
+        <div class="kpi-label">{{ 'slots.preview.count' | t: { n: previewCount() } }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">{{ 'slots.ramps' | t }}</div>
+
+  @if (rampError(); as error) {
+    <div class="notice notice-danger">{{ error | t }}</div>
+  }
+  @for (error of errors(); track error) {
+    <div class="field-error">{{ error | t }}</div>
+  }
+
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th style="width: 110px">{{ 'slots.ramp.number' | t }}</th>
+          <th>{{ 'slots.ramp.name' | t }}</th>
+          <th style="width: 160px">{{ 'slots.ramp.enabled' | t }}</th>
+          <th style="width: 140px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (ramp of draftRamps(); track ramp.id) {
+          <tr>
+            <td>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                [value]="ramp.number"
+                [disabled]="!canEdit()"
+                (input)="setRampNumber(ramp.id, $any($event.target).value)"
+              />
+            </td>
+            <td>
+              <input
+                type="text"
+                maxlength="60"
+                [value]="ramp.name ?? ''"
+                [disabled]="!canEdit()"
+                [placeholder]="'slots.ramp.label' | t: { n: ramp.number }"
+                (input)="renameRamp(ramp.id, $any($event.target).value)"
+              />
+            </td>
+            <td>
+              <label class="checkbox">
+                <input
+                  type="checkbox"
+                  [checked]="ramp.enabled"
+                  [disabled]="!canEdit()"
+                  (change)="toggleRamp(ramp.id, $any($event.target).checked)"
+                />
+                {{ ramp.enabled ? ('common.yes' | t) : ('common.no' | t) }}
+              </label>
+            </td>
+            <td>
+              @if (canEdit()) {
+                <button
+                  type="button"
+                  class="btn btn-sm btn-danger"
+                  [disabled]="!canDelete(ramp)"
+                  [title]="canDelete(ramp) ? '' : ('slots.error.rampHasBookings' | t)"
+                  (click)="removeRamp(ramp)"
+                >
+                  {{ 'common.delete' | t }}
+                </button>
+              }
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="4" class="muted">{{ 'slots.error.noRamps' | t }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  @if (canEdit()) {
+    <button type="button" class="btn" style="margin-top: 16px" (click)="addRamp()">
+      {{ 'slots.ramp.add' | t }}
+    </button>
+  }
+</div>

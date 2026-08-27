@@ -1,0 +1,53 @@
+// Спільні змінні кольорів і типографіки driver-web.
+// Палітра з підвищеним контрастом — застосунок використовується
+// у кабіні авто при яскравому сонці (розділ 8.1).
+
+$color-bg: #f2f4f7;
+$color-surface: #ffffff;
+$color-surface-muted: #e9edf3;
+$color-border: #d5dbe3;
+$color-text: #10161f;
+$color-text-muted: #55606f;
+$color-text-inverse: #ffffff;
+
+$color-primary: #0d5bd4;
+$color-primary-dark: #0a47a5;
+$color-primary-soft: #e3edfd;
+
+$color-success: #10743a;
+$color-success-soft: #e2f4e9;
+$color-warning: #a86400;
+$color-warning-soft: #fdf1d8;
+$color-danger: #b3261e;
+$color-danger-soft: #fbe6e5;
+$color-neutral: #55606f;
+$color-neutral-soft: #e9edf3;
+
+$font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+$font-size-xs: 12px;
+$font-size-sm: 14px;
+$font-size-md: 16px;
+$font-size-lg: 20px;
+$font-size-xl: 26px;
+$font-size-xxl: 32px;
+
+$radius-sm: 8px;
+$radius-md: 12px;
+$radius-lg: 18px;
+
+$space-1: 4px;
+$space-2: 8px;
+$space-3: 12px;
+$space-4: 16px;
+$space-5: 24px;
+$space-6: 32px;
+
+// DRV-04: мінімальна тач-зона 44px, ключові кнопки — не менше 56px.
+$touch-min: 44px;
+$touch-primary: 56px;
+
+// DRV-03: контент центрується колонкою до 640px.
+$content-max: 640px;
+
+$shadow-card: 0 1px 3px rgba(16, 22, 31, 0.12);
+$shadow-sheet: 0 -8px 32px rgba(16, 22, 31, 0.22);

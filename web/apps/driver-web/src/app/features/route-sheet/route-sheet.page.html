@@ -1,0 +1,159 @@
+<header class="topbar">
+  <div class="titles">
+    <h1 class="title">{{ 'sheet.title' | t }}</h1>
+    @if (profile(); as driver) {
+      <p class="driver">{{ driver.fullName }}</p>
+    }
+  </div>
+  <button
+    type="button"
+    class="icon-btn"
+    [attr.aria-label]="'menu.open' | t"
+    (click)="openMenu()"
+  >
+    <span aria-hidden="true">☰</span>
+  </button>
+</header>
+
+@if (offlineBanner(); as banner) {
+  <p class="banner offline" role="status">{{ banner }}</p>
+}
+
+@if (queue.pendingCount() > 0) {
+  <p class="banner queued" role="status">
+    {{ 'offline.queued' | t: { count: queue.pendingCount() } }}
+  </p>
+}
+
+@if (install.available()) {
+  <aside class="install">
+    <div>
+      <p class="install-title">{{ 'pwa.installTitle' | t }}</p>
+      <p class="install-body">{{ 'pwa.installBody' | t }}</p>
+    </div>
+    <div class="install-actions">
+      <button type="button" class="btn small primary" (click)="installApp()">
+        {{ 'pwa.installAction' | t }}
+      </button>
+      <button type="button" class="btn small ghost" (click)="dismissInstall()">
+        {{ 'pwa.installDismiss' | t }}
+      </button>
+    </div>
+  </aside>
+}
+
+@if (dateChips().length > 1 || showEmptyState()) {
+  <nav class="chips" [attr.aria-label]="'sheet.title' | t">
+    @for (chip of dateChips(); track chip.date) {
+      <button
+        type="button"
+        class="chip"
+        [class.selected]="chip.date === store.selectedDate()"
+        (click)="selectDate(chip.date)"
+      >
+        {{ chip.label }}
+        <span class="chip-count">{{ chip.count }}</span>
+      </button>
+    }
+  </nav>
+}
+
+@if (store.loading() && store.points().length === 0) {
+  <p class="state">{{ 'sheet.loading' | t }}</p>
+} @else if (store.error(); as message) {
+  <div class="state error">
+    <p>{{ message }}</p>
+    <button type="button" class="btn primary" (click)="refresh()">
+      {{ 'sheet.retry' | t }}
+    </button>
+  </div>
+} @else if (showEmptyState()) {
+  <p class="state">
+    {{ (dateChips().length ? emptyKey() : 'sheet.emptyNoDates') | t }}
+  </p>
+} @else {
+  <section class="summary">
+    <span>{{ 'sheet.pointsCount' | t }}: <b>{{ store.points().length }}</b></span>
+    <span>{{ 'sheet.palletsCount' | t }}: <b>{{ store.totalPallets() }}</b></span>
+  </section>
+
+  <ul class="points">
+    @for (point of store.points(); track point.bookingId; let i = $index) {
+      <li [attr.id]="'point-' + point.bookingId">
+        <app-point-card
+          [point]="point"
+          [active]="isActive(i)"
+          [windowState]="windowStateFor(point)"
+          [queued]="queue.isQueued(point.bookingId)"
+          [submitting]="arrivingId() === point.bookingId"
+          [online]="network.online()"
+          (routeRequested)="onRouteRequested($event)"
+          (routeOptionsRequested)="openNavigatorSheet($event)"
+          (arriveRequested)="requestArrive($event)"
+          (delayRequested)="openDelay($event)"
+          (orderIdSubmitted)="saveOrderId($event)"
+        />
+      </li>
+    }
+  </ul>
+
+  @if (lastSyncLabel(); as label) {
+    <p class="sync">{{ label }}</p>
+  }
+}
+
+@if (openSheet() === 'menu') {
+  <app-bottom-sheet [heading]="'menu.open' | t" (dismiss)="closeSheet()">
+    <button type="button" class="sheet-item" (click)="openPrint()">
+      {{ 'menu.print' | t }}
+    </button>
+    <button type="button" class="sheet-item" (click)="changeNavigator()">
+      {{ 'menu.changeNavigator' | t }}
+    </button>
+    <button type="button" class="sheet-item danger" (click)="logout()">
+      {{ 'menu.logout' | t }}
+    </button>
+    <button type="button" class="sheet-item ghost" (click)="closeSheet()">
+      {{ 'menu.close' | t }}
+    </button>
+  </app-bottom-sheet>
+}
+
+@if (openSheet() === 'navigator') {
+  <app-bottom-sheet [heading]="'nav.title' | t" (dismiss)="closeSheet()">
+    <button type="button" class="sheet-item" (click)="chooseNavigator('google')">
+      {{ 'nav.google' | t }}
+    </button>
+    <button type="button" class="sheet-item" (click)="chooseNavigator('waze')">
+      {{ 'nav.waze' | t }}
+    </button>
+    <button type="button" class="sheet-item ghost" (click)="closeSheet()">
+      {{ 'common.cancel' | t }}
+    </button>
+  </app-bottom-sheet>
+}
+
+@if (openSheet() === 'delay') {
+  <app-bottom-sheet [heading]="'delay.title' | t" (dismiss)="closeSheet()">
+    <app-delay-form
+      [busy]="delayBusy()"
+      [serverError]="delayError()"
+      (submitted)="submitDelay($event)"
+      (cancelled)="closeSheet()"
+    />
+  </app-bottom-sheet>
+}
+
+@if (confirmPoint()) {
+  <app-confirm-dialog
+    [heading]="confirmHeading()"
+    [confirmLabel]="'arrive.confirmYes' | t"
+    [cancelLabel]="'arrive.confirmNo' | t"
+    (confirmed)="confirmArrive()"
+    (cancelled)="cancelArrive()"
+  />
+}
+
+@if (toast(); as message) {
+  <p class="toast" role="status">{{ message }}</p>
+}

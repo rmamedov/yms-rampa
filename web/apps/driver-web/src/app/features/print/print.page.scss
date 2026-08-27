@@ -1,0 +1,117 @@
+@use 'tokens' as *;
+
+:host {
+  display: block;
+  background: #fff;
+  color: #000;
+  padding: $space-4;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.print-btn {
+  min-height: $touch-primary;
+  padding: 0 $space-5;
+  border-radius: $radius-md;
+  border: none;
+  background: $color-primary;
+  color: $color-text-inverse;
+  font-weight: 700;
+  margin-bottom: $space-4;
+}
+
+.heading {
+  font-size: $font-size-lg;
+  margin-bottom: $space-3;
+}
+
+.head {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: $space-2 $space-4;
+  margin: 0 0 $space-4;
+
+  dt {
+    font-size: $font-size-xs;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #444;
+  }
+
+  dd {
+    margin: 0;
+    font-weight: 600;
+  }
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.stops {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  font-size: $font-size-sm;
+
+  th,
+  td {
+    border: 1px solid #999;
+    padding: 6px 8px;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  th {
+    background: #eee;
+    font-weight: 700;
+  }
+}
+
+.totals {
+  margin-top: $space-3;
+  font-size: $font-size-sm;
+}
+
+.foot {
+  margin-top: $space-4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-3;
+  font-size: $font-size-xs;
+  color: #444;
+}
+
+.warn {
+  font-style: italic;
+}
+
+.state {
+  padding: $space-5;
+  text-align: center;
+  color: #444;
+}
+
+@media print {
+  :host {
+    padding: 0;
+    max-width: none;
+  }
+
+  .no-print {
+    display: none;
+  }
+
+  .table-wrap {
+    overflow: visible;
+  }
+
+  .stops {
+    min-width: 0;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+}

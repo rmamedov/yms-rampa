@@ -1,0 +1,169 @@
+<div class="card">
+  <div class="card-title">
+    {{ 'store.mcp.title' | t }}
+    <span class="badge badge-info">{{ 'common.mcpBadge' | t }}</span>
+    <span class="muted" style="font-weight: 400">({{ 'common.readonly' | t }})</span>
+  </div>
+
+  <div class="grid-3">
+    <div class="field">
+      <label for="mcp-externalId">{{ 'store.mcp.externalId' | t }}</label>
+      <input id="mcp-externalId" type="text" class="mono" [value]="store().externalId" readonly />
+    </div>
+    <div class="field">
+      <label for="mcp-city">{{ 'store.mcp.city' | t }}</label>
+      <input id="mcp-city" type="text" [value]="store().city" readonly />
+    </div>
+    <div class="field">
+      <label for="mcp-address">{{ 'store.mcp.address' | t }}</label>
+      <input id="mcp-address" type="text" [value]="store().address" readonly />
+    </div>
+    <div class="field">
+      <label for="mcp-lat">{{ 'store.mcp.latitude' | t }}</label>
+      <input id="mcp-lat" type="text" class="mono" [value]="store().latitude" readonly />
+    </div>
+    <div class="field">
+      <label for="mcp-lon">{{ 'store.mcp.longitude' | t }}</label>
+      <input id="mcp-lon" type="text" class="mono" [value]="store().longitude" readonly />
+    </div>
+    <div class="field">
+      <label for="mcp-open">{{ 'store.mcp.open' | t }}</label>
+      <input
+        id="mcp-open"
+        type="text"
+        [value]="store().open ? ('common.yes' | t) : ('common.no' | t)"
+        readonly
+      />
+    </div>
+    <div class="field">
+      <label for="mcp-branchId">{{ 'store.mcp.branchId' | t }}</label>
+      <input id="mcp-branchId" type="text" class="mono" [value]="store().branchId" readonly />
+    </div>
+    <div class="field">
+      <label for="mcp-companyId">{{ 'store.mcp.companyId' | t }}</label>
+      <input id="mcp-companyId" type="text" class="mono" [value]="store().companyId" readonly />
+    </div>
+    <div class="field">
+      <label for="mcp-hasPickup">{{ 'store.mcp.hasPickup' | t }}</label>
+      <input
+        id="mcp-hasPickup"
+        type="text"
+        [value]="
+          store().hasPickup === null
+            ? ('common.notSet' | t)
+            : store().hasPickup
+              ? ('common.yes' | t)
+              : ('common.no' | t)
+        "
+        readonly
+      />
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">{{ 'store.yms.title' | t }}</div>
+
+  @if (isConfigured()) {
+    <div class="notice notice-success">{{ 'store.configured.yes' | t }}</div>
+  } @else {
+    <div class="notice notice-warn">
+      {{ 'store.configured.no' | t }} —
+      {{ 'store.configured.missing' | t: { items: missingLabel() } }}
+    </div>
+  }
+
+  <div class="grid-2">
+    <div class="field">
+      <label for="displayName">{{ 'store.field.displayName' | t }}</label>
+      <input
+        id="displayName"
+        type="text"
+        [value]="displayName()"
+        [disabled]="!canEdit()"
+        (input)="displayName.set($any($event.target).value); touch()"
+      />
+      @if (displayNameError(); as error) {
+        <div class="field-error">{{ error | t }}</div>
+      }
+    </div>
+
+    <div class="field">
+      <label for="phone">{{ 'store.field.phone' | t }}</label>
+      <input
+        id="phone"
+        type="text"
+        placeholder="+380XXXXXXXXX"
+        [value]="phone()"
+        [disabled]="!canEdit()"
+        (input)="phone.set($any($event.target).value); touch()"
+      />
+      @if (phoneError(); as error) {
+        <div class="field-error">{{ error | t }}</div>
+      }
+    </div>
+  </div>
+
+  <div class="field">
+    <label for="addressOverride">{{ 'store.field.addressOverride' | t }}</label>
+    <input
+      id="addressOverride"
+      type="text"
+      [value]="addressOverride()"
+      [disabled]="!canEdit()"
+      (input)="addressOverride.set($any($event.target).value); touch()"
+    />
+    <div class="field-hint">{{ 'store.field.addressOverride.hint' | t }}</div>
+    @if (addressOverrideError(); as error) {
+      <div class="field-error">{{ error | t }}</div>
+    }
+  </div>
+
+  <div class="grid-2">
+    <div class="field">
+      <label for="ymsStatus">{{ 'store.field.ymsStatus' | t }}</label>
+      <select
+        id="ymsStatus"
+        [value]="ymsStatus()"
+        [disabled]="!canEdit()"
+        (change)="setStatus($event)"
+      >
+        @for (status of statuses; track status) {
+          <option [value]="status">{{ 'ymsStatus.' + status | t }}</option>
+        }
+      </select>
+      @if (activationBlocked()) {
+        <div class="field-error">
+          {{ 'store.error.activate' | t }} —
+          {{ 'store.configured.missing' | t: { items: missingLabel() } }}
+        </div>
+      }
+    </div>
+
+    <div class="field">
+      <div class="field-label">{{ 'store.field.visible' | t }}</div>
+      <label class="checkbox">
+        <input
+          type="checkbox"
+          [checked]="visibleToSuppliers()"
+          [disabled]="!canEdit()"
+          (change)="visibleToSuppliers.set($any($event.target).checked); touch()"
+        />
+        {{ 'store.field.visible' | t }}
+      </label>
+    </div>
+  </div>
+
+  @if (canEdit()) {
+    <button
+      type="button"
+      class="btn btn-primary"
+      [disabled]="invalid()"
+      (click)="save()"
+    >
+      {{ 'common.save' | t }}
+    </button>
+  } @else {
+    <div class="notice notice-info">{{ 'store.readonlyNotice' | t }}</div>
+  }
+</div>

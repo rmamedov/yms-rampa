@@ -1,0 +1,63 @@
+<main class="login">
+  <header class="brand">
+    <span class="mark" aria-hidden="true">Р</span>
+    <h1 class="title">{{ 'app.title' | t }}</h1>
+    <p class="subtitle">{{ 'login.subtitle' | t }}</p>
+  </header>
+
+  <form class="form" (submit)="submit($event)" novalidate>
+    <label class="field">
+      <span class="label">{{ 'login.phone' | t }}</span>
+      <input
+        class="input"
+        type="tel"
+        inputmode="tel"
+        autocomplete="username"
+        name="phone"
+        [value]="phone()"
+        [attr.aria-invalid]="phoneError() ? 'true' : null"
+        [placeholder]="'login.phonePlaceholder' | t"
+        (input)="onPhoneInput($event)"
+        (blur)="onPhoneBlur()"
+      />
+      @if (phoneError(); as message) {
+        <span class="field-error">{{ message }}</span>
+      }
+    </label>
+
+    <label class="field">
+      <span class="label">{{ 'login.password' | t }}</span>
+      <input
+        class="input"
+        type="password"
+        autocomplete="current-password"
+        name="password"
+        [value]="password()"
+        [attr.aria-invalid]="passwordError() ? 'true' : null"
+        (input)="onPasswordInput($event)"
+      />
+      @if (passwordError(); as message) {
+        <span class="field-error">{{ message }}</span>
+      }
+    </label>
+
+    <label class="remember">
+      <input
+        type="checkbox"
+        [checked]="rememberMe()"
+        (change)="onRememberChange($event)"
+      />
+      <span>{{ 'login.rememberMe' | t }}</span>
+    </label>
+
+    @if (error(); as message) {
+      <p class="alert" role="alert">{{ message }}</p>
+    }
+
+    <button class="submit" type="submit" [disabled]="submitting()">
+      {{ (submitting() ? 'login.submitting' : 'login.submit') | t }}
+    </button>
+  </form>
+
+  <p class="hint">{{ 'login.forgotHint' | t }}</p>
+</main>

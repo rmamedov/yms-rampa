@@ -1,0 +1,176 @@
+<section class="page">
+  <div class="page__head">
+    <div>
+      <h1>{{ 'drivers.title' | t }}</h1>
+      <p class="muted">{{ 'drivers.subtitle' | t }}</p>
+    </div>
+    <button type="button" class="btn btn--primary" (click)="openCreate()">
+      {{ 'drivers.add' | t }}
+    </button>
+  </div>
+
+  @if (loading()) {
+    <p class="muted"><span class="spinner"></span> {{ 'common.loading' | t }}</p>
+  } @else if (drivers().length === 0) {
+    <div class="empty-state">{{ 'drivers.empty' | t }}</div>
+  } @else {
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ 'drivers.name' | t }}</th>
+            <th>{{ 'drivers.phone' | t }}</th>
+            <th>{{ 'drivers.vehicle' | t }}</th>
+            <th>{{ 'drivers.status' | t }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (driver of drivers(); track driver.id) {
+            <tr>
+              <td><strong>{{ driver.lastName }} {{ driver.firstName }}</strong></td>
+              <td>{{ driver.phone }}</td>
+              <td>{{ driver.plateNumber ?? ('common.notSet' | t) }}</td>
+              <td>
+                <span class="chip" [class.chip--ok]="driver.active" [class.chip--off]="!driver.active">
+                  {{ (driver.active ? 'drivers.active' : 'drivers.inactive') | t }}
+                </span>
+              </td>
+              <td class="drivers__actions">
+                <button
+                  type="button"
+                  class="btn btn--sm btn--ghost"
+                  (click)="confirmRegenerate.set(driver)"
+                >
+                  {{ 'drivers.regenerate' | t }}
+                </button>
+                <button type="button" class="btn btn--sm btn--ghost" (click)="toggleActive(driver)">
+                  {{ (driver.active ? 'drivers.deactivate' : 'drivers.activate') | t }}
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>
+
+@if (formOpen()) {
+  <app-modal [title]="'drivers.createTitle' | t" (closed)="formOpen.set(false)">
+    <div class="field">
+      <label class="field__label" for="drv-phone">{{ 'drivers.phone' | t }}</label>
+      <input
+        id="drv-phone"
+        class="input"
+        [class.input--invalid]="phoneError()"
+        [value]="phone()"
+        (input)="phone.set($any($event.target).value)"
+      />
+      @if (phoneError(); as error) {
+        <span class="field__error">{{ error | t }}</span>
+      } @else {
+        <span class="field__hint">{{ 'drivers.login' | t }}</span>
+      }
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="drv-last">{{ 'drivers.lastName' | t }}</label>
+      <input
+        id="drv-last"
+        class="input"
+        [value]="lastName()"
+        (input)="lastName.set($any($event.target).value)"
+      />
+      @if (lastNameError(); as error) {
+        <span class="field__error">{{ error | t }}</span>
+      }
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="drv-first">{{ 'drivers.firstName' | t }}</label>
+      <input
+        id="drv-first"
+        class="input"
+        [value]="firstName()"
+        (input)="firstName.set($any($event.target).value)"
+      />
+      @if (nameError(); as error) {
+        <span class="field__error">{{ error | t }}</span>
+      }
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="drv-vehicle">
+        {{ 'drivers.vehicleOptional' | t }} ({{ 'common.optional' | t }})
+      </label>
+      <select
+        id="drv-vehicle"
+        class="select"
+        (change)="vehicleId.set($any($event.target).value)"
+      >
+        <option value="">{{ 'common.notSet' | t }}</option>
+        @for (vehicle of activeVehicles(); track vehicle.id) {
+          <option [value]="vehicle.id">
+            {{ vehicle.plateNumber }} · {{ vehicle.weightTons }} {{ 'common.tons' | t }}
+          </option>
+        }
+      </select>
+    </div>
+
+    <div modalFooter>
+      <button type="button" class="btn btn--ghost" (click)="formOpen.set(false)">
+        {{ 'common.cancel' | t }}
+      </button>
+      <button type="button" class="btn btn--primary" [disabled]="!canSave()" (click)="save()">
+        {{ 'common.save' | t }}
+      </button>
+    </div>
+  </app-modal>
+}
+
+@if (credentials(); as created) {
+  <app-modal [title]="'drivers.passwordTitle' | t" (closed)="credentials.set(null)">
+    <p class="drivers__password">{{ created.password }}</p>
+    <p class="field__hint">{{ 'drivers.passwordOnce' | t }}</p>
+    <p class="muted small">
+      {{ created.driver.phone }} ·
+      @if (created.smsSent) {
+        {{ 'drivers.smsSent' | t }}
+      }
+    </p>
+    <div modalFooter>
+      <button type="button" class="btn btn--primary" (click)="credentials.set(null)">
+        {{ 'common.close' | t }}
+      </button>
+    </div>
+  </app-modal>
+}
+
+@if (confirmRegenerate()) {
+  <app-modal [title]="'drivers.regenerate' | t" (closed)="confirmRegenerate.set(null)">
+    <p>{{ regenerateLabel() }}</p>
+    <div modalFooter>
+      <button type="button" class="btn btn--ghost" (click)="confirmRegenerate.set(null)">
+        {{ 'common.no' | t }}
+      </button>
+      <button type="button" class="btn btn--primary" (click)="regenerate()">
+        {{ 'common.yes' | t }}
+      </button>
+    </div>
+  </app-modal>
+}
+
+@if (confirmDeactivate()) {
+  <app-modal [title]="'drivers.deactivate' | t" (closed)="confirmDeactivate.set(null)">
+    <p>{{ deactivateLabel() }}</p>
+    <div modalFooter>
+      <button type="button" class="btn btn--ghost" (click)="confirmDeactivate.set(null)">
+        {{ 'common.no' | t }}
+      </button>
+      <button type="button" class="btn btn--danger" (click)="confirmDeactivation()">
+        {{ 'common.yes' | t }}
+      </button>
+    </div>
+  </app-modal>
+}

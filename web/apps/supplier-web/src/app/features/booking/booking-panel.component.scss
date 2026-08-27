@@ -1,0 +1,151 @@
+@use '../../../styles/variables' as v;
+
+:host {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: block;
+}
+
+.panel__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  cursor: default;
+  background: rgb(15 23 42 / 40%);
+}
+
+.panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: min(440px, 100%);
+  background: v.$surface;
+  box-shadow: -12px 0 40px rgb(15 23 42 / 18%);
+  display: flex;
+  flex-direction: column;
+}
+
+.panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 10px;
+  border-bottom: 1px solid v.$border;
+}
+
+.panel__head h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.panel__close {
+  border: 0;
+  background: none;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  color: v.$text-muted;
+}
+
+.panel__transfer {
+  margin: 0;
+  padding: 8px 20px;
+  background: v.$primary-soft;
+  color: v.$primary-dark;
+  font-size: 13px;
+}
+
+.panel__timer {
+  padding: 10px 20px;
+  background: v.$surface-alt;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  font-size: 14px;
+  border-bottom: 1px solid v.$border;
+}
+
+.panel__timer--expired {
+  background: #fdeaea;
+  color: v.$danger;
+}
+
+.panel__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+.panel__body--locked {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.vehicle-list {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 190px;
+  overflow-y: auto;
+}
+
+.vehicle {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid v.$border;
+  border-radius: 9px;
+  background: v.$surface;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.vehicle--active {
+  border-color: v.$primary;
+  background: v.$primary-soft;
+}
+
+.panel__new-vehicle {
+  border: 1px solid v.$border;
+  border-radius: 10px;
+  padding: 12px 14px 2px;
+  margin: 0 0 14px;
+}
+
+.panel__new-vehicle legend {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: v.$text-muted;
+  padding: 0 6px;
+}
+
+.panel__conflict {
+  margin: 0 20px 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff4d6;
+  color: v.$warning;
+  font-size: 13px;
+}
+
+.panel__conflict p {
+  margin: 0 0 8px;
+}
+
+.panel__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid v.$border;
+}

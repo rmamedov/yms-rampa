@@ -1,0 +1,147 @@
+<app-modal titleKey="walkIn.title" (closed)="closed.emit()">
+  <div class="field">
+    <span class="field__label">{{ 'walkIn.supplierMode' | t }}</span>
+    <div class="filters__chips">
+      <button
+        type="button"
+        class="chip"
+        [class.chip--active]="!useExternal()"
+        (click)="setMode(false)"
+      >
+        {{ 'walkIn.fromList' | t }}
+      </button>
+      <button
+        type="button"
+        class="chip"
+        [class.chip--active]="useExternal()"
+        (click)="setMode(true)"
+      >
+        {{ 'walkIn.external' | t }}
+      </button>
+    </div>
+  </div>
+
+  @if (useExternal()) {
+    <div class="field">
+      <label class="field__label" for="wi-external">{{
+        'walkIn.externalName' | t
+      }}</label>
+      <input
+        id="wi-external"
+        class="input"
+        type="text"
+        [ngModel]="externalName()"
+        (ngModelChange)="externalName.set($event)"
+      />
+    </div>
+  } @else {
+    <div class="field">
+      <label class="field__label" for="wi-supplier">{{
+        'walkIn.supplier' | t
+      }}</label>
+      <select
+        id="wi-supplier"
+        class="select"
+        [ngModel]="supplierId()"
+        (ngModelChange)="supplierId.set($event)"
+      >
+        <option [ngValue]="null">—</option>
+        @for (supplier of suppliers(); track supplier.supplierId) {
+          <option [ngValue]="supplier.supplierId">{{ supplier.name }}</option>
+        }
+      </select>
+    </div>
+  }
+
+  <div class="field">
+    <label class="field__label" for="wi-plate">{{ 'walkIn.plate' | t }}</label>
+    <input
+      id="wi-plate"
+      class="input"
+      type="text"
+      autocomplete="off"
+      [ngModel]="plate()"
+      (ngModelChange)="plate.set($event)"
+    />
+  </div>
+
+  <div class="field-row">
+    <div class="field">
+      <label class="field__label" for="wi-weight">{{ 'walkIn.weight' | t }}</label>
+      <input
+        id="wi-weight"
+        class="input"
+        type="number"
+        step="0.5"
+        min="0.5"
+        [value]="weight()"
+        (input)="setNumber('weight', $any($event.target).value)"
+      />
+      <span class="muted">{{ 'walkIn.maxWeight' | t: { max: maxWeight() } }}</span>
+    </div>
+    <div class="field">
+      <label class="field__label" for="wi-pallets">{{
+        'walkIn.pallets' | t
+      }}</label>
+      <input
+        id="wi-pallets"
+        class="input"
+        type="number"
+        min="1"
+        max="33"
+        [value]="pallets()"
+        (input)="setNumber('pallets', $any($event.target).value)"
+      />
+    </div>
+  </div>
+
+  <div class="field">
+    <label class="field__label" for="wi-order">{{ 'walkIn.orderId' | t }}</label>
+    <input
+      id="wi-order"
+      class="input"
+      type="text"
+      [ngModel]="orderId()"
+      (ngModelChange)="orderId.set($event)"
+    />
+  </div>
+
+  <div class="field">
+    <label class="field__label" for="wi-slot">{{ 'walkIn.slot' | t }}</label>
+    @if (options().length === 0) {
+      <p class="form-error">{{ 'walkIn.noFreeSlots' | t }}</p>
+    } @else {
+      <select
+        id="wi-slot"
+        class="select"
+        [ngModel]="slotKey()"
+        (ngModelChange)="slotKey.set($event)"
+      >
+        <option [ngValue]="null">—</option>
+        @for (option of options(); track option.value) {
+          <option [ngValue]="option.value">{{ option.label }}</option>
+        }
+      </select>
+    }
+  </div>
+
+  @if (submitted() && !errors().valid) {
+    @for (error of errors().errors; track error) {
+      <p class="form-error">{{ error | t: { max: maxWeight() } }}</p>
+    }
+  }
+
+  <div class="modal__actions">
+    <button type="button" class="btn" (click)="closed.emit()">
+      {{ 'common.cancel' | t }}
+    </button>
+    <button
+      type="button"
+      class="btn btn--primary"
+      [disabled]="busy()"
+      (click)="submit()"
+    >
+      {{ 'walkIn.submit' | t }}
+    </button>
+  </div>
+</app-modal>

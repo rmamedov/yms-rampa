@@ -1,0 +1,145 @@
+<div class="page-header">
+  <h1>{{ 'suppliers.title' | t }}</h1>
+  <span class="spacer"></span>
+  @if (canManage()) {
+    <button type="button" class="btn btn-primary" (click)="create()">
+      {{ 'suppliers.add' | t }}
+    </button>
+  }
+</div>
+
+<div class="toolbar">
+  <div style="min-width: 280px">
+    <label for="sup-search">{{ 'common.search' | t }}</label>
+    <input
+      id="sup-search"
+      type="search"
+      [value]="search()"
+      [placeholder]="'suppliers.search.placeholder' | t"
+      (input)="search.set($any($event.target).value)"
+      (keydown.enter)="applyFilters()"
+    />
+  </div>
+  <div style="min-width: 180px">
+    <label for="sup-status">{{ 'common.status' | t }}</label>
+    <select id="sup-status" [value]="statusFilter()" (change)="setStatusFilter($event)">
+      <option value="">{{ 'common.all' | t }}</option>
+      <option value="active">{{ 'suppliers.status.active' | t }}</option>
+      <option value="suspended">{{ 'suppliers.status.suspended' | t }}</option>
+    </select>
+  </div>
+  <button type="button" class="btn btn-primary" (click)="applyFilters()">
+    {{ 'common.apply' | t }}
+  </button>
+  <button type="button" class="btn" (click)="resetFilters()">
+    {{ 'common.reset' | t }}
+  </button>
+</div>
+
+@if (selection().length > 0 && canManage()) {
+  <div class="bulk-bar">
+    <strong>{{ 'common.selected' | t: { count: selection().length } }}</strong>
+    <span class="spacer"></span>
+    <button type="button" class="btn btn-sm" (click)="bulkOpen.set(true)">
+      {{ 'suppliers.bulk.status' | t }}
+    </button>
+  </div>
+}
+
+<div class="table-wrap">
+  <table class="data">
+    <thead>
+      <tr>
+        <th style="width: 36px">
+          <input
+            type="checkbox"
+            [checked]="allSelected()"
+            (change)="toggleAll()"
+            aria-label="select-all-suppliers"
+          />
+        </th>
+        <th class="sortable" (click)="sortBy('name')">
+          {{ 'suppliers.col.name' | t }}{{ sortIndicator('name') }}
+        </th>
+        <th class="sortable" (click)="sortBy('edrpou')">
+          {{ 'suppliers.col.edrpou' | t }}{{ sortIndicator('edrpou') }}
+        </th>
+        <th>{{ 'suppliers.col.contact' | t }}</th>
+        <th>{{ 'common.phone' | t }}</th>
+        <th class="sortable" (click)="sortBy('status')">
+          {{ 'suppliers.col.status' | t }}{{ sortIndicator('status') }}
+        </th>
+        <th>{{ 'suppliers.col.stores' | t }}</th>
+        <th class="sortable" (click)="sortBy('bookingsCount')">
+          {{ 'suppliers.col.bookings' | t }}{{ sortIndicator('bookingsCount') }}
+        </th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (row of rows(); track row.id) {
+        <tr>
+          <td>
+            <input
+              type="checkbox"
+              [checked]="selection().includes(row.id)"
+              (change)="toggleRow(row.id)"
+              [attr.aria-label]="row.name"
+            />
+          </td>
+          <td><a [routerLink]="['/suppliers', row.id]">{{ row.name }}</a></td>
+          <td class="mono">{{ row.edrpou }}</td>
+          <td>{{ row.contactPerson }}</td>
+          <td class="mono">{{ row.contactPhone }}</td>
+          <td>
+            <span
+              class="badge"
+              [class.badge-success]="row.status === 'active'"
+              [class.badge-danger]="row.status === 'suspended'"
+              >{{ 'suppliers.status.' + row.status | t }}</span
+            >
+          </td>
+          <td>{{ accessLabel(row) | t: { n: row.allowedStoreIds.length } }}</td>
+          <td>{{ row.bookingsCount }}</td>
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="8">
+            <app-empty-state
+              [message]="'suppliers.empty' | t"
+              [actionLabel]="'common.reset' | t"
+              (action)="resetFilters()"
+            />
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+  <app-pagination
+    [page]="page()"
+    [pageSize]="pageSize()"
+    [total]="total()"
+    (pageChange)="setPage($event)"
+    (pageSizeChange)="setPageSize($event)"
+  />
+</div>
+
+@if (bulkOpen()) {
+  <app-modal [title]="'suppliers.bulk.status' | t" (closed)="bulkOpen.set(false)">
+    <p>{{ 'stores.bulk.confirm' | t: { count: selection().length } }}</p>
+    <div class="field">
+      <label for="bulk-sup-status">{{ 'common.status' | t }}</label>
+      <select id="bulk-sup-status" [value]="bulkStatus()" (change)="onBulkStatus($event)">
+        <option value="active">{{ 'suppliers.status.active' | t }}</option>
+        <option value="suspended">{{ 'suppliers.status.suspended' | t }}</option>
+      </select>
+    </div>
+    <ng-container modalFooter>
+      <button type="button" class="btn" (click)="bulkOpen.set(false)">
+        {{ 'common.cancel' | t }}
+      </button>
+      <button type="button" class="btn btn-primary" (click)="confirmBulk()">
+        {{ 'common.confirm' | t }}
+      </button>
+    </ng-container>
+  </app-modal>
+}

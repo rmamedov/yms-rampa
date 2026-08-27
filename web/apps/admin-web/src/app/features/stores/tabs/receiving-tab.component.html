@@ -1,0 +1,166 @@
+<div class="card">
+  <div class="card-title">{{ 'receiving.title' | t }}</div>
+
+  @for (day of days; track day) {
+    <div class="day-row">
+      <div class="day-name">{{ 'day.' + day | t }}</div>
+      <div class="interval-list">
+        @for (interval of intervalsFor(day); track $index) {
+          <div class="interval-row">
+            <input
+              type="time"
+              step="300"
+              [value]="interval.from"
+              [disabled]="!canEdit()"
+              (input)="setIntervalTime(day, $index, 'from', $any($event.target).value)"
+            />
+            <span>—</span>
+            <input
+              type="time"
+              step="300"
+              [value]="interval.to"
+              [disabled]="!canEdit()"
+              (input)="setIntervalTime(day, $index, 'to', $any($event.target).value)"
+            />
+            @if (canEdit()) {
+              <button
+                type="button"
+                class="btn btn-sm btn-danger"
+                (click)="removeInterval(day, $index)"
+              >
+                {{ 'common.delete' | t }}
+              </button>
+            }
+            @if (errorFor(day, $index); as error) {
+              <span class="field-error">{{ error.messageKey | t: error.params }}</span>
+            }
+          </div>
+        } @empty {
+          <span class="muted">{{ 'receiving.noIntervals' | t }}</span>
+        }
+      </div>
+      @if (canEdit()) {
+        <div class="row">
+          <button type="button" class="btn btn-sm" (click)="addInterval(day)">
+            {{ 'receiving.addInterval' | t }}
+          </button>
+          @if (day === 1) {
+            <button type="button" class="btn btn-sm" (click)="copyToWeekdays(day)">
+              Пн–Пт
+            </button>
+          }
+        </div>
+      }
+    </div>
+  }
+</div>
+
+<div class="card">
+  <div class="card-title">{{ 'receiving.exceptions' | t }}</div>
+
+  @if (canEdit()) {
+    <div class="toolbar">
+      <div>
+        <label for="exc-date">{{ 'common.date' | t }}</label>
+        <input
+          id="exc-date"
+          type="date"
+          [value]="newExceptionDate()"
+          (input)="newExceptionDate.set($any($event.target).value)"
+        />
+      </div>
+      <div>
+        <label for="exc-type">{{ 'receiving.exception.type' | t }}</label>
+        <select id="exc-type" [value]="newExceptionType()" (change)="setExceptionType($event)">
+          <option value="closed">{{ 'receiving.exception.closed' | t }}</option>
+          <option value="custom">{{ 'receiving.exception.custom' | t }}</option>
+        </select>
+      </div>
+      @if (newExceptionType() === 'custom') {
+        <div>
+          <label for="exc-from">{{ 'common.from' | t }}</label>
+          <input
+            id="exc-from"
+            type="time"
+            step="300"
+            [value]="newExceptionFrom()"
+            (input)="newExceptionFrom.set($any($event.target).value)"
+          />
+        </div>
+        <div>
+          <label for="exc-to">{{ 'common.to' | t }}</label>
+          <input
+            id="exc-to"
+            type="time"
+            step="300"
+            [value]="newExceptionTo()"
+            (input)="newExceptionTo.set($any($event.target).value)"
+          />
+        </div>
+      }
+      <div style="min-width: 260px">
+        <label for="exc-reason">{{ 'common.reason' | t }}</label>
+        <input
+          id="exc-reason"
+          type="text"
+          maxlength="200"
+          [value]="newExceptionReason()"
+          (input)="newExceptionReason.set($any($event.target).value)"
+        />
+      </div>
+      <button type="button" class="btn btn-primary" (click)="addException()">
+        {{ 'receiving.exception.add' | t }}
+      </button>
+    </div>
+
+    @for (error of exceptionErrors(); track error) {
+      <div class="field-error">{{ error | t }}</div>
+    }
+  }
+
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>{{ 'common.date' | t }}</th>
+          <th>{{ 'receiving.exception.type' | t }}</th>
+          <th>{{ 'common.time' | t }}</th>
+          <th>{{ 'common.reason' | t }}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (exception of draftExceptions(); track exception.id) {
+          <tr>
+            <td>{{ formatDate(exception.date) }}</td>
+            <td>
+              <span
+                class="badge"
+                [class.badge-danger]="exception.type === 'closed'"
+                [class.badge-warn]="exception.type === 'custom'"
+                >{{ 'receiving.exception.' + exception.type | t }}</span
+              >
+            </td>
+            <td>{{ intervalsLabel(exception) || '—' }}</td>
+            <td>{{ exception.reason }}</td>
+            <td>
+              @if (canEdit()) {
+                <button
+                  type="button"
+                  class="btn btn-sm btn-danger"
+                  (click)="removeException(exception.id)"
+                >
+                  {{ 'common.delete' | t }}
+                </button>
+              }
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="5" class="muted">{{ 'receiving.exception.empty' | t }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</div>

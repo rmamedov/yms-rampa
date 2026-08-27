@@ -1,0 +1,126 @@
+@if (collapsed()) {
+  <article class="card collapsed">
+    <header class="head">
+      <span class="slot small">{{ slotRange() }}</span>
+      <app-status-badge [status]="point().status" />
+    </header>
+    <p class="address">
+      {{ point().store.name }} · {{ 'point.ramp' | t }} {{ point().rampNumber }} ·
+      {{ point().pallets }} {{ 'point.pallets' | t | lowercase }}
+    </p>
+  </article>
+} @else {
+<article class="card">
+  <header class="head">
+    <span class="slot">{{ slotRange() }}</span>
+    <app-status-badge [status]="point().status" />
+  </header>
+
+  @if (delayLabel(); as label) {
+    <p class="delay">
+      {{ label }}
+      @if (point().delayed?.reason; as reason) {
+        <span class="delay-reason">· {{ reason }}</span>
+      }
+    </p>
+  }
+
+  <h2 class="store">{{ point().store.name }}</h2>
+  <p class="address">{{ point().store.city }}, {{ point().store.address }}</p>
+
+  <dl class="meta">
+    <div class="meta-item">
+      <dt>{{ 'point.ramp' | t }}</dt>
+      <dd>{{ point().rampNumber }}</dd>
+    </div>
+    <div class="meta-item">
+      <dt>{{ 'point.pallets' | t }}</dt>
+      <dd>{{ point().pallets }}</dd>
+    </div>
+    <div class="meta-item wide">
+      <dt>{{ 'point.orderId' | t }}</dt>
+      <dd>{{ point().orderId || ('common.dash' | t) }}</dd>
+    </div>
+  </dl>
+
+  @if (editing()) {
+    <div class="order-edit">
+      <input
+        class="order-input"
+        type="text"
+        inputmode="numeric"
+        maxlength="64"
+        [value]="draftOrderId()"
+        [placeholder]="'point.orderIdPlaceholder' | t"
+        (input)="onOrderInput($event)"
+      />
+      @if (orderError(); as message) {
+        <p class="field-error">{{ message }}</p>
+      }
+      <div class="order-actions">
+        <button type="button" class="btn small primary" (click)="submitOrder()">
+          {{ 'point.orderIdSave' | t }}
+        </button>
+        <button type="button" class="btn small ghost" (click)="cancelEdit()">
+          {{ 'point.orderIdCancel' | t }}
+        </button>
+      </div>
+    </div>
+  } @else if (canEditOrder()) {
+    <button type="button" class="btn secondary" (click)="startEdit()">
+      {{ (point().orderId ? 'point.orderIdEdit' : 'point.orderIdEmpty') | t }}
+    </button>
+  } @else if (!online() && !closed()) {
+    <p class="hint">{{ 'point.orderIdOfflineDisabled' | t }}</p>
+  }
+
+  @if (point().status === 'cancelled' && point().cancelReason) {
+    <p class="hint">{{ point().cancelReason }}</p>
+  }
+
+  @if (arrivedAtLabel(); as label) {
+    <p class="hint">{{ label }}</p>
+  }
+
+  @if (!closed()) {
+    <button
+      type="button"
+      class="btn primary tall"
+      [disabled]="!hasCoords()"
+      (click)="onRouteClick()"
+      (contextmenu)="onRouteContextMenu($event)"
+    >
+      {{ 'point.route' | t }}
+    </button>
+    @if (!hasCoords()) {
+      <p class="hint">{{ 'point.noCoordinates' | t }}</p>
+    }
+  }
+
+  @if (queued()) {
+    <p class="queued">{{ 'point.arriveQueued' | t }}</p>
+  }
+
+  @if (showArrive()) {
+    <button
+      type="button"
+      class="btn arrive tall"
+      [class.late]="windowState() === 'late'"
+      [disabled]="!canArrive()"
+      (click)="arriveRequested.emit(point())"
+    >
+      {{ 'point.arrive' | t }}
+    </button>
+    @if (arriveHint(); as hint) {
+      <p class="hint">{{ hint }}</p>
+    }
+    <button
+      type="button"
+      class="btn ghost"
+      (click)="delayRequested.emit(point())"
+    >
+      {{ 'point.reportDelay' | t }}
+    </button>
+  }
+</article>
+}

@@ -1,0 +1,250 @@
+<div class="page-header">
+  <h1>{{ 'stores.title' | t }}</h1>
+</div>
+
+<div class="toolbar">
+  <div style="min-width: 280px">
+    <label for="store-search">{{ 'common.search' | t }}</label>
+    <input
+      id="store-search"
+      type="search"
+      [value]="searchTerm()"
+      [placeholder]="'stores.search.placeholder' | t"
+      (input)="searchTerm.set($any($event.target).value)"
+      (keydown.enter)="applySearch()"
+    />
+  </div>
+
+  <app-multi-select
+    [label]="'stores.filter.city' | t"
+    [options]="cityOptions()"
+    [selected]="state().filter.cities"
+    (selectedChange)="setCities($event)"
+  />
+
+  <app-multi-select
+    [label]="'stores.filter.status' | t"
+    [options]="statusOptions"
+    [selected]="state().filter.statuses"
+    [searchable]="false"
+    (selectedChange)="setStatuses($event)"
+  />
+
+  <div style="min-width: 180px">
+    <label for="configured">{{ 'stores.filter.configured' | t }}</label>
+    <select
+      id="configured"
+      [value]="configuredValue()"
+      (change)="setConfigured($event)"
+    >
+      <option value="">{{ 'common.any' | t }}</option>
+      <option value="true">{{ 'stores.filter.configured.yes' | t }}</option>
+      <option value="false">{{ 'stores.filter.configured.no' | t }}</option>
+    </select>
+  </div>
+
+  <button type="button" class="btn btn-primary" (click)="applySearch()">
+    {{ 'common.apply' | t }}
+  </button>
+  @if (hasFilters()) {
+    <button type="button" class="btn" (click)="resetFilters()">
+      {{ 'common.reset' | t }}
+    </button>
+  }
+</div>
+
+@if (selection().length > 0) {
+  <div class="bulk-bar">
+    <strong>{{ 'common.selected' | t: { count: selection().length } }}</strong>
+    <span class="spacer"></span>
+    @if (canBulk()) {
+      <button type="button" class="btn btn-sm" (click)="openBulk('status')">
+        {{ 'stores.bulk.status' | t }}
+      </button>
+      <button type="button" class="btn btn-sm" (click)="openBulk('visibility')">
+        {{ 'stores.bulk.visibility' | t }}
+      </button>
+      <button type="button" class="btn btn-sm" (click)="openBulk('template')">
+        {{ 'stores.bulk.template' | t }}
+      </button>
+    } @else {
+      <span class="muted">{{ 'nav.noAccess' | t }}</span>
+    }
+    <button type="button" class="btn btn-sm" (click)="selection.set([])">
+      {{ 'common.reset' | t }}
+    </button>
+  </div>
+}
+
+<div class="table-wrap">
+  <table class="data">
+    <thead>
+      <tr>
+        <th style="width: 36px">
+          <input
+            type="checkbox"
+            [checked]="allSelected()"
+            (change)="toggleAll()"
+            aria-label="select-all"
+          />
+        </th>
+        <th class="sortable" (click)="sortBy('externalId')">
+          {{ 'stores.col.externalId' | t }}{{ sortIndicator('externalId') }}
+        </th>
+        <th class="sortable" (click)="sortBy('displayName')">
+          {{ 'stores.col.displayName' | t }}{{ sortIndicator('displayName') }}
+        </th>
+        <th class="sortable" (click)="sortBy('city')">
+          {{ 'stores.col.city' | t }}{{ sortIndicator('city') }}
+        </th>
+        <th>{{ 'stores.col.address' | t }}</th>
+        <th class="sortable" (click)="sortBy('ymsStatus')">
+          {{ 'stores.col.status' | t }}{{ sortIndicator('ymsStatus') }}
+        </th>
+        <th class="sortable" (click)="sortBy('isConfigured')">
+          {{ 'stores.col.configured' | t }}{{ sortIndicator('isConfigured') }}
+        </th>
+        <th class="sortable" (click)="sortBy('rampCount')">
+          {{ 'stores.col.ramps' | t }}{{ sortIndicator('rampCount') }}
+        </th>
+        <th class="sortable" (click)="sortBy('maxVehicleWeightTons')">
+          {{ 'stores.col.weight' | t }}{{ sortIndicator('maxVehicleWeightTons') }}
+        </th>
+        <th class="sortable" (click)="sortBy('lastSyncedAt')">
+          {{ 'stores.col.lastSync' | t }}{{ sortIndicator('lastSyncedAt') }}
+        </th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (row of rows(); track row.id) {
+        <tr>
+          <td>
+            <input
+              type="checkbox"
+              [checked]="selection().includes(row.id)"
+              (change)="toggleRow(row.id)"
+              [attr.aria-label]="row.externalId"
+            />
+          </td>
+          <td class="mono">
+            <a [routerLink]="['/stores', row.id]">{{ row.externalId }}</a>
+          </td>
+          <td>{{ row.displayName }}</td>
+          <td>{{ row.city }}</td>
+          <td>{{ row.address }}</td>
+          <td>
+            <span [class]="statusBadge(row.ymsStatus)">{{
+              'ymsStatus.' + row.ymsStatus | t
+            }}</span>
+          </td>
+          <td>
+            @if (row.isConfigured) {
+              <span class="badge badge-success">{{ 'common.yes' | t }}</span>
+            } @else {
+              <span class="badge">{{ 'common.no' | t }}</span>
+            }
+          </td>
+          <td>{{ row.rampCount }}</td>
+          <td>{{ row.maxVehicleWeightTons ?? '—' }}</td>
+          <td class="muted">{{ formatDateTime(row.lastSyncedAt) }}</td>
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="10">
+            <app-empty-state
+              [message]="'stores.empty' | t"
+              [actionLabel]="hasFilters() ? ('common.reset' | t) : null"
+              (action)="resetFilters()"
+            />
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+  <app-pagination
+    [page]="state().page"
+    [pageSize]="state().pageSize"
+    [total]="total()"
+    (pageChange)="setPage($event)"
+    (pageSizeChange)="setPageSize($event)"
+  />
+</div>
+
+@if (bulkOpen()) {
+  <app-modal [title]="'stores.bulk.title' | t" (closed)="closeBulk()">
+    <p>{{ 'stores.bulk.confirm' | t: { count: selection().length } }}</p>
+
+    @switch (bulkOpen()) {
+      @case ('status') {
+        <div class="field">
+          <label for="bulk-status">{{ 'stores.bulk.status' | t }}</label>
+          <select id="bulk-status" [value]="bulkStatus()" (change)="onBulkStatus($event)">
+            @for (status of bulkStatusOptions; track status) {
+              <option [value]="status">{{ 'ymsStatus.' + status | t }}</option>
+            }
+          </select>
+        </div>
+      }
+      @case ('visibility') {
+        <div class="field">
+          <label class="checkbox">
+            <input
+              type="checkbox"
+              [checked]="bulkVisible()"
+              (change)="bulkVisible.set($any($event.target).checked)"
+            />
+            {{
+              bulkVisible()
+                ? ('stores.bulk.visible.on' | t)
+                : ('stores.bulk.visible.off' | t)
+            }}
+          </label>
+        </div>
+      }
+      @case ('template') {
+        <div class="field">
+          <label for="bulk-template">{{ 'stores.bulk.template' | t }}</label>
+          <select
+            id="bulk-template"
+            [value]="bulkTemplate()"
+            (change)="onBulkTemplate($event)"
+          >
+            @for (template of templateOptions; track template) {
+              <option [value]="template">{{ 'stores.template.' + template | t }}</option>
+            }
+          </select>
+        </div>
+      }
+    }
+
+    @if (bulkResult(); as result) {
+      <div class="table-wrap" style="margin-top: 16px">
+        <table class="data">
+          <tbody>
+            @for (row of result; track row.id) {
+              <tr>
+                <td class="mono">{{ row.label }}</td>
+                <td>
+                  @if (row.ok) {
+                    <span class="badge badge-success">{{ 'common.yes' | t }}</span>
+                  } @else {
+                    <span class="badge badge-danger">{{ row.message ?? '' | t }}</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    <ng-container modalFooter>
+      <button type="button" class="btn" (click)="closeBulk()">
+        {{ 'common.cancel' | t }}
+      </button>
+      <button type="button" class="btn btn-primary" (click)="confirmBulk()">
+        {{ 'common.confirm' | t }}
+      </button>
+    </ng-container>
+  </app-modal>
+}

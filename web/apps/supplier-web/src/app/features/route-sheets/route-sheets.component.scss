@@ -1,0 +1,50 @@
+@use '../../../styles/variables' as v;
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.tab {
+  padding: 8px 14px;
+  border: 1px solid v.$border;
+  border-radius: 999px;
+  background: v.$surface;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tab--active {
+  background: v.$primary-soft;
+  border-color: v.$primary;
+  color: v.$primary-dark;
+}
+
+.sheets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  text-decoration: none;
+  color: v.$text;
+}
+
+.sheet:hover {
+  border-color: v.$primary;
+}
+
+.sheet__date {
+  font-weight: 650;
+  font-size: 16px;
+}

@@ -1,0 +1,138 @@
+<section class="page">
+  <div class="page__head">
+    <div>
+      <h1>{{ 'vehicles.title' | t }}</h1>
+      <p class="muted">{{ 'vehicles.subtitle' | t }}</p>
+    </div>
+    <button type="button" class="btn btn--primary" (click)="openCreate()">
+      {{ 'vehicles.add' | t }}
+    </button>
+  </div>
+
+  <input
+    class="input vehicles__search"
+    type="search"
+    [placeholder]="'vehicles.searchPlaceholder' | t"
+    [value]="query()"
+    (input)="query.set($any($event.target).value)"
+  />
+
+  @if (loading()) {
+    <p class="muted"><span class="spinner"></span> {{ 'common.loading' | t }}</p>
+  } @else if (visible().length === 0) {
+    <div class="empty-state">{{ 'vehicles.empty' | t }}</div>
+  } @else {
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ 'vehicles.plate' | t }}</th>
+            <th>{{ 'vehicles.brand' | t }}</th>
+            <th>{{ 'vehicles.weight' | t }}</th>
+            <th>{{ 'vehicles.status' | t }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (vehicle of visible(); track vehicle.id) {
+            <tr>
+              <td><strong>{{ vehicle.plateNumber }}</strong></td>
+              <td>{{ vehicle.brand ?? ('common.notSet' | t) }}</td>
+              <td>{{ vehicle.weightTons }} {{ 'common.tons' | t }}</td>
+              <td>
+                <span class="chip" [class.chip--ok]="vehicle.active" [class.chip--off]="!vehicle.active">
+                  {{ (vehicle.active ? 'vehicles.active' : 'vehicles.inactive') | t }}
+                </span>
+              </td>
+              <td class="vehicles__actions">
+                <button type="button" class="btn btn--sm btn--ghost" (click)="openEdit(vehicle)">
+                  {{ 'common.edit' | t }}
+                </button>
+                <button type="button" class="btn btn--sm btn--ghost" (click)="toggleActive(vehicle)">
+                  {{ (vehicle.active ? 'vehicles.deactivate' : 'vehicles.activate') | t }}
+                </button>
+                <button type="button" class="btn btn--sm btn--danger" (click)="removing.set(vehicle)">
+                  {{ 'common.delete' | t }}
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>
+
+@if (formOpen()) {
+  <app-modal [title]="formTitle()" (closed)="formOpen.set(false)">
+    <div class="field">
+      <label class="field__label" for="veh-plate">{{ 'vehicles.plate' | t }}</label>
+      <input
+        id="veh-plate"
+        class="input"
+        [class.input--invalid]="plateError() || duplicate()"
+        [value]="plate()"
+        (input)="plate.set($any($event.target).value)"
+      />
+      @if (plateError(); as error) {
+        <span class="field__error">{{ error | t }}</span>
+      } @else if (duplicate()) {
+        <span class="field__error">{{ 'validation.plateDuplicate' | t }}</span>
+      } @else if (plateHint()) {
+        <span class="field__hint">{{ 'validation.plateFormatHint' | t }}</span>
+      }
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="veh-brand">
+        {{ 'vehicles.brand' | t }} ({{ 'common.optional' | t }})
+      </label>
+      <input
+        id="veh-brand"
+        class="input"
+        [value]="brand()"
+        (input)="brand.set($any($event.target).value)"
+      />
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="veh-weight">{{ 'vehicles.weight' | t }}</label>
+      <input
+        id="veh-weight"
+        class="input"
+        type="number"
+        min="0.1"
+        step="0.1"
+        [class.input--invalid]="weightError()"
+        [value]="weightText()"
+        (input)="setWeight($any($event.target).value)"
+      />
+      @if (weightError(); as error) {
+        <span class="field__error">{{ error | t }}</span>
+      }
+    </div>
+
+    <div modalFooter>
+      <button type="button" class="btn btn--ghost" (click)="formOpen.set(false)">
+        {{ 'common.cancel' | t }}
+      </button>
+      <button type="button" class="btn btn--primary" [disabled]="!canSave()" (click)="save()">
+        {{ 'common.save' | t }}
+      </button>
+    </div>
+  </app-modal>
+}
+
+@if (removing()) {
+  <app-modal [title]="'common.delete' | t" (closed)="removing.set(null)">
+    <p>{{ removeLabel() }}</p>
+    <div modalFooter>
+      <button type="button" class="btn btn--ghost" (click)="removing.set(null)">
+        {{ 'common.cancel' | t }}
+      </button>
+      <button type="button" class="btn btn--danger" (click)="confirmRemove()">
+        {{ 'common.delete' | t }}
+      </button>
+    </div>
+  </app-modal>
+}

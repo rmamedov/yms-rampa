@@ -4,20 +4,67 @@
 # Files in the packages/ subdirectory configure your dependencies.
 # See also https://symfony.com/doc/current/service_container/import.html
 
-# Put parameters here that don't need to change on each machine where the app is deployed
-# https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
+    # Підключення до інфраструктури; реальні значення приходять з .env
+    yms.mongodb_uri: '%env(default::MONGODB_URI)%'
+    yms.mongodb_database: '%env(default::MONGODB_DATABASE)%'
+    yms.store_service_base_url: '%env(default::STORE_SERVICE_BASE_URL)%'
 
 services:
-    # default configuration for services in *this* file
     _defaults:
         autowire: true      # Automatically injects dependencies in your services.
         autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
 
-    # makes classes in src/ available to be used as services
-    # this creates a service per class whose id is the fully-qualified class name
+    # Класи src/ реєструються як сервіси. Реалізації на MongoDB і Redis
+    # виключені зі сканування: PHP-розширення mongodb/redis можуть бути
+    # відсутні на машині розробника, а контейнер має компілюватися завжди.
     App\:
         resource: '../src/'
+        exclude:
+            - '../src/Domain/'
+            - '../src/Kernel.php'
+            - '../src/Infrastructure/Mongo/'
+            - '../src/Infrastructure/Redis/'
 
-    # add more service definitions when explicit configuration is needed
-    # please note that last definitions always *replace* previous ones
+    # Доменні сервіси без залежностей від фреймворку.
+    App\Domain\Slot\SlotGridGenerator: ~
+
+    # --- Порти домену → адаптери -------------------------------------------
+    #
+    # Дефолтна збірка (dev/test) працює повністю в памʼяті: MongoDB-сервер
+    # може бути ще не піднятий, а юніт-тести не мають від нього залежати.
+    # Для прода аліаси перемикаються на Mongo/Redis-реалізації (див. нижче).
+    App\Domain\Shared\Clock: '@App\Infrastructure\Clock\SystemClock'
+    App\Domain\Shared\IdGenerator: '@App\Infrastructure\Shared\RandomIdGenerator'
+    App\Domain\Outbox\OutboxStore: '@App\Infrastructure\InMemory\InMemoryOutboxStore'
+    App\Domain\Booking\BookingRepository: '@App\Infrastructure\InMemory\InMemoryBookingRepository'
+    App\Domain\RouteSheet\RouteSheetRepository: '@App\Infrastructure\InMemory\InMemoryRouteSheetRepository'
+    App\Domain\Hold\SlotHoldStore: '@App\Infrastructure\InMemory\InMemorySlotHoldStore'
+    App\Domain\Slot\SlotOverlayProvider: '@App\Infrastructure\InMemory\InMemorySlotOverlayProvider'
+    App\Domain\Supplier\SupplierDirectory: '@App\Infrastructure\InMemory\InMemorySupplierDirectory'
+    App\Domain\Store\StoreConfigProvider: '@App\Infrastructure\Store\FixtureStoreConfigProvider'
+
+    # --- Продакшн-адаптери --------------------------------------------------
+    #
+    # Розкоментувати після встановлення MongoDB, Redis і відповідних
+    # PHP-розширень; аліаси вище тоді вказують на ці сервіси.
+    #
+    # MongoDB\Driver\Manager:
+    #     arguments: ['%yms.mongodb_uri%']
+    #
+    # App\Infrastructure\Mongo\MongoConnection:
+    #     arguments: ['@MongoDB\Driver\Manager', '%yms.mongodb_database%']
+    #
+    # App\Infrastructure\Mongo\MongoOutboxStore: ~
+    # App\Infrastructure\Mongo\MongoBookingRepository: ~
+    # App\Infrastructure\Mongo\MongoRouteSheetRepository: ~
+    #
+    # Redis:
+    #     factory: ['App\Infrastructure\Redis\RedisFactory', 'create']
+    #     arguments: ['%env(REDIS_URL)%']
+    #
+    # App\Infrastructure\Redis\RedisSlotHoldStore: ~
+    #
+    # App\Infrastructure\Store\CurlStoreServiceClient:
+    #     arguments: ['%yms.store_service_base_url%']
+    # App\Infrastructure\Store\HttpStoreConfigProvider: ~

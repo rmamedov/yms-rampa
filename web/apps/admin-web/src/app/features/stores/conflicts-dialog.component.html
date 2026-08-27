@@ -1,0 +1,108 @@
+<app-modal [title]="'conflicts.title' | t" (closed)="closed.emit()">
+  <p>{{ 'conflicts.intro' | t }}</p>
+  <p class="muted">
+    {{ 'conflicts.effectiveFrom' | t }}: <strong>{{ formatDate(effectiveFrom()) }}</strong>
+  </p>
+
+  <div class="row" style="margin-bottom: 12px">
+    <button type="button" class="btn btn-sm btn-danger" (click)="cancelAll()">
+      {{ 'conflicts.bulkCancel' | t }}
+    </button>
+    @if (copied(); as phone) {
+      <span class="badge badge-success">{{ 'common.copied' | t }}: {{ phone }}</span>
+    }
+  </div>
+
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>{{ 'conflicts.col.supplier' | t }}</th>
+          <th>{{ 'conflicts.col.phone' | t }}</th>
+          <th>{{ 'conflicts.col.datetime' | t }}</th>
+          <th>{{ 'conflicts.col.ramp' | t }}</th>
+          <th>{{ 'conflicts.col.plate' | t }}</th>
+          <th>{{ 'conflicts.col.order' | t }}</th>
+          <th>{{ 'conflicts.col.reason' | t }}</th>
+          <th style="width: 300px">{{ 'conflicts.col.decision' | t }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (conflict of conflicts(); track conflict.id) {
+          <tr>
+            <td>{{ conflict.booking.supplierName }}</td>
+            <td>
+              <button
+                type="button"
+                class="btn btn-link mono"
+                (click)="copyPhone(conflict.booking.supplierPhone)"
+              >
+                {{ conflict.booking.supplierPhone }}
+              </button>
+            </td>
+            <td class="mono">
+              {{ formatDate(conflict.booking.date) }} {{ conflict.booking.startTime }}
+            </td>
+            <td>{{ conflict.rampLabel }}</td>
+            <td class="mono">{{ conflict.booking.vehiclePlate }}</td>
+            <td class="mono">{{ conflict.booking.orderId }}</td>
+            <td>
+              <span class="badge badge-warn">{{
+                'conflicts.reason.' + conflict.reason | t
+              }}</span>
+            </td>
+            <td>
+              <div class="row">
+                <button
+                  type="button"
+                  class="btn btn-sm"
+                  [class.btn-primary]="resolutionOf(conflict.id) === 'keep'"
+                  (click)="decide(conflict.id, 'keep')"
+                >
+                  {{ 'conflicts.keep' | t }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-sm"
+                  [class.btn-danger]="resolutionOf(conflict.id) === 'cancel_notify'"
+                  (click)="decide(conflict.id, 'cancel_notify')"
+                >
+                  {{ 'conflicts.cancel_notify' | t }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-sm"
+                  [class.btn-primary]="resolutionOf(conflict.id) === 'manual'"
+                  (click)="decide(conflict.id, 'manual')"
+                >
+                  {{ 'conflicts.manual' | t }}
+                </button>
+              </div>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="8" class="muted">{{ 'conflicts.none' | t }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <ng-container modalFooter>
+    @if (unresolved() > 0) {
+      <span class="muted">{{ 'conflicts.unresolved' | t: { n: unresolved() } }}</span>
+    }
+    <button type="button" class="btn" (click)="closed.emit()">
+      {{ 'common.cancel' | t }}
+    </button>
+    <button
+      type="button"
+      class="btn btn-primary"
+      [disabled]="!canSave()"
+      (click)="confirm()"
+    >
+      {{ 'common.save' | t }}
+    </button>
+  </ng-container>
+</app-modal>

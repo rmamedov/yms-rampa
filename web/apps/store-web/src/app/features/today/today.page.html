@@ -1,0 +1,188 @@
+<section class="page">
+  <header class="page__head">
+    <div class="page__titles">
+      <h1>{{ 'board.title' | t }}</h1>
+      <p class="muted">{{ dateLabel() }}</p>
+    </div>
+
+    <div class="page__toolbar">
+      <div class="segmented" role="group" [attr.aria-label]="'board.title' | t">
+        <button
+          type="button"
+          class="segmented__btn"
+          [class.segmented__btn--active]="store.viewMode() === 'board'"
+          (click)="setMode('board')"
+        >
+          {{ 'board.mode.board' | t }}
+        </button>
+        <button
+          type="button"
+          class="segmented__btn"
+          [class.segmented__btn--active]="store.viewMode() === 'timeline'"
+          (click)="setMode('timeline')"
+        >
+          {{ 'board.mode.timeline' | t }}
+        </button>
+      </div>
+
+      <div class="datenav">
+        <button type="button" class="btn btn--sm" (click)="store.shiftDate(-1)">
+          {{ 'board.yesterday' | t }}
+        </button>
+        <button type="button" class="btn btn--sm" (click)="goToday()">
+          {{ 'board.today' | t }}
+        </button>
+        <button type="button" class="btn btn--sm" (click)="store.shiftDate(1)">
+          {{ 'board.tomorrow' | t }}
+        </button>
+        <input
+          class="input datenav__picker"
+          type="date"
+          [value]="store.viewDateKey()"
+          [attr.aria-label]="'board.pickDate' | t"
+          (change)="onDateInput($any($event.target).value)"
+        />
+      </div>
+
+      <button type="button" class="btn btn--sm btn--primary" (click)="openWalkIn()">
+        {{ 'action.walkIn' | t }}
+      </button>
+    </div>
+  </header>
+
+  @if (store.isStale()) {
+    <div class="banner banner--warn" role="status">
+      <span>{{ 'realtime.stale' | t: { time: lastSyncLabel() } }}</span>
+      <button type="button" class="btn btn--sm" (click)="store.reload()">
+        {{ 'realtime.refresh' | t }}
+      </button>
+    </div>
+  } @else if (lastSyncLabel()) {
+    <p class="sync muted">{{ 'realtime.updatedAt' | t: { time: lastSyncLabel() } }}</p>
+  }
+
+  @if (store.isPastDate()) {
+    <div class="banner" role="status">{{ 'board.readOnly' | t }}</div>
+  }
+
+  <app-stats-bar [stats]="store.stats()" />
+  <app-filters-bar />
+
+  @if (store.loading()) {
+    <p class="muted">{{ 'common.loading' | t }}</p>
+  } @else if (store.filteredBookings().length === 0) {
+    <p class="muted">{{ 'board.emptyDay' | t }}</p>
+  } @else if (store.viewMode() === 'board') {
+    <div class="board">
+      @for (column of store.rampColumns(); track column.ramp.rampId) {
+        <section class="board__col" [class.board__col--risk]="column.atRisk">
+          <header class="board__colhead">
+            <h2>{{ column.ramp.name }}</h2>
+            @if (column.atRisk) {
+              <span class="badge badge--risk">{{ 'board.atRisk' | t }}</span>
+            }
+          </header>
+          @if (column.bookings.length === 0) {
+            <p class="muted board__empty">{{ 'board.emptyRamp' | t }}</p>
+          }
+          @for (booking of column.bookings; track booking.id) {
+            <app-booking-card
+              [booking]="booking"
+              [atRisk]="isAtRisk(booking)"
+              [overrun]="isOverrun(booking)"
+              (action)="onAction(booking, $event)"
+            />
+          }
+        </section>
+      }
+    </div>
+  } @else {
+    <div class="timeline">
+      <div class="timeline__scale">
+        <span class="timeline__rampname"></span>
+        <div class="timeline__track">
+          @for (tick of ticks(); track tick.minutes) {
+            <span class="timeline__tick" [style.left.%]="tick.leftPercent">{{
+              tick.label
+            }}</span>
+          }
+        </div>
+      </div>
+      @for (column of store.rampColumns(); track column.ramp.rampId) {
+        <div class="timeline__row" [class.timeline__row--risk]="column.atRisk">
+          <span class="timeline__rampname">{{ column.ramp.name }}</span>
+          <div class="timeline__track">
+            @for (booking of column.bookings; track booking.id) {
+              <button
+                type="button"
+                class="timeline__item"
+                [class]="'timeline__item timeline__item--' + booking.status"
+                [class.timeline__item--risk]="isAtRisk(booking)"
+                [style.left]="placement(booking).left"
+                [style.width]="placement(booking).width"
+                [title]="booking.supplierNameSnapshot"
+                (click)="onAction(booking, 'log')"
+              >
+                {{ booking.supplierNameSnapshot }}
+              </button>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <div class="mobile-list">
+    @for (booking of store.listView(); track booking.id) {
+      <app-booking-card
+        [booking]="booking"
+        [atRisk]="isAtRisk(booking)"
+        [overrun]="isOverrun(booking)"
+        (action)="onAction(booking, $event)"
+      />
+    }
+  </div>
+</section>
+
+@if (dialog() === 'complete' && selected()) {
+  <app-complete-dialog
+    [booking]="selected()!"
+    (confirmed)="confirmComplete($event)"
+    (closed)="closeDialog()"
+  />
+}
+@if (dialog() === 'noShow' && selected()) {
+  <app-confirm-dialog
+    titleKey="noShow.title"
+    textKey="noShow.text"
+    [textParams]="noShowParams()"
+    (confirmed)="confirmNoShow()"
+    (closed)="closeDialog()"
+  />
+}
+@if (dialog() === 'reject' && selected()) {
+  <app-reject-dialog
+    (confirmed)="confirmReject($event)"
+    (closed)="closeDialog()"
+  />
+}
+@if (dialog() === 'delay' && selected()) {
+  <app-delay-dialog
+    [booking]="selected()!"
+    (confirmed)="confirmDelay($event)"
+    (closed)="closeDialog()"
+  />
+}
+@if (dialog() === 'reassign' && selected()) {
+  <app-reassign-dialog
+    [booking]="selected()!"
+    (confirmed)="confirmReassign($event)"
+    (closed)="closeDialog()"
+  />
+}
+@if (dialog() === 'log' && selected()) {
+  <app-audit-dialog [booking]="selected()!" (closed)="closeDialog()" />
+}
+@if (dialog() === 'walkIn') {
+  <app-walk-in-dialog (closed)="closeDialog()" />
+}

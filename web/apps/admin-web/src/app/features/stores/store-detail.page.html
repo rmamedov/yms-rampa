@@ -1,0 +1,153 @@
+@if (store(); as currentStore) {
+  <app-breadcrumbs [crumbs]="crumbs()" />
+
+  <div class="page-header">
+    <div>
+      <h1>{{ currentStore.displayName }}</h1>
+      <div class="row muted">
+        <span class="mono">{{ currentStore.externalId }}</span>
+        <span>·</span>
+        <span>{{ currentStore.city }}</span>
+        <span>·</span>
+        <span>{{ currentStore.addressOverride ?? currentStore.address }}</span>
+      </div>
+    </div>
+  </div>
+
+  @if (!canConfigure()) {
+    <div class="notice notice-info">{{ 'store.readonlyNotice' | t }}</div>
+  }
+
+  <div class="tabs">
+    @for (tab of tabs; track tab) {
+      <button
+        type="button"
+        class="tab"
+        [class.active]="activeTab() === tab"
+        (click)="selectTab(tab)"
+      >
+        {{ 'store.tab.' + tab | t }}
+      </button>
+    }
+  </div>
+
+  @switch (activeTab()) {
+    @case ('general') {
+      <app-store-general-tab
+        [store]="currentStore"
+        [canEdit]="canConfigure()"
+        (patchChange)="saveGeneral($event)"
+        (dirtyChange)="dirty.set($event)"
+      />
+    }
+    @case ('receiving') {
+      @if (draft(); as config) {
+        <app-store-receiving-tab
+          [windows]="config.receivingWindows"
+          [exceptions]="config.exceptions"
+          [slotSizeMinutes]="config.slotSizeMinutes"
+          [canEdit]="canConfigure()"
+          (changed)="onReceivingChange($event)"
+        />
+      }
+    }
+    @case ('slots') {
+      @if (draft(); as config) {
+        <app-store-slots-tab
+          [storeId]="currentStore.id"
+          [slotSizeMinutes]="config.slotSizeMinutes"
+          [ramps]="config.ramps"
+          [windows]="config.receivingWindows"
+          [canEdit]="canConfigure()"
+          (changed)="onSlotsChange($event)"
+        />
+      }
+    }
+    @case ('limits') {
+      @if (draft(); as config) {
+        <app-store-limits-tab
+          [maxVehicleWeightTons]="config.maxVehicleWeightTons"
+          [leadTimeHours]="config.leadTimeHours"
+          [bookingHorizonDays]="config.bookingHorizonDays"
+          [canEdit]="canConfigure()"
+          (changed)="onLimitsChange($event)"
+        />
+      }
+    }
+    @case ('reserves') {
+      @if (draft(); as config) {
+        <app-store-reserves-tab
+          [config]="config"
+          [suppliers]="suppliers()"
+          [canEdit]="canConfigure()"
+          (changed)="onReservesChange($event)"
+        />
+      }
+    }
+    @case ('blocks') {
+      @if (draft(); as config) {
+        <app-store-blocks-tab
+          [config]="config"
+          [canEdit]="canBlock()"
+          (changed)="onBlocksChange($event)"
+        />
+      }
+    }
+  }
+
+  @if (activeTab() !== 'general') {
+    <div class="card">
+      <div class="row">
+        <div>
+          <label for="effective-from">{{ 'conflicts.effectiveFrom' | t }}</label>
+          <input
+            id="effective-from"
+            type="date"
+            [value]="effectiveFrom()"
+            [min]="minEffectiveDate()"
+            [disabled]="!canConfigure() && !canBlock()"
+            (input)="setEffectiveFrom($any($event.target).value)"
+          />
+          <div class="field-hint">{{ 'conflicts.effectiveFrom.hint' | t }}</div>
+          @if (effectiveDateError(); as error) {
+            <div class="field-error">{{ error | t }}</div>
+          }
+        </div>
+        <span class="spacer"></span>
+        <button
+          type="button"
+          class="btn btn-primary"
+          [disabled]="(!canConfigure() && !canBlock()) || !dirty() || saving()"
+          (click)="requestSave()"
+        >
+          {{ saving() ? ('common.loading' | t) : ('common.save' | t) }}
+        </button>
+      </div>
+    </div>
+  }
+
+  @if (conflicts(); as list) {
+    <app-conflicts-dialog
+      [conflicts]="list"
+      [effectiveFrom]="effectiveFrom()"
+      (confirmed)="onConflictsConfirmed($event)"
+      (closed)="closeConflicts()"
+    />
+  }
+
+  @if (pendingTab()) {
+    <app-modal [title]="'common.unsaved.title' | t" (closed)="cancelLeave()">
+      <p>{{ 'common.unsaved.text' | t }}</p>
+      <ng-container modalFooter>
+        <button type="button" class="btn" (click)="cancelLeave()">
+          {{ 'common.unsaved.stay' | t }}
+        </button>
+        <button type="button" class="btn btn-danger" (click)="confirmLeave()">
+          {{ 'common.unsaved.leave' | t }}
+        </button>
+      </ng-container>
+    </app-modal>
+  }
+} @else {
+  <p class="muted">{{ 'common.loading' | t }}</p>
+}

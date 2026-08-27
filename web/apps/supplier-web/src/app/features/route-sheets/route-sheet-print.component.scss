@@ -1,0 +1,102 @@
+@use '../../../styles/variables' as v;
+
+.print-toolbar {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 14px 24px;
+  border-bottom: 1px solid v.$border;
+  background: v.$surface;
+}
+
+.sheet-print {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 24px;
+  background: #fff;
+  color: #000;
+}
+
+.sheet-print__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  border-bottom: 2px solid #000;
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+}
+
+.sheet-print__head h1 {
+  font-size: 20px;
+  margin: 0 0 4px;
+}
+
+.sheet-print__date {
+  margin: 0;
+  font-size: 14px;
+}
+
+.sheet-print__supplier {
+  font-size: 12px;
+  text-align: right;
+  line-height: 1.4;
+}
+
+.sheet-print__supplier-name {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.sheet-print__driver {
+  font-size: 13px;
+  margin: 0 0 12px;
+}
+
+.sheet-print__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.sheet-print__table th,
+.sheet-print__table td {
+  border: 1px solid #000;
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.sheet-print__table th {
+  background: #eee;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.sheet-print__table .sign {
+  width: 150px;
+  height: 34px;
+}
+
+@page {
+  size: A4 portrait;
+  margin: 12mm;
+}
+
+@media print {
+  .print-toolbar {
+    display: none;
+  }
+
+  .sheet-print {
+    padding: 0;
+    max-width: none;
+  }
+
+  .sheet-print__table thead {
+    display: table-header-group;
+  }
+
+  .sheet-print__table tr {
+    break-inside: avoid;
+  }
+}

@@ -1,0 +1,131 @@
+@let b = booking();
+
+<article
+  [class]="cardClasses()"
+  [style.transform]="'translateX(' + offset() + 'px)'"
+  (touchstart)="onTouchStart($event)"
+  (touchmove)="onTouchMove($event)"
+  (touchend)="onTouchEnd()"
+  (touchcancel)="onTouchEnd()"
+>
+  <header class="bcard__head">
+    <span class="bcard__time">{{ slotLabel() }}</span>
+    <app-status-badge [status]="b.status" />
+  </header>
+
+  <div class="bcard__flags">
+    @if (b.type === 'walk_in') {
+      <span class="badge badge--walkin">{{ 'card.walkIn' | t }}</span>
+    }
+    @if (b.delayed.flag && b.delayed.eta) {
+      <span class="badge badge--violet">{{ delayedLabel() }}</span>
+    }
+    @if (overrun()) {
+      <span class="badge badge--risk">{{ overrunLabel() }}</span>
+    }
+    @if (atRisk()) {
+      <span class="badge badge--risk">{{ 'board.atRisk' | t }}</span>
+    }
+  </div>
+
+  <h3 class="bcard__supplier">{{ b.supplierNameSnapshot }}</h3>
+
+  <dl class="bcard__grid">
+    <div>
+      <dt>{{ 'card.plate' | t }}</dt>
+      <dd>{{ b.vehicle.plateNumber }}</dd>
+    </div>
+    <div>
+      <dt>{{ 'card.weight' | t }}</dt>
+      <dd>{{ b.vehicle.weightTons }} {{ 'common.tonsShort' | t }}</dd>
+    </div>
+    <div>
+      <dt>{{ 'card.orderId' | t }}</dt>
+      <dd>{{ b.orderId ?? ('common.notSpecified' | t) }}</dd>
+    </div>
+    <div>
+      <dt>{{ 'card.pallets' | t }}</dt>
+      <dd>{{ palletsLabel() }}</dd>
+    </div>
+  </dl>
+
+  <p class="bcard__driver">
+    @if (b.driver) {
+      <span>{{ b.driver.fullName }}</span>
+      <a class="bcard__phone" [href]="'tel:' + b.driver.phone">{{
+        b.driver.phone
+      }}</a>
+    } @else {
+      <span class="muted">{{ 'card.noDriver' | t }}</span>
+    }
+  </p>
+
+  @if (!compact()) {
+    <ul class="bcard__facts">
+      @for (fact of facts(); track fact) {
+        <li>{{ fact }}</li>
+      }
+    </ul>
+  }
+
+  <footer class="bcard__actions">
+    @if (can('startUnloading')) {
+      <button
+        type="button"
+        class="btn btn--sm btn--primary"
+        (click)="emit('startUnloading')"
+      >
+        {{ 'action.startUnloading' | t }}
+      </button>
+    }
+    @if (can('complete')) {
+      <button
+        type="button"
+        class="btn btn--sm btn--primary"
+        (click)="emit('complete')"
+      >
+        {{ 'action.complete' | t }}
+      </button>
+    }
+    @if (b.status === 'booked') {
+      <button
+        type="button"
+        class="btn btn--sm"
+        [disabled]="!can('noShow')"
+        [title]="tooltip('noShow')"
+        (click)="emit('noShow')"
+      >
+        {{ 'action.noShow' | t }}
+      </button>
+    }
+    @if (can('reject')) {
+      <button type="button" class="btn btn--sm" (click)="emit('reject')">
+        {{ 'action.reject' | t }}
+      </button>
+    }
+    @if (can('delay')) {
+      <button type="button" class="btn btn--sm" (click)="emit('delay')">
+        {{ 'action.delay' | t }}
+      </button>
+    }
+    @if (can('clearDelay')) {
+      <button type="button" class="btn btn--sm" (click)="emit('clearDelay')">
+        {{ 'action.clearDelay' | t }}
+      </button>
+    }
+    @if (b.status === 'booked' || b.status === 'arrived') {
+      <button
+        type="button"
+        class="btn btn--sm"
+        [disabled]="!can('reassign')"
+        [title]="tooltip('reassign')"
+        (click)="emit('reassign')"
+      >
+        {{ 'action.reassign' | t }}
+      </button>
+    }
+    <button type="button" class="btn btn--sm btn--ghost" (click)="emit('log')">
+      {{ 'action.log' | t }}
+    </button>
+  </footer>
+</article>

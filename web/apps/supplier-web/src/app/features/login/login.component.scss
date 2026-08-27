@@ -1,0 +1,57 @@
+@use '../../../styles/variables' as v;
+
+.login {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(160deg, #eef2fb 0%, v.$bg 60%);
+}
+
+.login__card {
+  width: min(420px, 100%);
+  padding: 28px;
+}
+
+.login__brand {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.login__mark {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: v.$primary;
+  color: #fff;
+  font-weight: 700;
+  font-size: 20px;
+  flex: none;
+}
+
+.login__brand h1 {
+  font-size: 21px;
+  margin-bottom: 2px;
+}
+
+.login__error {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fdeaea;
+  color: v.$danger;
+  font-size: 13.5px;
+}
+
+.login__submit {
+  width: 100%;
+}
+
+.login__demo {
+  margin: 14px 0 0;
+  text-align: center;
+}

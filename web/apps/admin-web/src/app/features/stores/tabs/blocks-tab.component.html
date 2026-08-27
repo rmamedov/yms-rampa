@@ -1,0 +1,115 @@
+<div class="card">
+  <div class="card-title">{{ 'blocks.title' | t }}</div>
+
+  @if (canEdit()) {
+    <div class="toolbar">
+      <div>
+        <label for="blk-date">{{ 'common.date' | t }}</label>
+        <input
+          id="blk-date"
+          type="date"
+          [value]="date()"
+          (input)="date.set($any($event.target).value)"
+        />
+      </div>
+      <div>
+        <label for="blk-from">{{ 'common.from' | t }}</label>
+        <input
+          id="blk-from"
+          type="time"
+          step="300"
+          [value]="from()"
+          (input)="from.set($any($event.target).value)"
+        />
+      </div>
+      <div>
+        <label for="blk-to">{{ 'common.to' | t }}</label>
+        <input
+          id="blk-to"
+          type="time"
+          step="300"
+          [value]="to()"
+          (input)="to.set($any($event.target).value)"
+        />
+      </div>
+      <div>
+        <div class="field-label">{{ 'blocks.ramps' | t }}</div>
+        <div class="row">
+          @for (ramp of ramps(); track ramp.id) {
+            <label class="checkbox">
+              <input
+                type="checkbox"
+                [checked]="rampIds().includes(ramp.id)"
+                (change)="toggleRamp(ramp.id)"
+              />
+              {{ ramp.name ?? '№' + ramp.number }}
+            </label>
+          }
+          @if (rampIds().length === 0) {
+            <span class="badge badge-info">{{ 'blocks.ramps.all' | t }}</span>
+          }
+        </div>
+      </div>
+      <div style="min-width: 260px">
+        <label for="blk-reason">{{ 'common.reason' | t }}</label>
+        <input
+          id="blk-reason"
+          type="text"
+          maxlength="200"
+          [value]="reason()"
+          (input)="reason.set($any($event.target).value)"
+        />
+      </div>
+      <button type="button" class="btn btn-primary" (click)="addBlock()">
+        {{ 'blocks.add' | t }}
+      </button>
+    </div>
+
+    @for (error of errors(); track error) {
+      <div class="field-error">{{ error | t }}</div>
+    }
+  }
+
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>{{ 'common.date' | t }}</th>
+          <th>{{ 'blocks.range' | t }}</th>
+          <th>{{ 'blocks.ramps' | t }}</th>
+          <th>{{ 'common.reason' | t }}</th>
+          <th>{{ 'common.status' | t }}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (block of blocks(); track block.id) {
+          <tr>
+            <td>{{ formatDate(block.date) }}</td>
+            <td class="mono">{{ block.from }}–{{ block.to }}</td>
+            <td>{{ rampsLabel(block) || ('blocks.ramps.all' | t) }}</td>
+            <td>{{ block.reason }}</td>
+            <td>
+              @if (block.active) {
+                <span class="badge badge-danger">{{ 'common.yes' | t }}</span>
+              } @else {
+                <span class="badge">{{ 'blocks.released' | t }}</span>
+              }
+            </td>
+            <td>
+              @if (canEdit() && block.active) {
+                <button type="button" class="btn btn-sm" (click)="release(block.id)">
+                  {{ 'blocks.release' | t }}
+                </button>
+              }
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="6" class="muted">{{ 'blocks.empty' | t }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</div>

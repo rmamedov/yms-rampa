@@ -1,0 +1,37 @@
+@use '../../../styles/variables' as v;
+
+.branch__search {
+  max-width: 460px;
+  margin-bottom: 18px;
+}
+
+.branch-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.branch {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-decoration: none;
+  color: v.$text;
+  height: 100%;
+}
+
+.branch:hover {
+  border-color: v.$primary;
+}
+
+.branch--dim {
+  opacity: 0.68;
+}
+
+.branch__address {
+  font-weight: 650;
+  font-size: 15.5px;
+}

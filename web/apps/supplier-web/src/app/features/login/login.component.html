@@ -1,0 +1,61 @@
+<div class="login">
+  <form class="login__card card" (ngSubmit)="submit()">
+    <div class="login__brand">
+      <span class="login__mark" aria-hidden="true">Р</span>
+      <div>
+        <h1>{{ 'login.title' | t }}</h1>
+        <p class="muted small">{{ 'login.subtitle' | t }}</p>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="login-email">
+        {{ 'login.email' | t }}
+      </label>
+      <input
+        id="login-email"
+        class="input"
+        type="email"
+        autocomplete="username"
+        [ngModel]="email()"
+        (ngModelChange)="email.set($event)"
+        [ngModelOptions]="{ standalone: true }"
+      />
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="login-password">
+        {{ 'login.password' | t }}
+      </label>
+      <input
+        id="login-password"
+        class="input"
+        type="password"
+        autocomplete="current-password"
+        [ngModel]="password()"
+        (ngModelChange)="password.set($event)"
+        [ngModelOptions]="{ standalone: true }"
+      />
+    </div>
+
+    @if (errorKey(); as key) {
+      <p class="login__error" role="alert">{{ key | t }}</p>
+    }
+    @if (driverHint()) {
+      <a class="small" href="/driver">{{ 'login.driverLink' | t }}</a>
+    }
+
+    <button class="btn btn--primary btn--lg login__submit" type="submit" [disabled]="pending()">
+      @if (pending()) {
+        <span class="spinner" aria-hidden="true"></span>
+      }
+      {{ 'login.submit' | t }}
+    </button>
+
+    @if (showDemo) {
+      <p class="muted small login__demo">
+        {{ 'login.demoHint' | t: { email: demo.email, password: demo.password } }}
+      </p>
+    }
+  </form>
+</div>

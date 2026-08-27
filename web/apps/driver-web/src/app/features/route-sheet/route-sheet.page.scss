@@ -1,0 +1,217 @@
+@use 'tokens' as *;
+
+:host {
+  display: block;
+  max-width: $content-max;
+  margin: 0 auto;
+  padding: 0 $space-3 calc(#{$space-6} + env(safe-area-inset-bottom));
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $space-3;
+  padding: $space-3 0;
+  background: $color-bg;
+}
+
+.title {
+  font-size: $font-size-lg;
+  font-weight: 700;
+}
+
+.driver {
+  font-size: $font-size-sm;
+  color: $color-text-muted;
+}
+
+.icon-btn {
+  min-width: $touch-min;
+  min-height: $touch-min;
+  border-radius: $radius-md;
+  border: 1px solid $color-border;
+  background: $color-surface;
+  font-size: $font-size-lg;
+}
+
+.banner {
+  border-radius: $radius-md;
+  padding: $space-3;
+  font-size: $font-size-sm;
+  font-weight: 600;
+  margin-bottom: $space-3;
+}
+
+.offline {
+  background: $color-warning-soft;
+  color: $color-warning;
+}
+
+.queued {
+  background: $color-primary-soft;
+  color: $color-primary-dark;
+}
+
+.install {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $space-3;
+  flex-wrap: wrap;
+  background: $color-surface;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  padding: $space-3;
+  margin-bottom: $space-3;
+}
+
+.install-title {
+  font-weight: 700;
+}
+
+.install-body {
+  font-size: $font-size-sm;
+  color: $color-text-muted;
+}
+
+.install-actions {
+  display: flex;
+  gap: $space-2;
+}
+
+.chips {
+  display: flex;
+  gap: $space-2;
+  overflow-x: auto;
+  padding-bottom: $space-2;
+  margin-bottom: $space-3;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: $space-2;
+  min-height: $touch-min;
+  padding: 0 $space-4;
+  border-radius: 999px;
+  border: 1px solid $color-border;
+  background: $color-surface;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.chip.selected {
+  background: $color-primary;
+  border-color: $color-primary;
+  color: $color-text-inverse;
+}
+
+.chip-count {
+  font-size: $font-size-xs;
+  opacity: 0.75;
+}
+
+.state {
+  background: $color-surface;
+  border-radius: $radius-lg;
+  padding: $space-5 $space-4;
+  text-align: center;
+  color: $color-text-muted;
+  display: flex;
+  flex-direction: column;
+  gap: $space-3;
+  align-items: center;
+}
+
+.state.error {
+  color: $color-danger;
+}
+
+.summary {
+  display: flex;
+  gap: $space-4;
+  font-size: $font-size-sm;
+  color: $color-text-muted;
+  margin-bottom: $space-3;
+}
+
+.points {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: $space-3;
+}
+
+.sync {
+  margin-top: $space-3;
+  text-align: center;
+  font-size: $font-size-xs;
+  color: $color-text-muted;
+}
+
+.sheet-item {
+  width: 100%;
+  min-height: $touch-primary;
+  border-radius: $radius-md;
+  border: 1px solid $color-border;
+  background: $color-surface;
+  font-size: $font-size-md;
+  font-weight: 600;
+  text-align: left;
+  padding: 0 $space-4;
+}
+
+.sheet-item.danger {
+  color: $color-danger;
+  border-color: $color-danger-soft;
+  background: $color-danger-soft;
+}
+
+.sheet-item.ghost {
+  color: $color-text-muted;
+}
+
+.btn {
+  min-height: $touch-min;
+  border-radius: $radius-md;
+  border: 1px solid transparent;
+  font-weight: 600;
+  padding: 0 $space-4;
+}
+
+.btn.small {
+  min-height: $touch-min;
+  font-size: $font-size-sm;
+}
+
+.btn.primary {
+  background: $color-primary;
+  color: $color-text-inverse;
+}
+
+.btn.ghost {
+  background: $color-surface;
+  color: $color-text-muted;
+  border-color: $color-border;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(#{$space-5} + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 80;
+  width: min(#{$content-max}, calc(100vw - #{$space-5}));
+  background: $color-text;
+  color: $color-text-inverse;
+  border-radius: $radius-md;
+  padding: $space-3 $space-4;
+  font-size: $font-size-sm;
+  text-align: center;
+}

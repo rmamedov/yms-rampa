@@ -1,0 +1,91 @@
+<section class="page">
+  <div class="page__head">
+    <div>
+      <h1>{{ 'home.title' | t }}</h1>
+      <p class="muted">{{ 'home.subtitle' | t }}</p>
+    </div>
+    <a class="btn btn--primary btn--lg" routerLink="/booking/cities">
+      {{ 'home.newBooking' | t }}
+    </a>
+  </div>
+
+  @if (loading()) {
+    <p class="muted"><span class="spinner"></span> {{ 'common.loading' | t }}</p>
+  } @else if (failed()) {
+    <div class="empty-state">
+      <p>{{ 'error.NETWORK_ERROR' | t }}</p>
+      <button type="button" class="btn" (click)="load()">
+        {{ 'common.retry' | t }}
+      </button>
+    </div>
+  } @else if (items().length === 0) {
+    <div class="empty-state">
+      <p>{{ 'home.empty' | t }}</p>
+      <a class="btn btn--primary" routerLink="/booking/cities">
+        {{ 'home.newBooking' | t }}
+      </a>
+    </div>
+  } @else {
+    <div class="grid-cards">
+      @for (booking of items(); track booking.id) {
+        <article class="card delivery">
+          <header class="delivery__head">
+            <div>
+              <div class="delivery__time">{{ booking.slotStart | kyivTime }}</div>
+              <div class="muted small">{{ booking.slotStart | kyivDate }}</div>
+            </div>
+            <app-status-badge [status]="booking.status" />
+          </header>
+
+          <div class="delivery__store">
+            <strong>{{ booking.city }}, {{ booking.address }}</strong>
+            <div class="muted small">
+              {{ 'branch.externalId' | t: { externalId: booking.storeExternalId } }}
+              · {{ 'home.ramp' | t: { ramp: booking.rampName } }}
+            </div>
+          </div>
+
+          <dl class="delivery__meta">
+            <div>
+              <dt>{{ 'rs.col.vehicle' | t }}</dt>
+              <dd>{{ booking.vehicle.plateNumber }}</dd>
+            </div>
+            <div>
+              <dt>{{ 'rs.col.pallets' | t }}</dt>
+              <dd>{{ 'home.pallets' | t: { count: booking.palletsCount } }}</dd>
+            </div>
+            @if (booking.orderId) {
+              <div>
+                <dt>{{ 'rs.col.order' | t }}</dt>
+                <dd>{{ booking.orderId }}</dd>
+              </div>
+            }
+            @if (booking.driverName) {
+              <div>
+                <dt>{{ 'rs.driver' | t }}</dt>
+                <dd>{{ booking.driverName }}</dd>
+              </div>
+            }
+          </dl>
+
+          @if (booking.delayed) {
+            <p class="delivery__delay">
+              {{ 'home.delayed' | t: { reason: booking.delayReason ?? '' } }}
+            </p>
+          }
+
+          <a
+            class="btn btn--ghost btn--sm"
+            [routerLink]="['/route-sheets', sheetDate(booking)]"
+          >
+            {{ 'home.openSheet' | t }}
+          </a>
+        </article>
+      }
+    </div>
+
+    <p class="home__all">
+      <a routerLink="/route-sheets">{{ 'home.allRouteSheets' | t }} →</a>
+    </p>
+  }
+</section>

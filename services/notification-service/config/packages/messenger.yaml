@@ -1,0 +1,16 @@
+framework:
+    messenger:
+        transports:
+            # У проді — RabbitMQ (amqp://...), у dev — sync://.
+            # NOT-02: сповіщення породжуються виключно доменними подіями
+            # з канонічного реєстру; синхронні виклики «відправ SMS» заборонені.
+            events: '%env(MESSENGER_TRANSPORT_DSN)%'
+
+        routing:
+            App\Domain\Event\DriverCreated: events
+            App\Domain\Event\BookingCreated: events
+            App\Domain\Event\BookingCancelled: events
+            App\Domain\Event\BookingDelaySet: events
+            App\Domain\Event\BookingRejected: events
+            App\Domain\Event\BookingReassigned: events
+            App\Domain\Event\SlotReleased: events

@@ -1,0 +1,238 @@
+@use '../../../styles/variables' as v;
+
+.dates {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.dates__strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  flex: 1;
+}
+
+.date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 92px;
+  padding: 8px 10px;
+  border: 1px solid v.$border;
+  border-radius: 10px;
+  background: v.$surface;
+  cursor: pointer;
+  font: inherit;
+}
+
+.date--active {
+  border-color: v.$primary;
+  background: v.$primary-soft;
+  color: v.$primary-dark;
+}
+
+.date__weekday {
+  font-size: 11.5px;
+  text-transform: uppercase;
+  color: v.$text-muted;
+}
+
+.date--active .date__weekday {
+  color: v.$primary-dark;
+}
+
+.date__day {
+  font-weight: 650;
+  font-size: 14px;
+}
+
+.legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0 0 14px;
+  padding: 0;
+  font-size: 12.5px;
+  color: v.$text-muted;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid v.$border;
+  display: inline-block;
+}
+
+.swatch--available {
+  background: v.$slot-available;
+  border-color: v.$slot-available-border;
+}
+
+.swatch--mine {
+  background: v.$slot-mine;
+  border-color: v.$slot-mine-border;
+}
+
+.swatch--held {
+  background: v.$slot-held;
+  border-color: v.$slot-held-border;
+}
+
+.swatch--booked {
+  background: v.$slot-booked;
+  border-color: v.$slot-booked-border;
+}
+
+.swatch--reserved {
+  background: repeating-linear-gradient(
+    45deg,
+    #eef1f6,
+    #eef1f6 4px,
+    #dfe5ee 4px,
+    #dfe5ee 8px
+  );
+}
+
+.swatch--blocked {
+  background: v.$slot-blocked;
+  border-color: v.$slot-blocked-border;
+}
+
+.swatch--past {
+  background: v.$slot-past;
+  border-color: v.$slot-past-border;
+}
+
+.grid-scroll {
+  overflow-x: auto;
+  border: 1px solid v.$border;
+  border-radius: v.$radius-lg;
+  background: v.$surface;
+}
+
+.slot-grid {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 640px;
+}
+
+.slot-grid th,
+.slot-grid td {
+  border-bottom: 1px solid v.$border;
+  padding: 4px 6px;
+  text-align: center;
+}
+
+.slot-grid thead th {
+  position: sticky;
+  top: 0;
+  background: v.$surface-alt;
+  font-size: 12.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: v.$text-muted;
+  padding: 8px 6px;
+}
+
+.slot-grid__time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  width: 74px;
+  background: v.$surface-alt;
+}
+
+.slot {
+  display: block;
+  width: 100%;
+  min-width: 104px;
+  padding: 8px 6px;
+  border-radius: 8px;
+  border: 1px solid v.$slot-available-border;
+  background: v.$slot-available;
+  color: #14532d;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.slot:hover {
+  filter: brightness(0.97);
+}
+
+.slot--mine {
+  background: v.$slot-mine;
+  border-color: v.$slot-mine-border;
+  color: v.$primary-dark;
+}
+
+.slot--static {
+  cursor: default;
+}
+
+.slot--held {
+  background: v.$slot-held;
+  border-color: v.$slot-held-border;
+  color: #7c5a06;
+}
+
+.slot--booked {
+  background: v.$slot-booked;
+  border-color: v.$slot-booked-border;
+  color: v.$text-muted;
+}
+
+.slot--own-booking {
+  background: v.$slot-mine;
+  border-color: v.$slot-mine-border;
+  color: v.$primary-dark;
+}
+
+.slot--reserved {
+  background: repeating-linear-gradient(
+    45deg,
+    #eef1f6,
+    #eef1f6 4px,
+    #dfe5ee 4px,
+    #dfe5ee 8px
+  );
+  border-color: v.$slot-booked-border;
+  color: v.$text-muted;
+}
+
+.slot--blocked {
+  background: v.$slot-blocked;
+  border-color: v.$slot-blocked-border;
+  color: v.$danger;
+}
+
+.slot--past {
+  background: v.$slot-past;
+  border-color: v.$slot-past-border;
+  color: #94a3b8;
+}
+
+.transfer-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  background: v.$primary-soft;
+  color: v.$primary-dark;
+  font-weight: 600;
+}

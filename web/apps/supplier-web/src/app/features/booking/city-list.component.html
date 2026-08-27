@@ -1,0 +1,35 @@
+<section class="page">
+  <div class="page__head">
+    <div>
+      <h1>{{ 'city.title' | t }}</h1>
+      <p class="muted">{{ 'city.subtitle' | t }}</p>
+    </div>
+  </div>
+
+  <label class="sr-only" for="city-search">{{ 'city.search' | t }}</label>
+  <input
+    id="city-search"
+    class="input city__search"
+    type="search"
+    [placeholder]="'city.search' | t"
+    [value]="rawQuery()"
+    (input)="onSearch($any($event.target).value)"
+  />
+
+  @if (loading()) {
+    <p class="muted"><span class="spinner"></span> {{ 'common.loading' | t }}</p>
+  } @else if (visible().length === 0) {
+    <div class="empty-state">{{ 'city.empty' | t }}</div>
+  } @else {
+    <ul class="city-grid">
+      @for (item of visible(); track item.city) {
+        <li>
+          <a class="card city" [routerLink]="['/booking/cities', item.city]">
+            <span class="city__name">{{ item.city }}</span>
+            <span class="muted small">{{ countLabel(item.storeCount) }}</span>
+          </a>
+        </li>
+      }
+    </ul>
+  }
+</section>

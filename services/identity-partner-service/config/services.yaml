@@ -1,0 +1,95 @@
+# yaml-language-server: $schema=../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+#
+# identity-partner-service — автентифікація постачальників і водіїв
+# (контур partner, AUTH-01). Ключі JWT, iss/aud і БД — окремі від staff-контуру.
+
+parameters:
+    # AUTH-03: канонічні iss/aud partner-контуру.
+    app.jwt.issuer: 'yms-partner'
+    app.jwt.audience: 'yms-partner-api'
+    app.jwt.key_id: '%env(default:app.jwt.default_key_id:JWT_KEY_ID)%'
+    app.jwt.default_key_id: 'partner-1'
+    app.jwt.private_key_path: '%env(default:app.jwt.default_private_key_path:JWT_PRIVATE_KEY_PATH)%'
+    app.jwt.default_private_key_path: '%kernel.project_dir%/var/jwt/partner-private.pem'
+    app.jwt.public_key_path: '%env(default:app.jwt.default_public_key_path:JWT_PUBLIC_KEY_PATH)%'
+    app.jwt.default_public_key_path: '%kernel.project_dir%/var/jwt/partner-public.pem'
+    # Розділ 3.4: access-токен живе 15 хвилин.
+    app.jwt.access_ttl: 900
+
+    # AUTH-60: argon2id, memory 64 MB / time 3 / parallelism 4.
+    app.password.memory_cost: 65536
+    app.password.time_cost: 3
+    app.password.parallelism: 4
+
+    # AUTH-50: 5 невдалих спроб → блокування на 15 хвилин.
+    app.login.max_failures: 5
+    app.login.lock_window_seconds: 900
+
+    app.mongo.uri: '%env(default:app.mongo.default_uri:MONGODB_URL)%'
+    app.mongo.default_uri: 'mongodb://127.0.0.1:27017'
+    app.mongo.database: 'identity_partner'
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/Kernel.php'
+            # Mongo-реалізації вимагають живого сервера і ext-mongodb, тому
+            # не реєструються в контейнері автоматично (див. нижче).
+            - '../src/Infrastructure/Mongo/'
+
+    # --- Час -----------------------------------------------------------------
+    App\Domain\Clock\Clock: '@App\Infrastructure\Clock\SystemClock'
+
+    # --- Паролі (AUTH-60) ----------------------------------------------------
+    App\Infrastructure\Security\Argon2idPasswordHasher:
+        arguments:
+            $memoryCost: '%app.password.memory_cost%'
+            $timeCost: '%app.password.time_cost%'
+            $parallelism: '%app.password.parallelism%'
+
+    App\Domain\Security\PasswordHasher: '@App\Infrastructure\Security\Argon2idPasswordHasher'
+
+    # --- Сховище -------------------------------------------------------------
+    # Поки MongoDB не піднято, контур працює на InMemory-реалізаціях: сервіс
+    # стартує і локально, і в тестах. Для прод-профілю аліаси нижче
+    # перемикаються на App\Infrastructure\Mongo\* (див. config/packages/prod).
+    App\Domain\Account\PartnerAccountRepository: '@App\Infrastructure\InMemory\InMemoryPartnerAccountRepository'
+    App\Domain\Session\RefreshTokenRepository: '@App\Infrastructure\InMemory\InMemoryRefreshTokenRepository'
+    App\Domain\Session\LoginAttemptRepository: '@App\Infrastructure\InMemory\InMemoryLoginAttemptRepository'
+
+    # --- Блокування логінів (AUTH-50) ---------------------------------------
+    App\Domain\Session\LoginThrottle:
+        arguments:
+            $maxFailures: '%app.login.max_failures%'
+            $windowSeconds: '%app.login.lock_window_seconds%'
+
+    # --- JWT partner-контуру (AUTH-02, AUTH-03, AUTH-64) ---------------------
+    App\Infrastructure\Jwt\JwtKeyPairProvider:
+        arguments:
+            $privateKeyPath: '%app.jwt.private_key_path%'
+            $publicKeyPath: '%app.jwt.public_key_path%'
+            $keyId: '%app.jwt.key_id%'
+            $allowGeneratedDevKeys: true
+
+    App\Infrastructure\Jwt\JwtKeyPair:
+        factory: ['@App\Infrastructure\Jwt\JwtKeyPairProvider', 'keyPair']
+
+    App\Infrastructure\Jwt\RsaJwtCodec:
+        arguments:
+            $issuer: '%app.jwt.issuer%'
+            $audience: '%app.jwt.audience%'
+            $accessTtlSeconds: '%app.jwt.access_ttl%'
+
+    App\Domain\Token\TokenIssuer: '@App\Infrastructure\Jwt\RsaJwtCodec'
+    App\Domain\Token\TokenVerifier: '@App\Infrastructure\Jwt\RsaJwtCodec'
+
+    # --- Консольні команди ---------------------------------------------------
+    App\Command\InitMongoIndexesCommand:
+        arguments:
+            $mongoUri: '%app.mongo.uri%'
+            $database: '%app.mongo.database%'

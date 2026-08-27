@@ -1,0 +1,141 @@
+<div class="page-header">
+  <h1>{{ 'sync.title' | t }}</h1>
+  <span class="spacer"></span>
+  @if (canRun()) {
+    <button
+      type="button"
+      class="btn btn-primary"
+      [disabled]="busy()"
+      (click)="run()"
+    >
+      {{ busy() ? ('sync.status.running' | t) : ('sync.run' | t) }}
+    </button>
+  }
+</div>
+
+<div class="table-wrap">
+  <table class="data">
+    <thead>
+      <tr>
+        <th>{{ 'sync.col.startedAt' | t }}</th>
+        <th>{{ 'sync.col.type' | t }}</th>
+        <th>{{ 'sync.col.duration' | t }}</th>
+        <th>{{ 'sync.col.status' | t }}</th>
+        <th>{{ 'sync.col.new' | t }}</th>
+        <th>{{ 'sync.col.changed' | t }}</th>
+        <th>{{ 'sync.col.missing' | t }}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (run of runs(); track run.id) {
+        <tr>
+          <td>{{ formatDateTime(run.startedAt) }}</td>
+          <td>
+            {{ 'sync.type.' + run.type | t }}
+            @if (run.initiatedBy) {
+              <span class="muted">({{ run.initiatedBy }})</span>
+            }
+          </td>
+          <td>{{ formatDuration(run.durationMs) }}</td>
+          <td>
+            <span [class]="statusClass(run)">{{ 'sync.status.' + run.status | t }}</span>
+            @if (run.error) {
+              <div class="field-error">{{ run.error }}</div>
+            }
+          </td>
+          <td>{{ run.newCount }}</td>
+          <td>{{ run.changedCount }}</td>
+          <td>{{ run.missingCount }}</td>
+          <td>
+            <button type="button" class="btn btn-sm" (click)="selected.set(run)">
+              {{ 'sync.diff.title' | t }}
+            </button>
+          </td>
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="8">
+            <app-empty-state [message]="'sync.empty' | t" />
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+  <app-pagination
+    [page]="page()"
+    [pageSize]="pageSize()"
+    [total]="total()"
+    (pageChange)="setPage($event)"
+    (pageSizeChange)="setPageSize($event)"
+  />
+</div>
+
+@if (selected(); as run) {
+  <app-modal [title]="'sync.diff.title' | t" (closed)="selected.set(null)">
+    <div class="diff-block">
+      <div class="diff-title">
+        {{ 'sync.diff.created' | t }} ({{ run.diff.created.length }})
+      </div>
+      @for (item of run.diff.created; track item.externalId) {
+        <div class="row">
+          <span class="mono">{{ item.externalId }}</span>
+          <span>{{ item.city }}, {{ item.address }}</span>
+          <span class="badge">{{ 'ymsStatus.not_configured' | t }}</span>
+        </div>
+      } @empty {
+        <span class="muted">{{ 'sync.diff.empty' | t }}</span>
+      }
+    </div>
+
+    <div class="diff-block">
+      <div class="diff-title">
+        {{ 'sync.diff.changed' | t }} ({{ run.diff.changed.length }})
+      </div>
+      @for (item of run.diff.changed; track item.externalId) {
+        <div class="table-wrap" style="margin-bottom: 8px">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>{{ item.externalId }} — {{ item.city }}</th>
+                <th>{{ 'sync.diff.old' | t }}</th>
+                <th>{{ 'sync.diff.new' | t }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (change of item.changes; track change.field) {
+                <tr>
+                  <td class="mono">{{ change.field }}</td>
+                  <td class="muted">{{ change.oldValue }}</td>
+                  <td>{{ change.newValue }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @empty {
+        <span class="muted">{{ 'sync.diff.empty' | t }}</span>
+      }
+    </div>
+
+    <div class="diff-block">
+      <div class="diff-title">
+        {{ 'sync.diff.missing' | t }} ({{ run.diff.missing.length }})
+      </div>
+      @for (item of run.diff.missing; track item.externalId) {
+        <div class="row">
+          <span class="mono">{{ item.externalId }}</span>
+          <span>{{ item.city }}, {{ item.address }}</span>
+          <span class="badge badge-warn">{{
+            'sync.diff.missingCount' | t: { n: item.missingSyncCount }
+          }}</span>
+          @if (item.hasFutureBookings) {
+            <span class="badge badge-danger">{{ 'sync.diff.hasBookings' | t }}</span>
+          }
+        </div>
+      } @empty {
+        <span class="muted">{{ 'sync.diff.empty' | t }}</span>
+      }
+    </div>
+  </app-modal>
+}

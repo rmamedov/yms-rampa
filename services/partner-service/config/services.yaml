@@ -1,0 +1,63 @@
+# yaml-language-server: $schema=../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+#
+# Конфігурація partner-service (YMS «Рампа»).
+#
+# Принцип: домен (src/Domain) не знає ні про Symfony, ні про MongoDB — він
+# описаний портами (інтерфейсами), а тут порти зв'язуються з реалізаціями.
+# За замовчуванням (dev/test) увімкнені InMemory-реалізації, щоб сервіс
+# піднімався і тестувався на машині без MongoDB і RabbitMQ; у prod
+# ті самі порти вказують на MongoDB (див. блок when@prod нижче).
+
+parameters:
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\:
+        resource: '../src/'
+        exclude:
+            # Доменні сутності та value objects сервісами не є.
+            - '../src/Domain/'
+            - '../src/Kernel.php'
+
+    # HTTP-контролери (не успадковують AbstractController, тому тег явний).
+    App\Controller\:
+        resource: '../src/Controller/'
+        tags: ['controller.service_arguments']
+
+    # --- доменні сервіси (чистий PHP, збираються з портів) ---
+    App\Domain\Service\SupplierService: ~
+    App\Domain\Service\VehicleService: ~
+    App\Domain\Service\DriverService: ~
+
+    # --- інфраструктурні дрібниці ---
+    App\Infrastructure\Mongo\MongoConnection:
+        arguments:
+            $dsn: '%env(MONGO_DSN)%'
+            $database: '%env(MONGO_DB)%'
+
+    # --- порти → реалізації (dev/test) ---
+    App\Domain\Shared\Clock: '@App\Infrastructure\Clock\SystemClock'
+    App\Domain\Shared\IdGenerator: '@App\Infrastructure\Security\Uuid4Generator'
+    App\Domain\Security\PasswordGenerator: '@App\Infrastructure\Security\SecurePasswordGenerator'
+    App\Domain\Supplier\SupplierRepository: '@App\Infrastructure\InMemory\InMemorySupplierRepository'
+    App\Domain\PartnerUser\PartnerUserRepository: '@App\Infrastructure\InMemory\InMemoryPartnerUserRepository'
+    App\Domain\Vehicle\VehicleRepository: '@App\Infrastructure\InMemory\InMemoryVehicleRepository'
+    App\Domain\Identity\PartnerAccountGateway: '@App\Infrastructure\InMemory\InMemoryPartnerAccountGateway'
+    App\Domain\Event\EventPublisher: '@App\Infrastructure\InMemory\InMemoryEventPublisher'
+    App\Domain\Booking\BookingQueryPort: '@App\Infrastructure\InMemory\InMemoryBookingQueryPort'
+
+when@prod:
+    services:
+        # Продакшн: сховище — MongoDB (БД `partners`, розділ 10.4),
+        # події — через outbox-колекцію з подальшим релеєм у RabbitMQ (DATA-16).
+        App\Domain\Supplier\SupplierRepository: '@App\Infrastructure\Mongo\MongoSupplierRepository'
+        App\Domain\PartnerUser\PartnerUserRepository: '@App\Infrastructure\Mongo\MongoPartnerUserRepository'
+        App\Domain\Vehicle\VehicleRepository: '@App\Infrastructure\Mongo\MongoVehicleRepository'
+        App\Domain\Event\EventPublisher: '@App\Infrastructure\Mongo\MongoOutboxEventPublisher'
+        # Поки identity-partner-service і booking-service не піднято —
+        # заглушка та стратегія fail-closed (див. коментарі в класах).
+        App\Domain\Identity\PartnerAccountGateway: '@App\Infrastructure\Identity\StubPartnerAccountGateway'
+        App\Domain\Booking\BookingQueryPort: '@App\Infrastructure\Booking\FailClosedBookingQueryPort'

@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+
+parameters:
+    analytics.mongo.dsn: '%env(resolve:MONGODB_URL)%'
+    analytics.mongo.database: '%env(resolve:MONGODB_DB)%'
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\:
+        resource: '../src/'
+
+    # Годинник: домен не звертається до системного часу напряму.
+    App\Domain\Clock\Clock: '@App\Infrastructure\System\SystemClock'
+
+    App\Infrastructure\Mongo\MongoConnection:
+        arguments:
+            $dsn: '%analytics.mongo.dsn%'
+            $database: '%analytics.mongo.database%'
+
+    # Дефолтні реалізації репозиторіїв — InMemory: сервіс піднімається і працює
+    # без MongoDB та без розширення ext-mongodb (dev, тести).
+    App\Domain\Fact\BookingFactRepository: '@App\Infrastructure\InMemory\InMemoryBookingFactRepository'
+    App\Domain\Slot\SlotFactRepository: '@App\Infrastructure\InMemory\InMemorySlotFactRepository'
+    App\Domain\Stats\DailyStoreStatsRepository: '@App\Infrastructure\InMemory\InMemoryDailyStoreStatsRepository'
+
+when@prod:
+    services:
+        # У проді read-моделі зберігаються в MongoDB 7.x.
+        App\Domain\Fact\BookingFactRepository: '@App\Infrastructure\Mongo\MongoBookingFactRepository'
+        App\Domain\Slot\SlotFactRepository: '@App\Infrastructure\Mongo\MongoSlotFactRepository'
+        App\Domain\Stats\DailyStoreStatsRepository: '@App\Infrastructure\Mongo\MongoDailyStoreStatsRepository'

@@ -1,0 +1,802 @@
+@use 'styles/tokens' as *;
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: $font-base;
+  font-size: $fs-md;
+  line-height: 1.45;
+  color: $c-text;
+  background: $c-bg;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0 0 $sp-3;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+h1 {
+  font-size: $fs-xxl;
+}
+h2 {
+  font-size: $fs-xl;
+}
+h3 {
+  font-size: $fs-lg;
+}
+
+a {
+  color: $c-brand;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+// ---------------------------------------------------------------- елементи форм
+input[type='text'],
+input[type='password'],
+input[type='email'],
+input[type='number'],
+input[type='date'],
+input[type='time'],
+input[type='search'],
+select,
+textarea {
+  width: 100%;
+  padding: 7px 10px;
+  font-family: inherit;
+  font-size: $fs-md;
+  color: $c-text;
+  background: $c-surface;
+  border: 1px solid $c-border-strong;
+  border-radius: $radius;
+  outline: none;
+
+  &:focus {
+    border-color: $c-brand;
+    box-shadow: 0 0 0 3px rgba(11, 107, 58, 0.14);
+  }
+
+  &:disabled,
+  &[readonly] {
+    background: $c-surface-alt;
+    color: $c-text-muted;
+  }
+}
+
+label,
+.field-label {
+  display: block;
+  font-size: $fs-sm;
+  font-weight: 600;
+  color: $c-text-muted;
+  margin-bottom: $sp-1;
+}
+
+// ---------------------------------------------------------------- кнопки
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: $sp-2;
+  padding: 7px 14px;
+  font: inherit;
+  font-size: $fs-md;
+  font-weight: 500;
+  color: $c-text;
+  background: $c-surface;
+  border: 1px solid $c-border-strong;
+  border-radius: $radius;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover:not(:disabled) {
+    background: $c-surface-alt;
+    border-color: $c-brand;
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  &.btn-primary {
+    color: $c-text-inverse;
+    background: $c-brand;
+    border-color: $c-brand;
+
+    &:hover:not(:disabled) {
+      background: $c-brand-dark;
+      border-color: $c-brand-dark;
+    }
+  }
+
+  &.btn-danger {
+    color: $c-danger;
+    border-color: rgba(179, 38, 30, 0.4);
+
+    &:hover:not(:disabled) {
+      background: $c-danger-bg;
+      border-color: $c-danger;
+    }
+  }
+
+  &.btn-sm {
+    padding: 3px 9px;
+    font-size: $fs-sm;
+  }
+
+  &.btn-link {
+    padding: 0;
+    color: $c-brand;
+    background: none;
+    border: none;
+
+    &:hover:not(:disabled) {
+      text-decoration: underline;
+      background: none;
+    }
+  }
+}
+
+// ---------------------------------------------------------------- картки та сітки
+.card {
+  background: $c-surface;
+  border: 1px solid $c-border;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-sm;
+  padding: $sp-5;
+  margin-bottom: $sp-4;
+}
+
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: $sp-2;
+  font-size: $fs-lg;
+  font-weight: 600;
+  margin-bottom: $sp-4;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: $sp-4;
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: $sp-4;
+}
+
+.grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: $sp-3;
+}
+
+@media (max-width: 1100px) {
+  .grid-3,
+  .grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.field {
+  margin-bottom: $sp-4;
+}
+
+.field-error {
+  margin-top: $sp-1;
+  font-size: $fs-sm;
+  color: $c-danger;
+}
+
+.field-hint {
+  margin-top: $sp-1;
+  font-size: $fs-sm;
+  color: $c-text-muted;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: $sp-2;
+  flex-wrap: wrap;
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.muted {
+  color: $c-text-muted;
+}
+
+.mono {
+  font-family: $font-mono;
+  font-size: $fs-sm;
+}
+
+// ---------------------------------------------------------------- таблиці
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid $c-border;
+  border-radius: $radius-lg;
+  background: $c-surface;
+}
+
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: $fs-md;
+
+  th,
+  td {
+    padding: 9px 12px;
+    text-align: left;
+    border-bottom: 1px solid $c-border;
+    vertical-align: middle;
+  }
+
+  th {
+    font-size: $fs-sm;
+    font-weight: 600;
+    color: $c-text-muted;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    background: $c-surface-alt;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+
+    &.sortable {
+      cursor: pointer;
+      user-select: none;
+
+      &:hover {
+        color: $c-brand;
+      }
+    }
+  }
+
+  tbody tr:hover {
+    background: $c-brand-light;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+}
+
+// ---------------------------------------------------------------- бейджі
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: $fs-xs;
+  font-weight: 600;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: $c-surface-alt;
+  color: $c-text-muted;
+  border: 1px solid $c-border;
+
+  &.badge-success {
+    background: $c-success-bg;
+    color: $c-success;
+    border-color: rgba(27, 127, 75, 0.3);
+  }
+  &.badge-warn {
+    background: $c-warn-bg;
+    color: $c-warn;
+    border-color: rgba(160, 90, 0, 0.3);
+  }
+  &.badge-danger {
+    background: $c-danger-bg;
+    color: $c-danger;
+    border-color: rgba(179, 38, 30, 0.3);
+  }
+  &.badge-info {
+    background: $c-info-bg;
+    color: $c-info;
+    border-color: rgba(31, 95, 168, 0.3);
+  }
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: $sp-2;
+  font-size: $fs-md;
+  font-weight: 400;
+  color: $c-text;
+  cursor: pointer;
+  margin-bottom: 0;
+
+  input {
+    width: 15px;
+    height: 15px;
+    accent-color: $c-brand;
+    margin: 0;
+  }
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  gap: $sp-4;
+  margin-bottom: $sp-4;
+}
+
+.toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: $sp-3;
+  flex-wrap: wrap;
+  margin-bottom: $sp-4;
+}
+
+// ---------------------------------------------------------------- toast (UI-04)
+.toast-host {
+  position: fixed;
+  top: $sp-4;
+  right: $sp-4;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: $sp-2;
+  max-width: 420px;
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: $sp-3;
+  padding: $sp-3 $sp-4;
+  border-radius: $radius;
+  box-shadow: $shadow-md;
+  font-size: $fs-md;
+  background: $c-surface;
+  border-left: 4px solid $c-info;
+
+  &.toast-success {
+    border-left-color: $c-success;
+    background: $c-success-bg;
+  }
+  &.toast-error {
+    border-left-color: $c-danger;
+    background: $c-danger-bg;
+  }
+  &.toast-info {
+    border-left-color: $c-info;
+    background: $c-info-bg;
+  }
+}
+
+.toast-close {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: $c-text-muted;
+  font-size: $fs-sm;
+  padding: 0;
+}
+
+// ---------------------------------------------------------------- модальні вікна
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  padding: 0;
+  border: none;
+  background: rgba(22, 32, 42, 0.45);
+  cursor: default;
+  z-index: 50;
+}
+
+.modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 51;
+  width: min(920px, calc(100vw - 48px));
+  max-height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+  background: $c-surface;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-lg;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $sp-3;
+  padding: $sp-4 $sp-5;
+  border-bottom: 1px solid $c-border;
+
+  h3 {
+    margin: 0;
+  }
+}
+
+.modal-body {
+  padding: $sp-5;
+  overflow: auto;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: $sp-2;
+  padding: $sp-3 $sp-5;
+  border-top: 1px solid $c-border;
+}
+
+// ---------------------------------------------------------------- пагінація
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: $sp-3;
+  padding: $sp-3 $sp-4;
+  font-size: $fs-sm;
+}
+
+.pagination-size {
+  display: inline-flex;
+  align-items: center;
+  gap: $sp-2;
+  margin: 0;
+  font-size: $fs-sm;
+  font-weight: 400;
+  color: $c-text-muted;
+
+  select {
+    width: auto;
+    padding: 3px 6px;
+  }
+}
+
+// ---------------------------------------------------------------- мультивибір
+.multi-select {
+  position: relative;
+  min-width: 190px;
+}
+
+.multi-select-trigger {
+  width: 100%;
+  justify-content: space-between;
+  font-weight: 400;
+}
+
+.multi-select-panel {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 280px;
+  padding: $sp-3;
+  background: $c-surface;
+  border: 1px solid $c-border-strong;
+  border-radius: $radius;
+  box-shadow: $shadow-md;
+}
+
+.multi-select-list {
+  max-height: 260px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: $sp-1;
+  margin: $sp-2 0;
+}
+
+.multi-select-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: $sp-2;
+}
+
+// ---------------------------------------------------------------- breadcrumbs
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: $sp-2;
+  font-size: $fs-sm;
+  color: $c-text-muted;
+  margin-bottom: $sp-3;
+  flex-wrap: wrap;
+}
+
+.breadcrumbs-sep {
+  color: $c-border-strong;
+}
+
+// ---------------------------------------------------------------- порожній стан
+.empty-state {
+  padding: $sp-6;
+  text-align: center;
+  color: $c-text-muted;
+
+  p {
+    margin: 0 0 $sp-3;
+  }
+}
+
+// ---------------------------------------------------------------- логін
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, $c-brand-dark, $c-brand);
+  padding: $sp-4;
+}
+
+.login-card {
+  width: 420px;
+  max-width: 100%;
+  background: $c-surface;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-lg;
+  padding: $sp-6;
+}
+
+.login-brand {
+  font-size: $fs-xl;
+  font-weight: 700;
+  color: $c-brand;
+  margin-bottom: $sp-1;
+}
+
+.login-demo {
+  margin-top: $sp-5;
+  padding-top: $sp-4;
+  border-top: 1px dashed $c-border;
+  font-size: $fs-sm;
+}
+
+.login-demo-list {
+  display: flex;
+  flex-direction: column;
+  gap: $sp-1;
+  margin-top: $sp-2;
+}
+
+// ---------------------------------------------------------------- каркас
+.shell {
+  display: grid;
+  grid-template-columns: $sidebar-width 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: $c-brand-dark;
+  color: rgba(255, 255, 255, 0.86);
+  display: flex;
+  flex-direction: column;
+  padding: $sp-4 0;
+}
+
+.sidebar-brand {
+  padding: 0 $sp-4 $sp-4;
+  font-size: $fs-lg;
+  font-weight: 700;
+  color: $c-text-inverse;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  margin-bottom: $sp-3;
+}
+
+.sidebar-link {
+  display: block;
+  padding: 9px $sp-4;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: $fs-md;
+  border-left: 3px solid transparent;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.08);
+    text-decoration: none;
+    color: $c-text-inverse;
+  }
+
+  &.active {
+    background: rgba(255, 255, 255, 0.14);
+    border-left-color: $c-accent;
+    color: $c-text-inverse;
+    font-weight: 600;
+  }
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding: $sp-4;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: $fs-sm;
+}
+
+.sidebar-user {
+  color: $c-text-inverse;
+  font-weight: 600;
+}
+
+.sidebar-role {
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: $sp-3;
+}
+
+.content {
+  padding: $sp-5 $sp-6;
+  max-width: 1680px;
+  overflow-x: hidden;
+}
+
+// ---------------------------------------------------------------- вкладки
+.tabs {
+  display: flex;
+  gap: $sp-1;
+  border-bottom: 1px solid $c-border;
+  margin-bottom: $sp-4;
+  flex-wrap: wrap;
+}
+
+.tab {
+  padding: 8px 14px;
+  font-size: $fs-md;
+  font-weight: 500;
+  color: $c-text-muted;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+
+  &:hover {
+    color: $c-brand;
+  }
+
+  &.active {
+    color: $c-brand;
+    border-bottom-color: $c-brand;
+    font-weight: 600;
+  }
+}
+
+// ---------------------------------------------------------------- вікна прийому
+.day-row {
+  display: grid;
+  grid-template-columns: 130px 1fr auto;
+  gap: $sp-3;
+  align-items: start;
+  padding: $sp-3 0;
+  border-bottom: 1px dashed $c-border;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.day-name {
+  font-weight: 600;
+  padding-top: 6px;
+}
+
+.interval-list {
+  display: flex;
+  flex-direction: column;
+  gap: $sp-2;
+}
+
+.interval-row {
+  display: flex;
+  align-items: center;
+  gap: $sp-2;
+
+  input[type='time'] {
+    width: 118px;
+  }
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: $sp-3;
+  margin-bottom: $sp-4;
+}
+
+.kpi {
+  background: $c-surface;
+  border: 1px solid $c-border;
+  border-radius: $radius-lg;
+  padding: $sp-4;
+}
+
+.kpi-value {
+  font-size: $fs-xxl;
+  font-weight: 700;
+  color: $c-brand;
+  line-height: 1.1;
+}
+
+.kpi-label {
+  font-size: $fs-sm;
+  color: $c-text-muted;
+  margin-top: $sp-1;
+}
+
+.bar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: $c-border;
+  overflow: hidden;
+  min-width: 110px;
+}
+
+.bar-fill {
+  height: 100%;
+  background: $c-brand;
+}
+
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: $sp-3;
+  padding: $sp-3 $sp-4;
+  margin-bottom: $sp-3;
+  background: $c-brand-light;
+  border: 1px solid rgba(11, 107, 58, 0.25);
+  border-radius: $radius;
+  flex-wrap: wrap;
+}
+
+.diff-block {
+  margin-bottom: $sp-4;
+}
+
+.diff-title {
+  font-weight: 600;
+  margin-bottom: $sp-2;
+}
+
+.notice {
+  padding: $sp-3 $sp-4;
+  border-radius: $radius;
+  margin-bottom: $sp-4;
+  font-size: $fs-md;
+
+  &.notice-warn {
+    background: $c-warn-bg;
+    color: $c-warn;
+  }
+  &.notice-info {
+    background: $c-info-bg;
+    color: $c-info;
+  }
+  &.notice-danger {
+    background: $c-danger-bg;
+    color: $c-danger;
+  }
+  &.notice-success {
+    background: $c-success-bg;
+    color: $c-success;
+  }
+}

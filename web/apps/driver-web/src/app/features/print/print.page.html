@@ -1,0 +1,69 @@
+@if (sheet(); as data) {
+  <article class="sheet">
+    <button type="button" class="print-btn no-print" (click)="print()">
+      {{ 'print.print' | t }}
+    </button>
+
+    <h1 class="heading">{{ 'print.title' | t }}</h1>
+
+    <dl class="head">
+      <div><dt>{{ 'print.supplier' | t }}</dt><dd>{{ data.supplierName }}</dd></div>
+      <div><dt>{{ 'print.date' | t }}</dt><dd>{{ displayDate() }}</dd></div>
+      <div>
+        <dt>{{ 'print.driver' | t }}</dt>
+        <dd>{{ data.driverName }}, {{ driverPhone() }}</dd>
+      </div>
+      <div>
+        <dt>{{ 'print.vehicle' | t }}</dt>
+        <dd>
+          {{ data.vehicle.plate }}, {{ data.vehicle.model }},
+          {{ data.vehicle.capacityTons }} т
+        </dd>
+      </div>
+    </dl>
+
+    <div class="table-wrap">
+    <table class="stops">
+      <thead>
+        <tr>
+          <th>{{ 'print.colTime' | t }}</th>
+          <th>{{ 'print.colStore' | t }}</th>
+          <th>{{ 'print.colCity' | t }}</th>
+          <th>{{ 'print.colAddress' | t }}</th>
+          <th>{{ 'print.colRamp' | t }}</th>
+          <th>{{ 'print.colOrder' | t }}</th>
+          <th>{{ 'print.colPallets' | t }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows(); track $index) {
+          <tr>
+            <td>{{ row.time }}</td>
+            <td>{{ row.externalId }}</td>
+            <td>{{ row.city }}</td>
+            <td>{{ row.address }}</td>
+            <td>{{ row.ramp }}</td>
+            <td>{{ row.orderId }}</td>
+            <td>{{ row.pallets }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    </div>
+
+    <p class="totals">
+      {{ 'print.totalStops' | t }}: <b>{{ rows().length }}</b> ·
+      {{ 'print.totalPallets' | t }}: <b>{{ totalPallets() }}</b>
+    </p>
+
+    <footer class="foot">
+      <span>{{ 'print.generatedAt' | t }}: {{ generatedAt }}</span>
+      <span>{{ 'print.code' | t }}: {{ data.routeSheetId }}</span>
+      <span class="warn">{{ 'print.warning' | t }}</span>
+    </footer>
+  </article>
+} @else if (loading()) {
+  <p class="state">{{ 'sheet.loading' | t }}</p>
+} @else {
+  <p class="state">{{ 'print.empty' | t }}</p>
+}

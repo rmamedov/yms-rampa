@@ -1,0 +1,150 @@
+<section class="page">
+  @if (branch(); as store) {
+    <div class="page__head">
+      <div>
+        <a class="small" [routerLink]="['/booking/cities', store.city]">
+          ← {{ 'branch.title' | t: { city: store.city } }}
+        </a>
+        <h1>{{ store.address }}</h1>
+        <p class="muted small">
+          {{ 'slots.title' | t: { externalId: store.externalId } }} ·
+          {{ 'slots.slotSize' | t: { minutes: store.slotSizeMinutes } }} ·
+          {{ 'slots.horizon' | t: { days: store.bookingHorizonDays } }}
+        </p>
+      </div>
+      <div class="row">
+        <span class="chip chip--ok">
+          {{ 'slots.maxWeight' | t: { tons: store.maxVehicleWeightTons } }}
+        </span>
+        <button type="button" class="btn btn--ghost btn--sm" (click)="loadGrid()">
+          {{ 'common.refresh' | t }}
+        </button>
+      </div>
+    </div>
+
+    @if (transferLabel(); as label) {
+      <div class="transfer-banner">
+        <span>{{ label }}</span>
+        <button type="button" class="btn btn--sm" (click)="cancelTransfer()">
+          {{ 'common.cancel' | t }}
+        </button>
+      </div>
+    }
+
+    <div class="dates">
+      <button
+        type="button"
+        class="btn btn--ghost btn--sm"
+        [disabled]="!strip().canPrev"
+        (click)="shift(-1)"
+      >
+        ← {{ 'slots.prev' | t }}
+      </button>
+
+      <div class="dates__strip" role="tablist">
+        @for (date of strip().dates; track date) {
+          <button
+            type="button"
+            role="tab"
+            class="date"
+            [class.date--active]="date === selectedDate()"
+            [attr.aria-selected]="date === selectedDate()"
+            (click)="selectDate(date)"
+          >
+            <span class="date__weekday">{{ weekday(date) }}</span>
+            <span class="date__day">{{ dayLabel(date) }}</span>
+          </button>
+        }
+      </div>
+
+      <button
+        type="button"
+        class="btn btn--ghost btn--sm"
+        [disabled]="!strip().canNext"
+        (click)="shift(1)"
+      >
+        {{ 'slots.next' | t }} →
+      </button>
+    </div>
+
+    <ul class="legend" aria-label="{{ 'slots.legend' | t }}">
+      <li><span class="swatch swatch--available"></span>{{ 'slots.state.available' | t }}</li>
+      <li><span class="swatch swatch--mine"></span>{{ 'slots.state.availableMine' | t }}</li>
+      <li><span class="swatch swatch--held"></span>{{ 'slots.state.held' | t }}</li>
+      <li><span class="swatch swatch--booked"></span>{{ 'slots.state.booked' | t }}</li>
+      <li><span class="swatch swatch--reserved"></span>{{ 'slots.state.reserved' | t }}</li>
+      <li><span class="swatch swatch--blocked"></span>{{ 'slots.state.blocked' | t }}</li>
+      <li><span class="swatch swatch--past"></span>{{ 'slots.state.past' | t }}</li>
+    </ul>
+
+    @if (loading()) {
+      <p class="muted"><span class="spinner"></span> {{ 'common.loading' | t }}</p>
+    } @else if (grid(); as data) {
+      @if (data.rows.length === 0) {
+        <div class="empty-state">{{ 'slots.empty' | t }}</div>
+      } @else {
+        <div class="grid-scroll">
+          <table class="slot-grid">
+            <caption class="sr-only">
+              {{ 'slots.title' | t: { externalId: store.externalId } }}
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">{{ 'slots.time' | t }}</th>
+                @for (ramp of data.ramps; track ramp.rampId) {
+                  <th scope="col">{{ 'slots.ramp' | t }} {{ ramp.name }}</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of data.rows; track row.slotStart) {
+                <tr>
+                  <th scope="row" class="slot-grid__time">{{ row.label }}</th>
+                  @for (cell of row.cells; track cell.rampId) {
+                    <td class="slot-grid__cell">
+                      @if (selectable(cell)) {
+                        <button
+                          type="button"
+                          class="slot"
+                          [class.slot--mine]="cell.mine"
+                          [attr.aria-label]="cellAria(cell, row.label)"
+                          (click)="pick(cell)"
+                        >
+                          {{ stateLabel(cell) }}
+                        </button>
+                      } @else {
+                        <span
+                          class="slot slot--static"
+                          [class]="'slot--' + cell.state"
+                          [class.slot--own-booking]="cell.mine"
+                          aria-disabled="true"
+                          [attr.aria-label]="cellAria(cell, row.label)"
+                        >
+                          {{ stateLabel(cell) }}
+                        </span>
+                      }
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    }
+
+    @if (hold(); as session) {
+      <app-booking-panel
+        [store]="store"
+        [hold]="session"
+        (closed)="closePanel()"
+        (conflicted)="onConflict()"
+        (booked)="onBooked()"
+      />
+    }
+  } @else if (loading()) {
+    <p class="muted"><span class="spinner"></span> {{ 'common.loading' | t }}</p>
+  } @else {
+    <div class="empty-state">{{ 'error.SUPPLIER_NOT_ALLOWED' | t }}</div>
+  }
+</section>

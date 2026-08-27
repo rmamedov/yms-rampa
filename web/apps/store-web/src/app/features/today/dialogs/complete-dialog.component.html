@@ -1,0 +1,74 @@
+<app-modal titleKey="complete.title" (closed)="closed.emit()">
+  <p class="muted">{{ 'complete.plannedPallets' | t: { count: plannedPallets() } }}</p>
+
+  <div class="field">
+    <label class="field__label" for="unloaded">{{
+      'complete.unloadedPallets' | t
+    }}</label>
+    <input
+      id="unloaded"
+      class="input"
+      type="number"
+      min="0"
+      [max]="plannedPallets()"
+      [value]="unloadedValue()"
+      (input)="setUnloaded($any($event.target).value)"
+    />
+  </div>
+
+  <label class="checkline">
+    <input
+      type="checkbox"
+      [checked]="partial()"
+      [disabled]="unloadedValue() < plannedPallets()"
+      (change)="togglePartial()"
+    />
+    <span>{{ 'complete.partial' | t }}</span>
+  </label>
+
+  @if (partial()) {
+    <div class="field">
+      <label class="field__label" for="partial-reason">{{
+        'complete.partialReason' | t
+      }}</label>
+      <select
+        id="partial-reason"
+        class="select"
+        [ngModel]="reason()"
+        (ngModelChange)="reason.set($event)"
+      >
+        <option [ngValue]="null">—</option>
+        @for (item of reasons; track item) {
+          <option [ngValue]="item">{{ 'partialReason.' + item | t }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="partial-comment">{{
+        'common.comment' | t
+      }}</label>
+      <textarea
+        id="partial-comment"
+        class="textarea"
+        [ngModel]="comment()"
+        (ngModelChange)="comment.set($event)"
+      ></textarea>
+    </div>
+  }
+
+  @if (submitted() && !errors().valid) {
+    @for (error of errors().errors; track error) {
+      <p class="form-error">{{ error | t }}</p>
+    }
+  }
+
+  <div class="modal__actions">
+    <button type="button" class="btn" (click)="closed.emit()">
+      {{ 'common.cancel' | t }}
+    </button>
+    <button type="button" class="btn btn--primary" (click)="submit()">
+      {{ 'action.complete' | t }}
+    </button>
+  </div>
+</app-modal>

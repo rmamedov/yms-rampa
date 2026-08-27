@@ -1,0 +1,50 @@
+// Спільні змінні кольорів і типографіки YMS «Рампа» — admin-web (desktop-first).
+$c-brand: #0b6b3a;
+$c-brand-dark: #085129;
+$c-brand-light: #e6f2ea;
+$c-accent: #b8860b;
+
+$c-bg: #f4f6f8;
+$c-surface: #ffffff;
+$c-surface-alt: #fafbfc;
+$c-border: #dde3e9;
+$c-border-strong: #b8c3ce;
+
+$c-text: #16202a;
+$c-text-muted: #5b6b7a;
+$c-text-inverse: #ffffff;
+
+$c-danger: #b3261e;
+$c-danger-bg: #fdecea;
+$c-warn: #a05a00;
+$c-warn-bg: #fff4e0;
+$c-success: #1b7f4b;
+$c-success-bg: #e7f5ed;
+$c-info: #1f5fa8;
+$c-info-bg: #e8f1fb;
+
+$font-base: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+$font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+
+$fs-xs: 11px;
+$fs-sm: 12px;
+$fs-md: 14px;
+$fs-lg: 16px;
+$fs-xl: 20px;
+$fs-xxl: 26px;
+
+$sp-1: 4px;
+$sp-2: 8px;
+$sp-3: 12px;
+$sp-4: 16px;
+$sp-5: 24px;
+$sp-6: 32px;
+
+$radius: 6px;
+$radius-lg: 10px;
+$shadow-sm: 0 1px 2px rgba(22, 32, 42, 0.08);
+$shadow-md: 0 4px 16px rgba(22, 32, 42, 0.12);
+$shadow-lg: 0 12px 40px rgba(22, 32, 42, 0.2);
+
+$sidebar-width: 236px;
+$header-height: 56px;

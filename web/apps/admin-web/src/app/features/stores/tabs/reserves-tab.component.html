@@ -1,0 +1,153 @@
+<div class="card">
+  <div class="card-title">{{ 'reserves.title' | t }}</div>
+
+  @if (canEdit()) {
+    <div class="toolbar">
+      <div style="min-width: 230px">
+        <label for="res-supplier">{{ 'reserves.supplier' | t }}</label>
+        <select id="res-supplier" [value]="supplierId()" (change)="setSupplier($event)">
+          @for (supplier of activeSuppliers(); track supplier.id) {
+            <option [value]="supplier.id">{{ supplier.name }}</option>
+          }
+        </select>
+      </div>
+
+      <div>
+        <label for="res-mode">{{ 'reserves.mode' | t }}</label>
+        <select id="res-mode" [value]="mode()" (change)="setMode($event)">
+          <option value="weekly">{{ 'reserves.mode.weekly' | t }}</option>
+          <option value="date">{{ 'reserves.mode.date' | t }}</option>
+        </select>
+      </div>
+
+      @if (mode() === 'weekly') {
+        <div>
+          <label for="res-day">{{ 'reserves.mode.weekly' | t }}</label>
+          <select id="res-day" [value]="dayOfWeek()" (change)="setDay($event)">
+            @for (day of days; track day) {
+              <option [value]="day">{{ 'day.' + day | t }}</option>
+            }
+          </select>
+        </div>
+      } @else {
+        <div>
+          <label for="res-date">{{ 'common.date' | t }}</label>
+          <input
+            id="res-date"
+            type="date"
+            [value]="date()"
+            (input)="date.set($any($event.target).value)"
+          />
+        </div>
+      }
+
+      <div>
+        <label for="res-time">{{ 'reserves.slotStart' | t }}</label>
+        <input
+          id="res-time"
+          type="time"
+          step="300"
+          [value]="slotStartTime()"
+          (input)="slotStartTime.set($any($event.target).value)"
+        />
+      </div>
+
+      <div>
+        <label for="res-ramp">{{ 'reserves.ramp' | t }}</label>
+        <select id="res-ramp" [value]="rampId()" (change)="setRamp($event)">
+          @for (ramp of enabledRamps(); track ramp.id) {
+            <option [value]="ramp.id">{{ ramp.name ?? '№' + ramp.number }}</option>
+          }
+        </select>
+      </div>
+
+      <div>
+        <label for="res-from">{{ 'reserves.validFrom' | t }}</label>
+        <input
+          id="res-from"
+          type="date"
+          [value]="validFrom()"
+          (input)="validFrom.set($any($event.target).value)"
+        />
+      </div>
+
+      <div>
+        <label for="res-to">{{ 'reserves.validTo' | t }}</label>
+        <input
+          id="res-to"
+          type="date"
+          [value]="validTo()"
+          (input)="validTo.set($any($event.target).value)"
+        />
+      </div>
+
+      <button type="button" class="btn btn-primary" (click)="addRule()">
+        {{ 'reserves.add' | t }}
+      </button>
+    </div>
+
+    @for (error of errors(); track error) {
+      <div class="field-error">{{ error | t }}</div>
+    }
+  }
+
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>{{ 'reserves.supplier' | t }}</th>
+          <th>{{ 'reserves.mode' | t }}</th>
+          <th>{{ 'reserves.slotStart' | t }}</th>
+          <th>{{ 'reserves.ramp' | t }}</th>
+          <th>{{ 'reserves.validFrom' | t }}</th>
+          <th>{{ 'reserves.validTo' | t }}</th>
+          <th>{{ 'reserves.active' | t }}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (rule of rules(); track rule.id) {
+          <tr>
+            <td>{{ supplierName(rule.supplierId) }}</td>
+            <td>
+              @if (rule.dayOfWeek !== null) {
+                {{ 'day.' + rule.dayOfWeek | t }}
+              } @else {
+                {{ formatDate(rule.date) }}
+              }
+            </td>
+            <td class="mono">{{ rule.slotStartTime }}</td>
+            <td>{{ rampLabel(rule.rampId) }}</td>
+            <td>{{ formatDate(rule.validFrom) }}</td>
+            <td>{{ rule.validTo ? formatDate(rule.validTo) : '∞' }}</td>
+            <td>
+              <label class="checkbox">
+                <input
+                  type="checkbox"
+                  [checked]="rule.active"
+                  [disabled]="!canEdit()"
+                  (change)="toggleActive(rule.id, $any($event.target).checked)"
+                />
+              </label>
+            </td>
+            <td>
+              @if (canEdit()) {
+                <button
+                  type="button"
+                  class="btn btn-sm btn-danger"
+                  (click)="removeRule(rule.id)"
+                >
+                  {{ 'common.delete' | t }}
+                </button>
+              }
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="8" class="muted">{{ 'reserves.empty' | t }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</div>

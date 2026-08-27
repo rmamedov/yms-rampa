@@ -1,0 +1,33 @@
+// Спільні змінні кольорів і типографіки supplier-web.
+$primary: #2451d6;
+$primary-dark: #1c3fae;
+$primary-soft: #e8eeff;
+$surface: #ffffff;
+$surface-alt: #f1f4f9;
+$bg: #f6f8fb;
+$text: #14213a;
+$text-muted: #64748b;
+$border: #dbe3ec;
+$danger: #b91c1c;
+$warning: #a16207;
+$success: #15803d;
+
+$font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue',
+  Arial, sans-serif;
+
+$radius: 10px;
+$radius-lg: 12px;
+
+// Стани слотів (кодуються кольором + текстом/іконкою, SUP-SLOT-05).
+$slot-available: #e6f6ec;
+$slot-available-border: #7fc79a;
+$slot-mine: #e8eeff;
+$slot-mine-border: #7f9df0;
+$slot-held: #fff4d6;
+$slot-held-border: #e3c66f;
+$slot-booked: #f1f4f9;
+$slot-booked-border: #c8d2df;
+$slot-blocked: #fdeaea;
+$slot-blocked-border: #eab3b3;
+$slot-past: #f8fafc;
+$slot-past-border: #e2e8f0;

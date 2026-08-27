@@ -1,0 +1,59 @@
+<div class="shell">
+  <aside class="shell__nav no-print">
+    <a class="brand" routerLink="/home">
+      <span class="brand__mark" aria-hidden="true">Р</span>
+      <span class="brand__text">
+        <strong>{{ 'app.brand' | t }}</strong>
+        <small>{{ 'app.brandSub' | t }}</small>
+      </span>
+    </a>
+
+    <nav class="nav" aria-label="Головна навігація">
+      <a routerLink="/home" routerLinkActive="nav__link--active" class="nav__link">
+        {{ 'nav.home' | t }}
+      </a>
+      <a
+        routerLink="/booking/cities"
+        routerLinkActive="nav__link--active"
+        class="nav__link"
+      >
+        {{ 'nav.newBooking' | t }}
+      </a>
+      <a
+        routerLink="/route-sheets"
+        routerLinkActive="nav__link--active"
+        class="nav__link"
+      >
+        {{ 'nav.routeSheets' | t }}
+      </a>
+      <a
+        routerLink="/vehicles"
+        routerLinkActive="nav__link--active"
+        class="nav__link"
+      >
+        {{ 'nav.vehicles' | t }}
+      </a>
+      <a
+        routerLink="/drivers"
+        routerLinkActive="nav__link--active"
+        class="nav__link"
+      >
+        {{ 'nav.drivers' | t }}
+      </a>
+    </nav>
+
+    <div class="shell__user">
+      @if (user(); as current) {
+        <div class="shell__user-name">{{ current.fullName }}</div>
+        <div class="shell__user-org">{{ current.supplierName }}</div>
+      }
+      <button type="button" class="btn btn--ghost btn--sm" (click)="logout()">
+        {{ 'nav.logout' | t }}
+      </button>
+    </div>
+  </aside>
+
+  <main class="shell__content">
+    <router-outlet />
+  </main>
+</div>

@@ -1,0 +1,282 @@
+<div class="page-header">
+  <h1>{{ 'analytics.title' | t }}</h1>
+  <span class="spacer"></span>
+  @if (dashboard(); as data) {
+    <span class="badge badge-info">{{
+      'analytics.recalculatedAt' | t: { at: formatDateTime(data.recalculatedAt) }
+    }}</span>
+  }
+</div>
+
+@if (readOnly()) {
+  <div class="notice notice-info">{{ 'analytics.readonly' | t }}</div>
+}
+
+<div class="toolbar">
+  <div>
+    <label for="a-from">{{ 'common.from' | t }}</label>
+    <input
+      id="a-from"
+      type="date"
+      [value]="from()"
+      (input)="from.set($any($event.target).value)"
+    />
+  </div>
+  <div>
+    <label for="a-to">{{ 'common.to' | t }}</label>
+    <input
+      id="a-to"
+      type="date"
+      [value]="to()"
+      (input)="to.set($any($event.target).value)"
+    />
+  </div>
+  <div class="row">
+    <button type="button" class="btn btn-sm" (click)="applyPreset('today')">
+      {{ 'analytics.preset.today' | t }}
+    </button>
+    <button type="button" class="btn btn-sm" (click)="applyPreset('7d')">
+      {{ 'analytics.preset.7d' | t }}
+    </button>
+    <button type="button" class="btn btn-sm" (click)="applyPreset('30d')">
+      {{ 'analytics.preset.30d' | t }}
+    </button>
+  </div>
+
+  <app-multi-select
+    [label]="'analytics.filter.city' | t"
+    [options]="cityOptions()"
+    [selected]="cities()"
+    (selectedChange)="cities.set($event)"
+  />
+  <app-multi-select
+    [label]="'analytics.filter.store' | t"
+    [options]="storeOptions()"
+    [selected]="storeIds()"
+    (selectedChange)="storeIds.set($event)"
+  />
+  <app-multi-select
+    [label]="'analytics.filter.supplier' | t"
+    [options]="supplierOptions()"
+    [selected]="supplierIds()"
+    (selectedChange)="supplierIds.set($event)"
+  />
+
+  <button type="button" class="btn btn-primary" (click)="load()">
+    {{ 'common.apply' | t }}
+  </button>
+</div>
+
+@if (loading()) {
+  <p class="muted">{{ 'common.loading' | t }}</p>
+} @else if (!hasData()) {
+  <app-empty-state [message]="'analytics.noData' | t" />
+} @else if (dashboard(); as data) {
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi-value">{{ percent(avgUtilization()) }}</div>
+      <div class="kpi-label">{{ 'analytics.widget.utilization' | t }}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-value">{{ totalBookings() }}</div>
+      <div class="kpi-label">{{ 'analytics.widget.deliveries' | t }}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-value">{{ totalNoShow() }}</div>
+      <div class="kpi-label">{{ 'analytics.widget.noShow' | t }}</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      {{ 'analytics.widget.utilization' | t }}
+      <span class="spacer"></span>
+      <button type="button" class="btn btn-sm" (click)="exportCsv('utilization')">
+        {{ 'common.export.csv' | t }}
+      </button>
+    </div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>{{ 'analytics.col.store' | t }}</th>
+            <th>{{ 'common.city' | t }}</th>
+            <th>{{ 'analytics.col.bookedMinutes' | t }}</th>
+            <th>{{ 'analytics.col.availableMinutes' | t }}</th>
+            <th style="width: 220px">{{ 'analytics.col.utilization' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of data.utilization; track row.storeId) {
+            <tr>
+              <td>{{ row.storeName }}</td>
+              <td>{{ row.city }}</td>
+              <td>{{ row.bookedSlotMinutes }}</td>
+              <td>{{ row.availableSlotMinutes }}</td>
+              <td>
+                <div class="row">
+                  <div class="bar-track">
+                    <div class="bar-fill" [style.width]="barWidth(row.utilization)"></div>
+                  </div>
+                  <span class="mono">{{ percent(row.utilization) }}</span>
+                </div>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="5" class="muted">{{ 'analytics.noData' | t }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      {{ 'analytics.widget.deliveries' | t }}
+      <span class="spacer"></span>
+      <button type="button" class="btn btn-sm" (click)="exportCsv('deliveries')">
+        {{ 'common.export.csv' | t }}
+      </button>
+    </div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>{{ 'analytics.col.supplier' | t }}</th>
+            <th>{{ 'analytics.col.booked' | t }}</th>
+            <th>{{ 'analytics.col.completed' | t }}</th>
+            <th>{{ 'analytics.col.cancelled' | t }}</th>
+            <th>{{ 'analytics.col.noShow' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of data.deliveries; track row.supplierId) {
+            <tr>
+              <td>{{ row.supplierName }}</td>
+              <td>{{ row.booked }}</td>
+              <td>{{ row.completed }}</td>
+              <td>{{ row.cancelled }}</td>
+              <td>{{ row.noShow }}</td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="5" class="muted">{{ 'analytics.noData' | t }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">
+        {{ 'analytics.widget.noShow' | t }}
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-sm" (click)="exportCsv('noShow')">
+          {{ 'common.export.csv' | t }}
+        </button>
+      </div>
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th>{{ 'analytics.col.supplier' | t }}</th>
+              <th>{{ 'analytics.col.store' | t }}</th>
+              <th>{{ 'analytics.col.noShow' | t }}</th>
+              <th>{{ 'analytics.col.share' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of data.noShow; track row.supplierId + row.storeName) {
+              <tr>
+                <td>{{ row.supplierName }}</td>
+                <td>{{ row.storeName }}</td>
+                <td>{{ row.noShow }} / {{ row.total }}</td>
+                <td class="mono">{{ percent(row.share) }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="4" class="muted">{{ 'analytics.noData' | t }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        {{ 'analytics.widget.unloading' | t }}
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-sm" (click)="exportCsv('unloading')">
+          {{ 'common.export.csv' | t }}
+        </button>
+      </div>
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th>{{ 'analytics.col.store' | t }}</th>
+              <th>{{ 'analytics.col.avg' | t }}</th>
+              <th>{{ 'analytics.col.median' | t }}</th>
+              <th>{{ 'analytics.col.slotSize' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of data.unloading; track row.storeId) {
+              <tr>
+                <td>{{ row.storeName }}</td>
+                <td>{{ row.avgMinutes }}</td>
+                <td>{{ row.medianMinutes }}</td>
+                <td>{{ row.slotSizeMinutes }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="4" class="muted">{{ 'analytics.noData' | t }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      {{ 'analytics.widget.delays' | t }}
+      <span class="spacer"></span>
+      <button type="button" class="btn btn-sm" (click)="exportCsv('delays')">
+        {{ 'common.export.csv' | t }}
+      </button>
+    </div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>{{ 'analytics.col.store' | t }}</th>
+            <th>{{ 'analytics.col.supplier' | t }}</th>
+            <th>{{ 'analytics.col.delayed' | t }}</th>
+            <th>{{ 'analytics.col.reason' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of data.delays; track row.storeName + row.supplierName) {
+            <tr>
+              <td>{{ row.storeName }}</td>
+              <td>{{ row.supplierName }}</td>
+              <td>{{ row.delayed }}</td>
+              <td>{{ row.reason }}</td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="4" class="muted">{{ 'analytics.noData' | t }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+}

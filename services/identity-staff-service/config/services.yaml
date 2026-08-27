@@ -1,0 +1,93 @@
+# yaml-language-server: $schema=../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+#
+# identity-staff-service — автентифікація співробітників мережі (контур staff).
+#
+# Сервіси описані ЯВНО, а не глобальним resource-глобом: у src/Domain/ живуть
+# доменні обʼєкти (enum, value object, агрегати), які сервісами не є.
+#
+# ВАЖЛИВО: реалізації MongoDB (src/Infrastructure/Mongo) і Redis
+# (src/Infrastructure/Redis) НЕ реєструються в контейнері за замовчуванням —
+# розширення ext-mongodb/ext-redis можуть бути відсутні. Прод-конфігурація
+# підключає їх окремим файлом; локально і в тестах працюють InMemory-реалізації.
+
+parameters:
+    # Політика паролів staff-контуру (AUTH-13: мінімум 12 символів)
+    app.password.min_length: 12
+    # AUTH-60: argon2id, не нижче memory 64 MB / time 3 / parallelism 4
+    app.password.argon2.memory_cost: 65536
+    app.password.argon2.time_cost: 3
+    app.password.argon2.threads: 4
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    # --- Час -------------------------------------------------------------
+    App\Infrastructure\Clock\SystemClock: ~
+    App\Domain\Shared\Clock: '@App\Infrastructure\Clock\SystemClock'
+
+    # --- Паролі (AUTH-60, AUTH-13) --------------------------------------
+    App\Infrastructure\Security\Argon2idPasswordHasher:
+        arguments:
+            $memoryCost: '%app.password.argon2.memory_cost%'
+            $timeCost: '%app.password.argon2.time_cost%'
+            $threads: '%app.password.argon2.threads%'
+    App\Domain\Password\PasswordHasher: '@App\Infrastructure\Security\Argon2idPasswordHasher'
+
+    App\Infrastructure\Security\ArrayPasswordDenylist: ~
+    App\Domain\Password\PasswordDenylist: '@App\Infrastructure\Security\ArrayPasswordDenylist'
+
+    App\Domain\Password\PasswordPolicy:
+        arguments:
+            $minLength: '%app.password.min_length%'
+
+    # --- JWT (AUTH-02: ОКРЕМИЙ ключ staff-контуру) -----------------------
+    # HS256 для локальної розробки; у проді — FirebaseJwtSigner::rs256 з парою
+    # ключів staff-контуру із секретів Kubernetes (AUTH-05, AUTH-64).
+    App\Infrastructure\Security\FirebaseJwtSigner:
+        factory: ['App\Infrastructure\Security\FirebaseJwtSigner', 'hs256']
+        arguments:
+            $secret: '%env(JWT_STAFF_SECRET)%'
+            $keyId: '%env(JWT_STAFF_KEY_ID)%'
+            $clock: '@App\Domain\Shared\Clock'
+    App\Domain\Auth\TokenSigner: '@App\Infrastructure\Security\FirebaseJwtSigner'
+
+    # --- Сховища: InMemory як типова реалізація без MongoDB ---------------
+    App\Infrastructure\InMemory\InMemoryStaffUserRepository: ~
+    App\Domain\Identity\StaffUserRepository: '@App\Infrastructure\InMemory\InMemoryStaffUserRepository'
+
+    App\Infrastructure\InMemory\InMemoryRefreshTokenRepository: ~
+    App\Domain\Auth\RefreshTokenRepository: '@App\Infrastructure\InMemory\InMemoryRefreshTokenRepository'
+
+    App\Infrastructure\InMemory\InMemoryLoginAttemptRepository: ~
+    App\Domain\Auth\LoginAttemptRepository: '@App\Infrastructure\InMemory\InMemoryLoginAttemptRepository'
+
+    App\Infrastructure\InMemory\InMemoryAccessTokenDenylist: ~
+    App\Domain\Auth\AccessTokenDenylist: '@App\Infrastructure\InMemory\InMemoryAccessTokenDenylist'
+
+    App\Infrastructure\InMemory\InMemoryTwoFactorChallengeStore: ~
+    App\Domain\Auth\TwoFactorChallengeStore: '@App\Infrastructure\InMemory\InMemoryTwoFactorChallengeStore'
+
+    App\Infrastructure\InMemory\InMemoryRoleAuditRepository: ~
+    App\Domain\UserManagement\RoleAuditRepository: '@App\Infrastructure\InMemory\InMemoryRoleAuditRepository'
+
+    # --- Доменні сервіси --------------------------------------------------
+    App\Domain\Identity\AccessDecider: ~
+    App\Domain\Auth\TotpVerifier: ~
+    App\Domain\Auth\LoginThrottler: ~
+    App\Domain\Auth\TokenService: ~
+    App\Domain\Auth\AuthenticationService: ~
+    App\Domain\UserManagement\StaffUserService: ~
+
+    # --- HTTP -------------------------------------------------------------
+    App\Http\ProblemDetailsFactory: ~
+    App\Http\ProblemExceptionListener: ~
+
+    App\Controller\:
+        resource: '../src/Controller/'
+        tags: ['controller.service_arguments']
+
+    # --- Консольні команди ------------------------------------------------
+    App\Command\:
+        resource: '../src/Command/'

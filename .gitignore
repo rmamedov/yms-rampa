@@ -16,3 +16,9 @@ node_modules/
 .idea/
 .vscode/
 *.log
+
+# Nx / Angular
+/web/node_modules/
+/web/dist/
+/web/.nx/
+/web/tmp/

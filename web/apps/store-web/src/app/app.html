@@ -1,0 +1,58 @@
+@if (showChrome()) {
+  <header class="appbar">
+    <div class="appbar__brand">
+      <span class="appbar__logo" aria-hidden="true">R</span>
+      <span class="appbar__title">{{ 'app.shortTitle' | t }}</span>
+    </div>
+
+    @if (showSwitcher()) {
+      <label class="appbar__store">
+        <span class="visually-hidden">{{ 'header.selectStore' | t }}</span>
+        <select
+          class="select appbar__select"
+          [value]="selectedStore()?.storeId"
+          (change)="onStoreChange($any($event.target).value)"
+        >
+          @for (store of stores(); track store.storeId) {
+            <option [value]="store.storeId">
+              {{ store.displayName }} · {{ store.externalId }} · {{ store.city }},
+              {{ store.address }}
+            </option>
+          }
+        </select>
+      </label>
+    } @else if (selectedStore(); as store) {
+      <span class="appbar__storename">
+        {{ store.displayName }} · {{ store.city }}, {{ store.address }}
+      </span>
+    }
+
+    <nav class="appbar__nav">
+      <a routerLink="/today" routerLinkActive="appbar__link--active" class="appbar__link">
+        {{ 'header.today' | t }}
+      </a>
+      <a routerLink="/week" routerLinkActive="appbar__link--active" class="appbar__link">
+        {{ 'header.week' | t }}
+      </a>
+    </nav>
+
+    <div class="appbar__user">
+      <span class="appbar__username">{{ profile()?.fullName }}</span>
+      <span class="muted appbar__role">{{ roleKey() | t }}</span>
+      <button type="button" class="btn btn--sm btn--ghost" (click)="logout()">
+        {{ 'header.logout' | t }}
+      </button>
+    </div>
+  </header>
+}
+
+<router-outlet />
+
+@if (toast(); as message) {
+  <div class="toast" [class.toast--error]="message.tone === 'error'" role="status">
+    <span>{{ message.key ? (message.key | t: message.params) : message.text }}</span>
+    <button type="button" class="btn btn--sm btn--ghost" (click)="dismissToast()">
+      {{ 'common.close' | t }}
+    </button>
+  </div>
+}

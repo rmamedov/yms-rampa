@@ -1,0 +1,104 @@
+<div class="page-header">
+  <h1>{{ 'audit.title' | t }}</h1>
+  <span class="spacer"></span>
+  <button type="button" class="btn" (click)="exportCsv()">
+    {{ 'common.export.csv' | t }}
+  </button>
+</div>
+
+<div class="toolbar">
+  <div style="min-width: 200px">
+    <label for="au-user">{{ 'audit.filter.user' | t }}</label>
+    <input
+      id="au-user"
+      type="search"
+      [value]="userId()"
+      (input)="userId.set($any($event.target).value)"
+      (keydown.enter)="applyFilters()"
+    />
+  </div>
+  <div style="min-width: 200px">
+    <label for="au-object">{{ 'audit.filter.objectType' | t }}</label>
+    <select id="au-object" [value]="objectType()" (change)="setObjectType($event)">
+      <option value="">{{ 'common.all' | t }}</option>
+      @for (type of objectTypes; track type) {
+        <option [value]="type">{{ 'audit.object.' + type | t }}</option>
+      }
+    </select>
+  </div>
+  <div style="min-width: 200px">
+    <label for="au-action">{{ 'audit.filter.action' | t }}</label>
+    <select id="au-action" [value]="action()" (change)="setAction($event)">
+      <option value="">{{ 'common.all' | t }}</option>
+      @for (a of actions; track a) {
+        <option [value]="a">{{ 'audit.action.' + a | t }}</option>
+      }
+    </select>
+  </div>
+  <div>
+    <label for="au-from">{{ 'common.from' | t }}</label>
+    <input
+      id="au-from"
+      type="date"
+      [value]="from()"
+      (input)="from.set($any($event.target).value)"
+    />
+  </div>
+  <div>
+    <label for="au-to">{{ 'common.to' | t }}</label>
+    <input
+      id="au-to"
+      type="date"
+      [value]="to()"
+      (input)="to.set($any($event.target).value)"
+    />
+  </div>
+  <button type="button" class="btn btn-primary" (click)="applyFilters()">
+    {{ 'common.apply' | t }}
+  </button>
+</div>
+
+<div class="table-wrap">
+  <table class="data">
+    <thead>
+      <tr>
+        <th>{{ 'audit.col.at' | t }}</th>
+        <th>{{ 'audit.col.user' | t }}</th>
+        <th>{{ 'audit.col.role' | t }}</th>
+        <th>{{ 'audit.col.ip' | t }}</th>
+        <th>{{ 'audit.col.object' | t }}</th>
+        <th>{{ 'audit.col.action' | t }}</th>
+        <th>{{ 'audit.col.changes' | t }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (entry of rows(); track entry.id) {
+        <tr>
+          <td class="mono">{{ formatDateTime(entry.at) }}</td>
+          <td>{{ entry.userName }}</td>
+          <td>{{ 'role.' + entry.role | t }}</td>
+          <td class="mono muted">{{ entry.ip }}</td>
+          <td>
+            <span class="badge">{{ 'audit.object.' + entry.objectType | t }}</span>
+            {{ entry.objectLabel }}
+          </td>
+          <td>{{ 'audit.action.' + entry.action | t }}</td>
+          <td class="muted">{{ changesLabel(entry) }}</td>
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="7">
+            <app-empty-state [message]="'audit.empty' | t" />
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+  <app-pagination
+    [page]="page()"
+    [pageSize]="pageSize()"
+    [total]="total()"
+    (pageChange)="setPage($event)"
+    (pageSizeChange)="setPageSize($event)"
+  />
+</div>

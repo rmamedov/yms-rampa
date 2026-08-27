@@ -1,0 +1,68 @@
+<section class="page">
+  <header class="page__head">
+    <div class="page__titles">
+      <h1>{{ 'week.title' | t }}</h1>
+      <p class="muted">{{ rangeLabel() }} · {{ 'week.readOnly' | t }}</p>
+    </div>
+    <div class="datenav">
+      <button type="button" class="btn btn--sm" (click)="shiftWeek(-1)">
+        {{ 'week.prev' | t }}
+      </button>
+      <button type="button" class="btn btn--sm" (click)="shiftWeek(1)">
+        {{ 'week.next' | t }}
+      </button>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <p class="muted">{{ 'common.loading' | t }}</p>
+  } @else {
+    <div class="week">
+      @for (day of days(); track day.dateKey) {
+        <section class="week__day panel">
+          <header class="week__dayhead">
+            <div>
+              <strong>{{ day.weekday }}</strong>
+              <span class="muted">{{ day.date }}</span>
+            </div>
+            <span class="badge badge--slate">{{
+              'week.density' | t: { percent: day.densityPercent }
+            }}</span>
+          </header>
+
+          @for (ramp of ramps(); track ramp.rampId) {
+            <div class="week__ramp">
+              <span class="week__rampname">{{ ramp.name }}</span>
+              <div class="week__slots">
+                @for (slot of slotsForRamp(day, ramp.rampId); track slot.slotStart) {
+                  <span
+                    class="week__slot"
+                    [class]="'week__slot week__slot--' + slot.state"
+                    [title]="'slotState.' + slot.state | t"
+                  ></span>
+                }
+              </div>
+            </div>
+          }
+
+          <button
+            type="button"
+            class="btn btn--sm btn--block"
+            (click)="openDay(day.dateKey)"
+          >
+            {{ 'week.openDay' | t }}
+          </button>
+        </section>
+      }
+    </div>
+
+    <ul class="legend">
+      @for (state of ['available', 'booked', 'blocked', 'reserved', 'past']; track state) {
+        <li class="legend__item">
+          <span class="week__slot" [class]="'week__slot week__slot--' + state"></span>
+          {{ 'slotState.' + state | t }}
+        </li>
+      }
+    </ul>
+  }
+</section>

@@ -1,0 +1,216 @@
+<button
+  type="button"
+  class="panel__backdrop"
+  [attr.aria-label]="'common.close' | t"
+  (click)="close()"
+></button>
+
+<aside class="panel" role="dialog" aria-modal="true" [attr.aria-label]="'book.title' | t">
+  <header class="panel__head">
+    <div>
+      <h2>{{ 'book.title' | t }}</h2>
+      <p class="muted small">
+        {{
+          'book.slotInfo'
+            | t
+              : {
+                  date: slotDateLabel(),
+                  time: slotTimeLabel(),
+                  ramp: rampName()
+                }
+        }}
+      </p>
+    </div>
+    <button type="button" class="panel__close" (click)="close()" [attr.aria-label]="'common.close' | t">×</button>
+  </header>
+
+  @if (transferLabel(); as source) {
+    <p class="panel__transfer">
+      {{ 'book.transferBanner' | t: { date: source.date, time: source.time } }}
+    </p>
+  }
+
+  <div
+    class="panel__timer"
+    [class.panel__timer--expired]="expired()"
+    role="timer"
+    aria-live="polite"
+    [attr.aria-label]="'book.timerAria' | t: { time: countdown() }"
+  >
+    @if (expired()) {
+      {{ 'book.expired' | t }}
+    } @else {
+      {{ 'book.timer' | t: { time: countdown() } }}
+    }
+  </div>
+
+  <div class="panel__body" [class.panel__body--locked]="expired()">
+    <div class="field">
+      <span class="field__label">{{ 'book.vehicle' | t }}</span>
+
+      @if (!addingVehicle()) {
+        <input
+          class="input"
+          type="search"
+          [placeholder]="'book.vehicleSearch' | t"
+          [value]="vehicleQuery()"
+          (input)="vehicleQuery.set($any($event.target).value)"
+          [disabled]="expired()"
+        />
+        <ul class="vehicle-list">
+          @for (vehicle of filteredVehicles(); track vehicle.id) {
+            <li>
+              <button
+                type="button"
+                class="vehicle"
+                [class.vehicle--active]="vehicle.id === selectedVehicleId()"
+                [disabled]="expired()"
+                (click)="select(vehicle.id)"
+              >
+                <strong>{{ vehicle.plateNumber }}</strong>
+                <span class="muted small">
+                  {{ vehicle.brand ?? '' }} · {{ vehicle.weightTons }}
+                  {{ 'common.tons' | t }}
+                </span>
+              </button>
+            </li>
+          } @empty {
+            <li class="muted small">{{ 'book.chooseVehicle' | t }}</li>
+          }
+        </ul>
+      }
+
+      <button
+        type="button"
+        class="btn btn--ghost btn--sm"
+        (click)="toggleAddVehicle()"
+        [disabled]="expired()"
+      >
+        {{ (addingVehicle() ? 'common.cancel' : 'book.addVehicle') | t }}
+      </button>
+    </div>
+
+    @if (addingVehicle()) {
+      <fieldset class="panel__new-vehicle">
+        <legend>{{ 'book.newVehicle' | t }}</legend>
+
+        <div class="field">
+          <label class="field__label" for="new-plate">{{ 'book.plate' | t }}</label>
+          <input
+            id="new-plate"
+            class="input"
+            [class.input--invalid]="plateError() || duplicatePlate()"
+            [value]="newPlate()"
+            (input)="newPlate.set($any($event.target).value)"
+          />
+          @if (plateError(); as error) {
+            <span class="field__error">{{ error | t }}</span>
+          } @else if (duplicatePlate()) {
+            <span class="field__error">{{ 'validation.plateDuplicate' | t }}</span>
+          } @else if (plateHint()) {
+            <span class="field__hint">{{ 'validation.plateFormatHint' | t }}</span>
+          }
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="new-brand">
+            {{ 'book.brand' | t }} ({{ 'common.optional' | t }})
+          </label>
+          <input
+            id="new-brand"
+            class="input"
+            [value]="newBrand()"
+            (input)="newBrand.set($any($event.target).value)"
+          />
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="new-weight">{{ 'book.weight' | t }}</label>
+          <input
+            id="new-weight"
+            class="input"
+            type="number"
+            min="0.1"
+            step="0.1"
+            [value]="newWeightText()"
+            (input)="setNewWeight($any($event.target).value)"
+          />
+        </div>
+      </fieldset>
+    }
+
+    @if (weightError(); as error) {
+      <p class="field__error">
+        {{ error | t: { tons: store().maxVehicleWeightTons } }}
+      </p>
+    }
+
+    <div class="field">
+      <label class="field__label" for="order-id">
+        {{ 'book.orderId' | t }} ({{ 'common.optional' | t }})
+      </label>
+      <input
+        id="order-id"
+        class="input"
+        maxlength="64"
+        [value]="orderId()"
+        (input)="orderId.set($any($event.target).value)"
+        [disabled]="expired()"
+      />
+      <span class="field__hint">{{ 'book.orderIdHint' | t }}</span>
+      @if (orderIdError(); as error) {
+        <span class="field__error">{{ error | t }}</span>
+      }
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="pallets">{{ 'book.pallets' | t }}</label>
+      <input
+        id="pallets"
+        class="input"
+        type="number"
+        min="1"
+        max="33"
+        step="1"
+        [class.input--invalid]="palletsError()"
+        [value]="palletsText()"
+        (input)="setPallets($any($event.target).value)"
+        [disabled]="expired()"
+      />
+      @if (palletsError(); as error) {
+        <span class="field__error">{{ error | t }}</span>
+      }
+    </div>
+  </div>
+
+  @if (conflictPrompt()) {
+    <div class="panel__conflict">
+      <p>{{ 'error.VEHICLE_TIME_CONFLICT' | t }}</p>
+      <div class="row">
+        <button type="button" class="btn btn--sm" (click)="conflictPrompt.set(false)">
+          {{ 'common.no' | t }}
+        </button>
+        <button type="button" class="btn btn--primary btn--sm" (click)="submit(true)">
+          {{ 'common.yes' | t }}
+        </button>
+      </div>
+    </div>
+  }
+
+  <footer class="panel__foot">
+    <button type="button" class="btn btn--ghost" (click)="close()">
+      {{ 'common.cancel' | t }}
+    </button>
+    <button
+      type="button"
+      class="btn btn--primary"
+      [disabled]="!canSubmit()"
+      (click)="submit(false)"
+    >
+      @if (submitting()) {
+        <span class="spinner" aria-hidden="true"></span>
+      }
+      {{ (transferSource() ? 'book.transferSubmit' : 'book.submit') | t }}
+    </button>
+  </footer>
+</aside>

@@ -1,0 +1,76 @@
+# yaml-language-server: $schema=../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+#
+# store-service — довідник магазинів YMS «Рампа».
+#
+# Реалізації репозиторіїв підмінюються через параметр store.repository_driver
+# (env STORE_REPOSITORY_DRIVER: inmemory | mongo). Оскільки сервер MongoDB може бути
+# ще не піднятий, за замовчуванням у dev/test працює InMemory-реалізація.
+
+parameters:
+    store.fixtures_dir: '%kernel.project_dir%/../../fixtures'
+    store.branches_fixture: '%kernel.project_dir%/../../fixtures/silpo-branches.json'
+    store.mongo_dsn: '%env(default:store.mongo_dsn_default:MONGODB_URL)%'
+    store.mongo_dsn_default: 'mongodb://127.0.0.1:27017'
+    store.mongo_database: '%env(default:store.mongo_database_default:MONGODB_DB)%'
+    store.mongo_database_default: 'stores'
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    # Прикладний та інфраструктурний шари реєструються автоматично.
+    # Домен виключено: це чисті value-object'и та агрегати без DI (доменні сервіси
+    # реєструються нижче явно).
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/Domain/'
+            - '../src/Kernel.php'
+
+    # --- Домен: єдиний доменний сервіс, що потребує залежностей ---
+    App\Domain\Sync\BranchSynchronizer: ~
+
+    App\Domain\Shared\Clock: '@App\Domain\Shared\SystemClock'
+    App\Domain\Shared\SystemClock: ~
+
+    # --- Публікація доменних подій ---
+    # У проді замінюється Messenger-транспортом RabbitMQ (exchange yms.domain).
+    App\Domain\Event\EventPublisher: '@App\Infrastructure\InMemory\InMemoryEventPublisher'
+
+    # --- Джерело довідника філій ---
+    App\Domain\Sync\BranchSource: '@App\Infrastructure\Fixture\FixtureBranchSource'
+
+    App\Infrastructure\Fixture\FixtureBranchSource:
+        arguments:
+            $path: '%store.branches_fixture%'
+
+    # --- Зʼєднання з MongoDB (ліниве: обʼєкт драйвера створюється при першому запиті) ---
+    App\Infrastructure\Mongo\MongoConnection:
+        arguments:
+            $dsn: '%store.mongo_dsn%'
+            $database: '%store.mongo_database%'
+
+    # --- Репозиторії: InMemory за замовчуванням ---
+    App\Domain\Branch\BranchRepository: '@App\Infrastructure\InMemory\InMemoryBranchRepository'
+    App\Domain\Configuration\StoreConfigurationRepository: '@App\Infrastructure\InMemory\InMemoryStoreConfigurationRepository'
+    App\Domain\Configuration\ReservedSlotRuleRepository: '@App\Infrastructure\InMemory\InMemoryReservedSlotRuleRepository'
+    App\Domain\Configuration\SlotBlockRepository: '@App\Infrastructure\InMemory\InMemorySlotBlockRepository'
+    App\Domain\Sync\SyncLogRepository: '@App\Infrastructure\InMemory\InMemorySyncLogRepository'
+
+    App\Infrastructure\Http\DomainExceptionListener:
+        arguments:
+            $debug: '%kernel.debug%'
+
+    App\Command\ImportBranchesCommand:
+        arguments:
+            $defaultFixturePath: '%store.branches_fixture%'
+
+# У проді довідник живе в MongoDB (10.2), а події йдуть у RabbitMQ.
+when@prod:
+    services:
+        App\Domain\Branch\BranchRepository: '@App\Infrastructure\Mongo\MongoBranchRepository'
+        App\Domain\Configuration\StoreConfigurationRepository: '@App\Infrastructure\Mongo\MongoStoreConfigurationRepository'
+        App\Domain\Configuration\ReservedSlotRuleRepository: '@App\Infrastructure\Mongo\MongoReservedSlotRuleRepository'
+        App\Domain\Configuration\SlotBlockRepository: '@App\Infrastructure\Mongo\MongoSlotBlockRepository'
+        App\Domain\Sync\SyncLogRepository: '@App\Infrastructure\Mongo\MongoSyncLogRepository'

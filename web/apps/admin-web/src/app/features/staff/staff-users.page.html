@@ -1,0 +1,181 @@
+<div class="page-header">
+  <h1>{{ 'staff.title' | t }}</h1>
+  <span class="spacer"></span>
+  <button type="button" class="btn btn-primary" (click)="openCreate()">
+    {{ 'staff.add' | t }}
+  </button>
+</div>
+
+<div class="toolbar">
+  <div style="min-width: 280px">
+    <label for="staff-search">{{ 'common.search' | t }}</label>
+    <input
+      id="staff-search"
+      type="search"
+      [value]="search()"
+      (input)="search.set($any($event.target).value)"
+      (keydown.enter)="applyFilters()"
+    />
+  </div>
+  <div style="min-width: 200px">
+    <label for="staff-role">{{ 'staff.col.role' | t }}</label>
+    <select id="staff-role" [value]="roleFilter()" (change)="setRoleFilter($event)">
+      <option value="">{{ 'common.all' | t }}</option>
+      @for (r of allRoles; track r) {
+        <option [value]="r">{{ 'role.' + r | t }}</option>
+      }
+    </select>
+  </div>
+  <button type="button" class="btn btn-primary" (click)="applyFilters()">
+    {{ 'common.apply' | t }}
+  </button>
+</div>
+
+<div class="table-wrap">
+  <table class="data">
+    <thead>
+      <tr>
+        <th>{{ 'staff.col.fullName' | t }}</th>
+        <th>{{ 'staff.col.email' | t }}</th>
+        <th>{{ 'common.phone' | t }}</th>
+        <th>{{ 'staff.col.role' | t }}</th>
+        <th>{{ 'staff.col.stores' | t }}</th>
+        <th>{{ 'staff.col.active' | t }}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (user of rows(); track user.id) {
+        <tr>
+          <td>{{ user.fullName }}</td>
+          <td>{{ user.email }}</td>
+          <td class="mono">{{ user.phone }}</td>
+          <td>{{ 'role.' + user.role | t }}</td>
+          <td class="muted">{{ storeLabels(user) }}</td>
+          <td>
+            <span class="badge" [class.badge-success]="user.active">{{
+              user.active ? ('common.yes' | t) : ('common.no' | t)
+            }}</span>
+          </td>
+          <td>
+            <div class="row">
+              <button type="button" class="btn btn-sm" (click)="openEdit(user)">
+                {{ 'common.edit' | t }}
+              </button>
+              <button
+                type="button"
+                class="btn btn-sm"
+                [disabled]="isSelf(user)"
+                [title]="isSelf(user) ? ('staff.error.selfDeactivate' | t) : ''"
+                (click)="toggleActive(user)"
+              >
+                {{ user.active ? ('staff.deactivate' | t) : ('staff.activate' | t) }}
+              </button>
+            </div>
+          </td>
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="7">
+            <app-empty-state [message]="'staff.empty' | t" />
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+  <app-pagination
+    [page]="page()"
+    [pageSize]="pageSize()"
+    [total]="total()"
+    (pageChange)="setPage($event)"
+    (pageSizeChange)="setPageSize($event)"
+  />
+</div>
+
+@if (dialogOpen()) {
+  <app-modal [title]="'staff.add' | t" (closed)="dialogOpen.set(false)">
+    <div class="grid-2">
+      <div class="field">
+        <label for="s-name">{{ 'staff.field.fullName' | t }}</label>
+        <input
+          id="s-name"
+          type="text"
+          [value]="fullName()"
+          (input)="fullName.set($any($event.target).value)"
+        />
+      </div>
+      <div class="field">
+        <label for="s-email">{{ 'staff.col.email' | t }}</label>
+        <input
+          id="s-email"
+          type="email"
+          [value]="email()"
+          (input)="email.set($any($event.target).value)"
+        />
+        @if (emailError(); as error) {
+          <div class="field-error">{{ error | t }}</div>
+        }
+      </div>
+      <div class="field">
+        <label for="s-phone">{{ 'common.phone' | t }}</label>
+        <input
+          id="s-phone"
+          type="text"
+          [value]="phone()"
+          (input)="phone.set($any($event.target).value)"
+        />
+      </div>
+      <div class="field">
+        <label for="s-role">{{ 'staff.field.role' | t }}</label>
+        <select id="s-role" [value]="role()" (change)="setRole($event)">
+          @for (r of assignableRoles(); track r) {
+            <option [value]="r">{{ 'role.' + r | t }}</option>
+          } @empty {
+            <option [value]="role()">{{ 'role.' + role() | t }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    @if (requiresStores()) {
+      <app-multi-select
+        [label]="'staff.field.stores' | t"
+        [options]="storeOptions()"
+        [selected]="storeIds()"
+        (selectedChange)="storeIds.set($event)"
+      />
+      @if (storesError(); as error) {
+        <div class="field-error">{{ error | t }}</div>
+      }
+    }
+
+    <div class="field" style="margin-top: 16px">
+      <label class="checkbox">
+        <input
+          type="checkbox"
+          [checked]="active()"
+          (change)="active.set($any($event.target).checked)"
+        />
+        {{ 'staff.col.active' | t }}
+      </label>
+    </div>
+
+    @if (formError(); as error) {
+      <div class="notice notice-danger">{{ error }}</div>
+    }
+
+    <ng-container modalFooter>
+      <button type="button" class="btn" (click)="dialogOpen.set(false)">
+        {{ 'common.cancel' | t }}
+      </button>
+      <button
+        type="button"
+        class="btn btn-primary"
+        [disabled]="invalid()"
+        (click)="save()"
+      >
+        {{ 'common.save' | t }}
+      </button>
+    </ng-container>
+  </app-modal>
+}

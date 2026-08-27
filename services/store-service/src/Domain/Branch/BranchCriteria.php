@@ -1,0 +1,102 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Domain\Branch;
+
+/**
+ * Критерії серверної вибірки магазинів (STL-02, STL-03, STL-05, UI-01).
+ *
+ * Фільтри комбінуються за логікою AND; сортування за замовчуванням —
+ * місто, потім externalId.
+ */
+final readonly class BranchCriteria
+{
+    public const int DEFAULT_PER_PAGE = 20;
+
+    /** @var list<int> дозволені розміри сторінки (UI-01) */
+    public const array ALLOWED_PER_PAGE = [20, 50, 100];
+
+    /**
+     * @param list<string>          $cities             мультивибір міст
+     * @param list<YmsStatus>       $statuses           мультивибір статусів
+     * @param string|null           $query              пошук за externalId (точний/префіксний) або адресою (підрядок)
+     * @param bool|null             $configured         фільтр «Налаштовано / Не налаштовано»
+     * @param list<string>|null     $configuredStoreIds перелік налаштованих магазинів (обчислює прикладний шар)
+     * @param bool|null             $visibleToSuppliers null = без фільтра
+     */
+    public function __construct(
+        public array $cities = [],
+        public array $statuses = [],
+        public ?string $query = null,
+        public ?bool $configured = null,
+        public ?array $configuredStoreIds = null,
+        public ?bool $visibleToSuppliers = null,
+        public ?bool $eligibleOnly = null,
+        public int $page = 1,
+        public int $perPage = self::DEFAULT_PER_PAGE,
+        public string $sortBy = 'city',
+        public string $sortDirection = 'asc',
+    ) {
+    }
+
+    public function offset(): int
+    {
+        return max(0, $this->page - 1) * $this->perPage;
+    }
+
+    /** Чи відповідає філія всім фільтрам (спільна логіка для InMemory-реалізації). */
+    public function matches(Branch $branch): bool
+    {
+        if ([] !== $this->cities && !\in_array($branch->city(), $this->cities, true)) {
+            return false;
+        }
+
+        if ([] !== $this->statuses && !\in_array($branch->ymsStatus(), $this->statuses, true)) {
+            return false;
+        }
+
+        if (null !== $this->visibleToSuppliers && $branch->visibleToSuppliers() !== $this->visibleToSuppliers) {
+            return false;
+        }
+
+        if (null !== $this->eligibleOnly && $branch->isEligible() !== $this->eligibleOnly) {
+            return false;
+        }
+
+        if (null !== $this->configured && null !== $this->configuredStoreIds) {
+            $isConfigured = \in_array($branch->id(), $this->configuredStoreIds, true);
+
+            if ($isConfigured !== $this->configured) {
+                return false;
+            }
+        }
+
+        return $this->matchesQuery($branch);
+    }
+
+    /**
+     * STL-03: одне поле пошуку — externalId (точний або префіксний збіг)
+     * АБО адреса (підрядок, без урахування регістру).
+     */
+    private function matchesQuery(Branch $branch): bool
+    {
+        $query = trim((string) $this->query);
+
+        if ('' === $query) {
+            return true;
+        }
+
+        $needle = mb_strtolower($query);
+
+        if (str_starts_with(mb_strtolower($branch->externalId()), $needle)) {
+            return true;
+        }
+
+        if (str_contains(mb_strtolower($branch->mcpData()->address), $needle)) {
+            return true;
+        }
+
+        return str_contains(mb_strtolower($branch->effectiveAddress()), $needle);
+    }
+}

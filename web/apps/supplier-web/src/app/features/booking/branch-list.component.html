@@ -1,0 +1,49 @@
+<section class="page">
+  <div class="page__head">
+    <div>
+      <a class="small" routerLink="/booking/cities">← {{ 'city.title' | t }}</a>
+      <h1>{{ 'branch.title' | t: { city: city() } }}</h1>
+    </div>
+  </div>
+
+  <label class="sr-only" for="branch-search">{{ 'branch.search' | t }}</label>
+  <input
+    id="branch-search"
+    class="input branch__search"
+    type="search"
+    [placeholder]="'branch.search' | t"
+    [value]="rawQuery()"
+    (input)="onSearch($any($event.target).value)"
+  />
+
+  @if (loading()) {
+    <p class="muted"><span class="spinner"></span> {{ 'common.loading' | t }}</p>
+  } @else if (visible().length === 0) {
+    <div class="empty-state">{{ 'branch.empty' | t }}</div>
+  } @else {
+    <ul class="branch-grid">
+      @for (branch of visible(); track branch.storeId) {
+        <li>
+          <a
+            class="card branch"
+            [class.branch--dim]="!branch.hasFreeSlots"
+            [routerLink]="['/booking/stores', branch.storeId]"
+          >
+            <span class="branch__address">{{ branch.address }}</span>
+            <span class="muted small">
+              {{ 'branch.externalId' | t: { externalId: branch.externalId } }}
+            </span>
+            <span class="row">
+              <span class="chip">
+                {{ 'branch.maxWeight' | t: { tons: branch.maxVehicleWeightTons } }}
+              </span>
+              <span class="chip" [class.chip--ok]="branch.hasFreeSlots" [class.chip--off]="!branch.hasFreeSlots">
+                {{ (branch.hasFreeSlots ? 'branch.hasSlots' : 'branch.noSlots') | t }}
+              </span>
+            </span>
+          </a>
+        </li>
+      }
+    </ul>
+  }
+</section>

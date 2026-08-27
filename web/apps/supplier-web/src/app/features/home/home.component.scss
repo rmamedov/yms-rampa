@@ -1,0 +1,58 @@
+@use '../../../styles/variables' as v;
+
+.delivery {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.delivery__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.delivery__time {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.delivery__store strong {
+  display: block;
+  font-size: 14.5px;
+}
+
+.delivery__meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 14px;
+  margin: 0;
+}
+
+.delivery__meta dt {
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: v.$text-muted;
+}
+
+.delivery__meta dd {
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.delivery__delay {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fff4d6;
+  color: v.$warning;
+  font-size: 13px;
+}
+
+.home__all {
+  margin-top: 20px;
+}

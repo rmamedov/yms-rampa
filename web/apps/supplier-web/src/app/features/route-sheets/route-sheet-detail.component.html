@@ -1,0 +1,171 @@
+<section class="page">
+  <div class="page__head">
+    <div>
+      <a class="small" routerLink="/route-sheets">← {{ 'rs.title' | t }}</a>
+      <h1>{{ 'rs.detailTitle' | t: { date: (date() | kyivDay) } }}</h1>
+      @if (sheet(); as data) {
+        <p class="muted small">
+          {{ pointsLabel(data.pointsCount) }} ·
+          {{ data.driverName ?? ('rs.noDriver' | t) }}
+        </p>
+      }
+    </div>
+    <div class="row">
+      <a class="btn btn--ghost" [routerLink]="['/route-sheets', date(), 'print']">
+        {{ 'common.print' | t }}
+      </a>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <p class="muted"><span class="spinner"></span> {{ 'common.loading' | t }}</p>
+  } @else if (sheet(); as data) {
+    <div class="card sheet-driver">
+      <label class="field__label" for="sheet-driver">
+        {{ 'rs.assignDriverSheet' | t }}
+      </label>
+      <select
+        id="sheet-driver"
+        class="select"
+        (change)="assignSheetDriver($any($event.target).value)"
+      >
+        <option value="" [selected]="!data.driverId">
+          {{ 'rs.noDriver' | t }}
+        </option>
+        @for (driver of activeDrivers(); track driver.id) {
+          <option [value]="driver.id" [selected]="driver.id === data.driverId">
+            {{ driver.lastName }} {{ driver.firstName }} · {{ driver.phone }}
+          </option>
+        }
+      </select>
+    </div>
+
+    @if (data.points.length === 0) {
+      <div class="empty-state">{{ 'rs.empty' | t }}</div>
+    } @else {
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ 'rs.col.time' | t }}</th>
+              <th>{{ 'rs.col.store' | t }}</th>
+              <th>{{ 'rs.col.ramp' | t }}</th>
+              <th>{{ 'rs.col.vehicle' | t }}</th>
+              <th>{{ 'rs.col.order' | t }}</th>
+              <th>{{ 'rs.col.pallets' | t }}</th>
+              <th>{{ 'rs.col.driver' | t }}</th>
+              <th>{{ 'rs.col.status' | t }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (point of data.points; track point.id) {
+              <tr>
+                <td class="nowrap"><strong>{{ point.slotStart | kyivTime }}</strong></td>
+                <td>
+                  <div>{{ point.city }}, {{ point.address }}</div>
+                  <div class="muted small">
+                    {{ 'branch.externalId' | t: { externalId: point.storeExternalId } }}
+                  </div>
+                </td>
+                <td>{{ point.rampName }}</td>
+                <td>
+                  @if (canChangeDriver(point)) {
+                    <select
+                      class="select select--sm"
+                      [attr.aria-label]="'rs.col.vehicle' | t"
+                      (change)="changeVehicle(point, $any($event.target).value)"
+                    >
+                      @for (vehicle of activeVehicles(); track vehicle.id) {
+                        <option
+                          [value]="vehicle.id"
+                          [selected]="vehicle.id === point.vehicle.vehicleId"
+                        >
+                          {{ vehicle.plateNumber }}
+                        </option>
+                      }
+                    </select>
+                  } @else {
+                    {{ point.vehicle.plateNumber }}
+                  }
+                </td>
+                <td>{{ point.orderId ?? ('common.notSet' | t) }}</td>
+                <td>{{ point.palletsCount }}</td>
+                <td>
+                  @if (canChangeDriver(point)) {
+                    <select
+                      class="select select--sm"
+                      (change)="assignPointDriver(point, $any($event.target).value)"
+                    >
+                      <option value="" [selected]="!point.driverId">
+                        {{ 'rs.noDriver' | t }}
+                      </option>
+                      @for (driver of activeDrivers(); track driver.id) {
+                        <option
+                          [value]="driver.id"
+                          [selected]="driver.id === point.driverId"
+                        >
+                          {{ driver.lastName }} {{ driver.firstName }}
+                        </option>
+                      }
+                    </select>
+                  } @else {
+                    {{ point.driverName ?? ('common.notSet' | t) }}
+                  }
+                </td>
+                <td>
+                  <app-status-badge [status]="point.status" />
+                  @if (point.delayed) {
+                    <div class="muted small">
+                      {{ 'home.delayed' | t: { reason: point.delayReason ?? '' } }}
+                    </div>
+                  }
+                </td>
+                <td class="actions">
+                  @if (canTransfer(point)) {
+                    <button type="button" class="btn btn--sm btn--ghost" (click)="startTransfer(point)">
+                      {{ 'rs.transfer' | t }}
+                    </button>
+                  }
+                  @if (canCancel(point)) {
+                    <button type="button" class="btn btn--sm btn--danger" (click)="cancelling.set(point)">
+                      {{ 'rs.cancel' | t }}
+                    </button>
+                  }
+                  @if (!canTransfer(point) && !canCancel(point)) {
+                    <span class="muted small">{{ lockedHint(point) }}</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+</section>
+
+@if (cancelling()) {
+  <app-modal [title]="'rs.cancelTitle' | t" (closed)="cancelling.set(null)">
+    <div class="field">
+      <label class="field__label" for="cancel-reason">
+        {{ 'rs.cancelReason' | t }}
+      </label>
+      <textarea
+        id="cancel-reason"
+        class="textarea"
+        rows="3"
+        [value]="cancelReason()"
+        (input)="cancelReason.set($any($event.target).value)"
+      ></textarea>
+    </div>
+    <div modalFooter>
+      <button type="button" class="btn btn--ghost" (click)="cancelling.set(null)">
+        {{ 'common.no' | t }}
+      </button>
+      <button type="button" class="btn btn--danger" (click)="confirmCancel()">
+        {{ 'rs.cancel' | t }}
+      </button>
+    </div>
+  </app-modal>
+}

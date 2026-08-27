@@ -1,0 +1,121 @@
+@use 'tokens' as *;
+
+.login {
+  max-width: $content-max;
+  margin: 0 auto;
+  padding: $space-6 $space-4 $space-5;
+  display: flex;
+  flex-direction: column;
+  gap: $space-5;
+}
+
+.brand {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: $space-2;
+}
+
+.mark {
+  width: 64px;
+  height: 64px;
+  border-radius: $radius-lg;
+  background: $color-primary;
+  color: $color-text-inverse;
+  font-size: $font-size-xl;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.title {
+  font-size: $font-size-xl;
+}
+
+.subtitle {
+  color: $color-text-muted;
+  font-size: $font-size-sm;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: $space-4;
+  background: $color-surface;
+  border-radius: $radius-lg;
+  padding: $space-4;
+  box-shadow: $shadow-card;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: $space-1;
+}
+
+.label {
+  font-size: $font-size-sm;
+  font-weight: 600;
+  color: $color-text-muted;
+}
+
+.input {
+  min-height: $touch-primary;
+  padding: 0 $space-3;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-surface;
+  font-size: $font-size-lg;
+}
+
+.input[aria-invalid='true'] {
+  border-color: $color-danger;
+}
+
+.field-error {
+  color: $color-danger;
+  font-size: $font-size-sm;
+}
+
+.remember {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+  min-height: $touch-min;
+  font-size: $font-size-md;
+
+  input {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+.alert {
+  background: $color-danger-soft;
+  color: $color-danger;
+  border-radius: $radius-md;
+  padding: $space-3;
+  font-size: $font-size-sm;
+}
+
+.submit {
+  min-height: $touch-primary;
+  border: none;
+  border-radius: $radius-md;
+  background: $color-primary;
+  color: $color-text-inverse;
+  font-size: $font-size-md;
+  font-weight: 700;
+
+  &:disabled {
+    opacity: 0.6;
+  }
+}
+
+.hint {
+  color: $color-text-muted;
+  font-size: $font-size-sm;
+  text-align: center;
+}

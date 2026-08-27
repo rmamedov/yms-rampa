@@ -1,0 +1,85 @@
+<section class="filters" [class.filters--open]="open()">
+  <button type="button" class="btn btn--sm filters__toggle" (click)="toggleDrawer()">
+    {{ 'filters.open' | t }}
+    @if (activeCount() > 0) {
+      <span class="filters__count">{{ activeCount() }}</span>
+    }
+  </button>
+
+  <div class="filters__body">
+    <div class="filters__group">
+      <span class="filters__label">{{ 'filters.ramp' | t }}</span>
+      <div class="filters__chips">
+        @for (ramp of ramps(); track ramp.rampId) {
+          <button
+            type="button"
+            class="chip"
+            [class.chip--active]="isRampActive(ramp.rampId)"
+            [attr.aria-pressed]="isRampActive(ramp.rampId)"
+            (click)="toggleRamp(ramp.rampId)"
+          >
+            {{ ramp.name }}
+          </button>
+        }
+      </div>
+    </div>
+
+    <div class="filters__group">
+      <span class="filters__label">{{ 'filters.status' | t }}</span>
+      <div class="filters__chips">
+        @for (status of statuses; track status) {
+          <button
+            type="button"
+            class="chip"
+            [class.chip--active]="isStatusActive(status)"
+            [attr.aria-pressed]="isStatusActive(status)"
+            (click)="toggleStatus(status)"
+          >
+            {{ 'status.' + status | t }}
+          </button>
+        }
+        <button
+          type="button"
+          class="chip"
+          [class.chip--active]="filters().onlyDelayed"
+          [attr.aria-pressed]="filters().onlyDelayed"
+          (click)="toggleDelayed()"
+        >
+          {{ 'filters.delayed' | t }}
+        </button>
+        <button
+          type="button"
+          class="chip"
+          [class.chip--active]="filters().onlyWalkIn"
+          [attr.aria-pressed]="filters().onlyWalkIn"
+          (click)="toggleWalkIn()"
+        >
+          {{ 'filters.walkIn' | t }}
+        </button>
+      </div>
+    </div>
+
+    <div class="filters__group filters__group--grow">
+      <label class="filters__label" for="supplier-query">{{
+        'filters.supplier' | t
+      }}</label>
+      <input
+        id="supplier-query"
+        class="input"
+        type="search"
+        [placeholder]="'filters.supplierPlaceholder' | t"
+        [ngModel]="supplierQuery()"
+        (ngModelChange)="onSupplierQuery($event)"
+      />
+    </div>
+
+    <button
+      type="button"
+      class="btn btn--sm"
+      [disabled]="activeCount() === 0"
+      (click)="clear()"
+    >
+      {{ 'filters.clear' | t }}
+    </button>
+  </div>
+</section>

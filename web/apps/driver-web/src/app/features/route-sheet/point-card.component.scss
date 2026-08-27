@@ -1,0 +1,189 @@
+@use 'tokens' as *;
+
+:host {
+  display: block;
+}
+
+.card {
+  background: $color-surface;
+  border-radius: $radius-lg;
+  border: 2px solid transparent;
+  box-shadow: $shadow-card;
+  padding: $space-4;
+  display: flex;
+  flex-direction: column;
+  gap: $space-3;
+}
+
+:host(.active) .card {
+  border-color: $color-primary;
+}
+
+:host(.closed) .card {
+  opacity: 0.72;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $space-2;
+}
+
+.slot {
+  font-size: $font-size-xl;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.slot.small {
+  font-size: $font-size-lg;
+}
+
+.card.collapsed {
+  gap: $space-1;
+  padding: $space-3 $space-4;
+}
+
+.delay {
+  background: $color-warning-soft;
+  color: $color-warning;
+  border-radius: $radius-sm;
+  padding: $space-2 $space-3;
+  font-size: $font-size-sm;
+  font-weight: 600;
+}
+
+.delay-reason {
+  font-weight: 400;
+}
+
+.store {
+  font-size: $font-size-lg;
+  font-weight: 700;
+}
+
+.address {
+  color: $color-text-muted;
+  font-size: $font-size-md;
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: $space-2 $space-3;
+  margin: 0;
+}
+
+.meta-item {
+  background: $color-surface-muted;
+  border-radius: $radius-sm;
+  padding: $space-2 $space-3;
+
+  dt {
+    font-size: $font-size-xs;
+    color: $color-text-muted;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+
+  dd {
+    margin: 0;
+    font-size: $font-size-lg;
+    font-weight: 700;
+    word-break: break-word;
+  }
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+.order-edit {
+  display: flex;
+  flex-direction: column;
+  gap: $space-2;
+}
+
+.order-input {
+  min-height: $touch-primary;
+  padding: 0 $space-3;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  font-size: $font-size-lg;
+}
+
+.order-actions {
+  display: flex;
+  gap: $space-2;
+}
+
+.field-error {
+  color: $color-danger;
+  font-size: $font-size-sm;
+}
+
+.btn {
+  width: 100%;
+  min-height: $touch-min;
+  border-radius: $radius-md;
+  border: 1px solid transparent;
+  font-weight: 600;
+  font-size: $font-size-md;
+}
+
+.btn.tall {
+  min-height: $touch-primary;
+  font-size: $font-size-lg;
+  font-weight: 700;
+}
+
+.btn.small {
+  flex: 1;
+  min-height: $touch-min;
+}
+
+.primary {
+  background: $color-primary;
+  color: $color-text-inverse;
+}
+
+.secondary {
+  background: $color-primary-soft;
+  color: $color-primary-dark;
+}
+
+.ghost {
+  background: $color-surface;
+  color: $color-text-muted;
+  border-color: $color-border;
+}
+
+.arrive {
+  background: $color-success;
+  color: $color-text-inverse;
+}
+
+.arrive.late {
+  background: $color-warning;
+}
+
+.btn:disabled {
+  background: $color-surface-muted;
+  color: $color-text-muted;
+  border-color: $color-border;
+}
+
+.hint {
+  color: $color-text-muted;
+  font-size: $font-size-sm;
+}
+
+.queued {
+  background: $color-warning-soft;
+  color: $color-warning;
+  border-radius: $radius-sm;
+  padding: $space-2 $space-3;
+  font-size: $font-size-sm;
+  font-weight: 600;
+}

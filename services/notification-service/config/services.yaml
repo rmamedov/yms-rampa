@@ -1,0 +1,126 @@
+# yaml-language-server: $schema=../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+
+parameters:
+    app.portal_url: '%env(PORTAL_URL)%'
+    app.mail_from: '%env(NOTIFICATION_FROM_EMAIL)%'
+
+    app.mongodb.uri: '%env(MONGODB_URI)%'
+    app.mongodb.database: '%env(MONGODB_DB)%'
+
+    # NOT-04: кількість спроб і розклад backoff — конфігуровані.
+    app.notification.max_attempts: '%env(int:NOTIFICATION_MAX_ATTEMPTS)%'
+    app.notification.retry_initial_delay: '%env(int:NOTIFICATION_RETRY_INITIAL_DELAY)%'
+    app.notification.retry_multiplier: '%env(float:NOTIFICATION_RETRY_MULTIPLIER)%'
+    app.notification.retry_max_delay: '%env(int:NOTIFICATION_RETRY_MAX_DELAY)%'
+
+    # NOT-01: провайдер SMS обирається env-конфігом без зміни коду.
+    app.sms.provider: '%env(SMS_PROVIDER)%'
+    app.sms.sender: '%env(SMS_SENDER)%'
+    app.turbosms.endpoint: '%env(TURBOSMS_ENDPOINT)%'
+    app.turbosms.token: '%env(TURBOSMS_TOKEN)%'
+    app.esputnik.endpoint: '%env(ESPUTNIK_ENDPOINT)%'
+    app.esputnik.token: '%env(ESPUTNIK_TOKEN)%'
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        bind:
+            string $defaultPortalUrl: '%app.portal_url%'
+
+    # Контролери, консольні команди і обробники подій.
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/Kernel.php'
+            - '../src/Domain/'
+            - '../src/Infrastructure/'
+
+    App\Controller\:
+        resource: '../src/Controller/'
+        tags: ['controller.service_arguments']
+
+    # --- Доменні сервіси (без залежностей від Symfony) ---
+    App\Domain\Notification\SmsSegmentCalculator: ~
+    App\Domain\Notification\TemplateRenderer: ~
+    App\Domain\Security\SecretMasker: ~
+    App\Domain\Dispatch\NotificationDispatcher: ~
+    App\Domain\Reminder\ReminderScheduler: ~
+
+    App\Domain\Dispatch\ExponentialBackoffRetryPolicy:
+        arguments:
+            $maxAttempts: '%app.notification.max_attempts%'
+            $initialDelaySeconds: '%app.notification.retry_initial_delay%'
+            $multiplier: '%app.notification.retry_multiplier%'
+            $maxDelaySeconds: '%app.notification.retry_max_delay%'
+    App\Domain\Dispatch\RetryPolicy: '@App\Domain\Dispatch\ExponentialBackoffRetryPolicy'
+
+    # --- Час ---
+    App\Infrastructure\Clock\SystemClock: ~
+    App\Domain\Clock\Clock: '@App\Infrastructure\Clock\SystemClock'
+
+    # --- HTTP ---
+    App\Infrastructure\Http\ProblemJsonFactory: ~
+
+    # --- Сховища: MongoDB (прод) і InMemory (dev/test) ---
+    App\Infrastructure\Mongo\MongoConnectionFactory:
+        arguments:
+            $uri: '%app.mongodb.uri%'
+            $database: '%app.mongodb.database%'
+    App\Infrastructure\Mongo\MongoNotificationRepository: ~
+    App\Infrastructure\Mongo\MongoScheduledReminderRepository: ~
+
+    App\Infrastructure\InMemory\InMemoryNotificationRepository: ~
+    App\Infrastructure\InMemory\InMemoryScheduledReminderRepository: ~
+    App\Infrastructure\InMemory\InMemoryOptOutRegistry: ~
+    App\Infrastructure\InMemory\InMemoryRescheduleRegistry: ~
+
+    App\Domain\Notification\NotificationRepository: '@App\Infrastructure\Mongo\MongoNotificationRepository'
+    App\Domain\Reminder\ScheduledReminderRepository: '@App\Infrastructure\Mongo\MongoScheduledReminderRepository'
+    App\Domain\Preference\OptOutRegistry: '@App\Infrastructure\InMemory\InMemoryOptOutRegistry'
+    App\Domain\Reschedule\RescheduleRegistry: '@App\Infrastructure\InMemory\InMemoryRescheduleRegistry'
+
+    # --- SMS-провайдери (NOT-01) ---
+    App\Infrastructure\Sms\TurboSmsProvider:
+        arguments:
+            $endpoint: '%app.turbosms.endpoint%'
+            $token: '%app.turbosms.token%'
+            $sender: '%app.sms.sender%'
+    App\Infrastructure\Sms\ESputnikSmsProvider:
+        arguments:
+            $endpoint: '%app.esputnik.endpoint%'
+            $token: '%app.esputnik.token%'
+            $sender: '%app.sms.sender%'
+    App\Infrastructure\Sms\NullSmsProvider: ~
+    App\Infrastructure\Sms\SmsProviderFactory:
+        arguments:
+            $providerName: '%app.sms.provider%'
+    App\Domain\Transport\SmsProviderInterface:
+        factory: ['@App\Infrastructure\Sms\SmsProviderFactory', 'create']
+
+    # --- Транспорти каналів ---
+    App\Infrastructure\Sms\SmsTransport: ~
+    App\Infrastructure\Email\EmailTransport:
+        arguments:
+            $fromAddress: '%app.mail_from%'
+    App\Infrastructure\Transport\ViberTransport: ~
+    App\Infrastructure\Transport\NullTransport: ~
+
+    App\Infrastructure\Transport\ChannelTransportRegistry:
+        arguments:
+            $transports:
+                - '@App\Infrastructure\Sms\SmsTransport'
+                - '@App\Infrastructure\Email\EmailTransport'
+                - '@App\Infrastructure\Transport\ViberTransport'
+    App\Domain\Transport\TransportRegistry: '@App\Infrastructure\Transport\ChannelTransportRegistry'
+
+# Dev і test працюють без MongoDB: сховища тримаються в памʼяті.
+when@dev:
+    services:
+        App\Domain\Notification\NotificationRepository: '@App\Infrastructure\InMemory\InMemoryNotificationRepository'
+        App\Domain\Reminder\ScheduledReminderRepository: '@App\Infrastructure\InMemory\InMemoryScheduledReminderRepository'
+
+when@test:
+    services:
+        App\Domain\Notification\NotificationRepository: '@App\Infrastructure\InMemory\InMemoryNotificationRepository'
+        App\Domain\Reminder\ScheduledReminderRepository: '@App\Infrastructure\InMemory\InMemoryScheduledReminderRepository'
