@@ -1,0 +1,336 @@
+{
+  "cities": [
+    {
+      "city": "",
+      "branchCount": 8
+    },
+    {
+      "city": "Біла Церква",
+      "branchCount": 4
+    },
+    {
+      "city": "Білогородка",
+      "branchCount": 1
+    },
+    {
+      "city": "Бориспіль",
+      "branchCount": 4
+    },
+    {
+      "city": "Боярка",
+      "branchCount": 2
+    },
+    {
+      "city": "Бровари",
+      "branchCount": 4
+    },
+    {
+      "city": "Буча",
+      "branchCount": 1
+    },
+    {
+      "city": "Васильків",
+      "branchCount": 2
+    },
+    {
+      "city": "Вишгород",
+      "branchCount": 1
+    },
+    {
+      "city": "Вишневе",
+      "branchCount": 2
+    },
+    {
+      "city": "Вінниця",
+      "branchCount": 9
+    },
+    {
+      "city": "Віта-Поштова",
+      "branchCount": 1
+    },
+    {
+      "city": "Вовчинець",
+      "branchCount": 2
+    },
+    {
+      "city": "Дніпро",
+      "branchCount": 17
+    },
+    {
+      "city": "Дрогобич",
+      "branchCount": 2
+    },
+    {
+      "city": "Житомир",
+      "branchCount": 2
+    },
+    {
+      "city": "Запоріжжя",
+      "branchCount": 17
+    },
+    {
+      "city": "Івано-Франківськ",
+      "branchCount": 4
+    },
+    {
+      "city": "Ірпінь",
+      "branchCount": 4
+    },
+    {
+      "city": "Калуш",
+      "branchCount": 1
+    },
+    {
+      "city": "Кам’янець-Подільський",
+      "branchCount": 3
+    },
+    {
+      "city": "Кам’янське",
+      "branchCount": 1
+    },
+    {
+      "city": "Канів",
+      "branchCount": 1
+    },
+    {
+      "city": "Київ",
+      "branchCount": 155
+    },
+    {
+      "city": "Коростень",
+      "branchCount": 1
+    },
+    {
+      "city": "Коростишів",
+      "branchCount": 1
+    },
+    {
+      "city": "Костопіль",
+      "branchCount": 1
+    },
+    {
+      "city": "Кривий Ріг",
+      "branchCount": 6
+    },
+    {
+      "city": "Кропивницький",
+      "branchCount": 2
+    },
+    {
+      "city": "Крюківщина",
+      "branchCount": 3
+    },
+    {
+      "city": "Лиманка",
+      "branchCount": 1
+    },
+    {
+      "city": "Лісники",
+      "branchCount": 1
+    },
+    {
+      "city": "Лозова",
+      "branchCount": 1
+    },
+    {
+      "city": "Луцьк",
+      "branchCount": 7
+    },
+    {
+      "city": "Львів",
+      "branchCount": 31
+    },
+    {
+      "city": "Малин",
+      "branchCount": 1
+    },
+    {
+      "city": "Миколаїв",
+      "branchCount": 4
+    },
+    {
+      "city": "Миргород",
+      "branchCount": 1
+    },
+    {
+      "city": "Мироцьке",
+      "branchCount": 1
+    },
+    {
+      "city": "Мукачево",
+      "branchCount": 1
+    },
+    {
+      "city": "Нетішин",
+      "branchCount": 1
+    },
+    {
+      "city": "Ніжин",
+      "branchCount": 1
+    },
+    {
+      "city": "Новий Розділ",
+      "branchCount": 1
+    },
+    {
+      "city": "Обухів",
+      "branchCount": 2
+    },
+    {
+      "city": "Овідіополь",
+      "branchCount": 1
+    },
+    {
+      "city": "Одеса",
+      "branchCount": 35
+    },
+    {
+      "city": "Остер",
+      "branchCount": 1
+    },
+    {
+      "city": "Павлоград",
+      "branchCount": 1
+    },
+    {
+      "city": "Південне",
+      "branchCount": 1
+    },
+    {
+      "city": "Південноукраїнськ",
+      "branchCount": 1
+    },
+    {
+      "city": "Погреби",
+      "branchCount": 1
+    },
+    {
+      "city": "Полтава",
+      "branchCount": 7
+    },
+    {
+      "city": "Поляниця",
+      "branchCount": 2
+    },
+    {
+      "city": "Прилуки",
+      "branchCount": 1
+    },
+    {
+      "city": "Прип'ять",
+      "branchCount": 1
+    },
+    {
+      "city": "Радомишль",
+      "branchCount": 1
+    },
+    {
+      "city": "Рівне",
+      "branchCount": 5
+    },
+    {
+      "city": "Самар",
+      "branchCount": 1
+    },
+    {
+      "city": "Самбір",
+      "branchCount": 1
+    },
+    {
+      "city": "Славутич",
+      "branchCount": 1
+    },
+    {
+      "city": "Сміла",
+      "branchCount": 1
+    },
+    {
+      "city": "Софіївська Борщагівка",
+      "branchCount": 7
+    },
+    {
+      "city": "Старі Петрівці",
+      "branchCount": 1
+    },
+    {
+      "city": "Стоянка",
+      "branchCount": 1
+    },
+    {
+      "city": "Стрий",
+      "branchCount": 1
+    },
+    {
+      "city": "Суми",
+      "branchCount": 4
+    },
+    {
+      "city": "Теплодар",
+      "branchCount": 1
+    },
+    {
+      "city": "Тернопіль",
+      "branchCount": 8
+    },
+    {
+      "city": "Трускавець",
+      "branchCount": 2
+    },
+    {
+      "city": "Ужгород",
+      "branchCount": 6
+    },
+    {
+      "city": "Умань",
+      "branchCount": 1
+    },
+    {
+      "city": "Фастів",
+      "branchCount": 2
+    },
+    {
+      "city": "Харків",
+      "branchCount": 15
+    },
+    {
+      "city": "Херсон",
+      "branchCount": 2
+    },
+    {
+      "city": "Хмельницький",
+      "branchCount": 5
+    },
+    {
+      "city": "Хмільник",
+      "branchCount": 1
+    },
+    {
+      "city": "Черкаси",
+      "branchCount": 3
+    },
+    {
+      "city": "Чернівці",
+      "branchCount": 4
+    },
+    {
+      "city": "Чернігів",
+      "branchCount": 8
+    },
+    {
+      "city": "Чорноморськ",
+      "branchCount": 1
+    },
+    {
+      "city": "Шептицький",
+      "branchCount": 1
+    },
+    {
+      "city": "Щасливе",
+      "branchCount": 2
+    },
+    {
+      "city": "Яворів",
+      "branchCount": 1
+    }
+  ]
+}

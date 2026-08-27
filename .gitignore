@@ -1,0 +1,18 @@
+# PHP / Symfony
+/services/*/vendor/
+/services/*/var/
+/services/*/.env.local
+/services/*/.env.*.local
+/services/*/.phpunit.cache/
+/services/*/phpunit.xml
+
+# Node / Angular
+node_modules/
+/apps/*/dist/
+/apps/*/.angular/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.log
