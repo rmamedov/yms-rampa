@@ -131,19 +131,54 @@ export class SupplierDetailPage {
         this.loadSupplier(id);
       });
 
-    this.storesApi
-      .list(DEFAULT_STORE_FILTER, { page: 1, pageSize: 100, sort: 'city' })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (page) =>
-          this.storeOptions.set(
-            page.items.map((row: StoreListRow) => ({
-              value: row.id,
-              label: `${row.externalId} — ${row.city}, ${row.address}`,
-            })),
-          ),
-        error: () => this.storeOptions.set([]),
-      });
+    this.loadAllStoreOptions();
+  }
+
+  /**
+   * Довідник філій для вибору доступу — ПОВНИЙ.
+   *
+   * Раніше тут був один запит на 100 записів із 455: пошук у списку працює по
+   * вже завантаженому масиву, тому більшість філій просто не можна було знайти
+   * (сортування за містом ставило на початок Дніпро, і Київ у вибірку майже не
+   * потрапляв). Тому вичитуємо всі сторінки.
+   *
+   * Записи без міста або адреси не показуємо: це сміття з MCP, яке однаково
+   * неможливо активувати, а у списку воно виглядало як «2505 — ,».
+   */
+  private loadAllStoreOptions(): void {
+    const pageSize = 100 as const;
+    const collected: StoreListRow[] = [];
+
+    const fetchPage = (page: number): void => {
+      this.storesApi
+        .list(DEFAULT_STORE_FILTER, { page, pageSize, sort: 'city' })
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (result) => {
+            collected.push(...result.items);
+
+            const more = collected.length < result.total && result.items.length > 0;
+            if (more) {
+              fetchPage(page + 1);
+              return;
+            }
+
+            this.storeOptions.set(
+              collected
+                .filter((row) => row.city?.trim() && row.address?.trim())
+                .map((row) => ({
+                  value: row.id,
+                  label: `${row.externalId} — ${row.city}, ${row.address}`,
+                })),
+            );
+          },
+          // Часткова вибірка гірша за явну порожнечу: інакше адміністратор
+          // не помітить, що бачить лише частину мережі.
+          error: () => this.storeOptions.set([]),
+        });
+    };
+
+    fetchPage(1);
   }
 
   private loadSupplier(id: string): void {

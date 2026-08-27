@@ -13,8 +13,9 @@
   }
 </div>
 
-@if (!isNew()) {
-  <div class="tabs">
+<!-- Вкладки показуємо і при створенні: доступ до філій — частина
+     заведення контрагента, а не окремий крок після збереження. -->
+<div class="tabs">
     @for (tab of tabs; track tab) {
       <button
         type="button"
@@ -25,10 +26,9 @@
         {{ 'suppliers.tab.' + tab | t }}
       </button>
     }
-  </div>
-}
+</div>
 
-@if (isNew() || activeTab() === 'general') {
+@if (activeTab() === 'general') {
   <div class="card">
     <div class="card-title">{{ 'suppliers.tab.general' | t }}</div>
     <div class="grid-2">
@@ -140,7 +140,7 @@
   </div>
 }
 
-@if (!isNew() && activeTab() === 'stores') {
+@if (activeTab() === 'stores') {
   <div class="card">
     <div class="card-title">{{ 'suppliers.tab.stores' | t }}</div>
     <div class="field" style="max-width: 380px">
