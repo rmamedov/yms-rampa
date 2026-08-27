@@ -66,12 +66,18 @@ final class MongoRepositoriesIntegrationTest extends TestCase
         self::assertSame('du-integration', $loaded->driverProfileId());
         self::assertTrue($loaded->isActive());
 
+        // «Легке» читання для GET /internal/v1/auth/verify: проєкція {active:1}
+        // без гідратації документа.
+        self::assertTrue($repository->isActive($account->id));
+        self::assertNull($repository->isActive('pa-not-there-'.bin2hex(random_bytes(4))));
+
         $loaded->deactivate($now);
         $repository->save($loaded);
 
         $reloaded = $repository->findById($account->id);
         self::assertNotNull($reloaded);
         self::assertFalse($reloaded->isActive());
+        self::assertFalse($repository->isActive($account->id));
     }
 
     public function testLoginAttemptsWindowQuery(): void

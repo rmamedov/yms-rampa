@@ -33,8 +33,14 @@ export class ApiClient {
     return this.wrap(this.http.patch<T>(this.url(path), body ?? {}));
   }
 
-  delete<T>(path: string): Observable<T> {
-    return this.wrap(this.http.delete<T>(this.url(path)));
+  /**
+   * DELETE із тілом: бекенд читає `reason` у скасуванні бронювання
+   * і ключ слота з holdToken у знятті холду.
+   */
+  delete<T>(path: string, body?: unknown): Observable<T> {
+    return this.wrap(
+      this.http.delete<T>(this.url(path), body === undefined ? {} : { body }),
+    );
   }
 
   private url(path: string): string {

@@ -10,9 +10,10 @@
 #   MONGODB_URL — DSN кластера (parameter app.mongo.uri з config/services.yaml);
 #   MONGODB_DB  — назва бази контуру (за замовчуванням identity_partner).
 #
-# Redis-реалізацій у src/Infrastructure/ немає (ані холдів, ані denylist-а
-# токенів, ані throttling-а), тому REDIS_DSN тут свідомо не використовується:
-# лічильник невдалих логінів веде Mongo-колекція login_attempts (AUTH-50).
+#   REDIS_DSN   — Redis для denylist-а `jti` access-токенів (AUTH-28, AUTH-32).
+#
+# Лічильник невдалих логінів Redis не використовує: його веде Mongo-колекція
+# login_attempts (AUTH-50).
 
 parameters:
     # Навмисно окремий ключ, а не app.mongo.database: config/services.yaml
@@ -52,7 +53,22 @@ services:
             $manager: '@MongoDB\Driver\Manager'
             $database: '%app.mongo.prod_database%'
 
+    # --- Redis: denylist jti access-токенів (AUTH-28, AUTH-32) --------------
+    # Підключення будується з REDIS_DSN штатною фабрикою symfony/cache, яка для
+    # DSN redis:// повертає екземпляр ext-redis \Redis.
+    app.redis.connection:
+        class: Redis
+        factory: ['Symfony\Component\Cache\Adapter\RedisAdapter', 'createConnection']
+        arguments:
+            $dsn: '%env(REDIS_DSN)%'
+
+    App\Infrastructure\Redis\RedisAccessTokenDenylist:
+        arguments:
+            $redis: '@app.redis.connection'
+            $clock: '@App\Infrastructure\Clock\SystemClock'
+
     # --- Переприв'язка доменних інтерфейсів ---------------------------------
+    App\Domain\Auth\AccessTokenDenylist: '@App\Infrastructure\Redis\RedisAccessTokenDenylist'
     App\Domain\Account\PartnerAccountRepository: '@App\Infrastructure\Mongo\MongoPartnerAccountRepository'
     App\Domain\Session\RefreshTokenRepository: '@App\Infrastructure\Mongo\MongoRefreshTokenRepository'
     App\Domain\Session\LoginAttemptRepository: '@App\Infrastructure\Mongo\MongoLoginAttemptRepository'

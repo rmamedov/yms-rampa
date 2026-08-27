@@ -1,11 +1,16 @@
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 import { StoresApi } from '../stores.api';
-import { MockStoresApi, matchesStoreFilter, toListRow } from './mock-stores.api';
+import {
+  EMPTY_STORES_MESSAGE,
+  MockStoresApi,
+  matchesStoreFilter,
+  toListRow,
+} from './mock-stores.api';
 import { MockDb } from './mock-db';
 import { MOCK_LATENCY } from './mock-support';
 import { DEFAULT_STORE_FILTER } from '../../utils/query-state.util';
-import { StoreListFilter } from '../../models';
+import { PageSize, StoreListFilter } from '../../models';
 import { AuthApi } from '../auth.api';
 import { MockAuthApi } from './mock-auth.api';
 import { AuthService } from '../../auth/auth.service';
@@ -58,11 +63,11 @@ describe('MockStoresApi — довідник магазинів', () => {
       auth.login('store.manager@silpo.ua', 'demo'),
     );
     const outside = db.state.stores.find(
-      (s) => !session.user.storeIds.includes(s.id),
+      (s) => !session.user.storeIds.includes(s.card.id),
     )!;
-    await expect(firstValueFrom(api.get(outside.id))).rejects.toMatchObject({
+    await expect(firstValueFrom(api.get(outside.card.id))).rejects.toMatchObject({
       status: 404,
-      code: 'RESOURCE_NOT_FOUND',
+      code: 'STORE_NOT_FOUND',
     });
     await expect(
       firstValueFrom(api.get(session.user.storeIds[0])),
@@ -78,6 +83,18 @@ describe('MockStoresApi — довідник магазинів', () => {
     expect(page.items[0].externalId).toBeDefined();
   });
 
+  it('UI-01: perPage поза 20/50/100 бекенд відхиляє 422', async () => {
+    await expect(
+      firstValueFrom(api.list(filter(), { page: 1, pageSize: 25 as PageSize })),
+    ).rejects.toMatchObject({ status: 422, code: 'VALIDATION_FAILED' });
+
+    for (const size of [20, 50, 100] as PageSize[]) {
+      await expect(
+        firstValueFrom(api.list(filter(), { page: 1, pageSize: size })),
+      ).resolves.toBeDefined();
+    }
+  });
+
   it('STL-05: за замовчуванням сортує за містом, потім за externalId', async () => {
     const page = await firstValueFrom(
       api.list(filter(), { page: 1, pageSize: 50, sort: 'city', direction: 'asc' }),
@@ -85,6 +102,18 @@ describe('MockStoresApi — довідник магазинів', () => {
     const cities = page.items.map((r) => r.city);
     const sorted = [...cities].sort((a, b) => a.localeCompare(b, 'uk'));
     expect(cities).toEqual(sorted);
+  });
+
+  it('сортування за колонкою поза переліком бекенду відкочується на місто', async () => {
+    const byUnsupported = await firstValueFrom(
+      api.list(filter(), { page: 1, pageSize: 20, sort: 'rampCount' }),
+    );
+    const byCity = await firstValueFrom(
+      api.list(filter(), { page: 1, pageSize: 20, sort: 'city' }),
+    );
+    expect(byUnsupported.items.map((r) => r.id)).toEqual(
+      byCity.items.map((r) => r.id),
+    );
   });
 
   it('STL-03: пошук «1998» знаходить філію з таким externalId', async () => {
@@ -119,7 +148,7 @@ describe('MockStoresApi — довідник магазинів', () => {
     }
   });
 
-  it('STL-06: порожній результат повертає total 0', async () => {
+  it('STL-06: порожній результат несе emptyMessage бекенду', async () => {
     const page = await firstValueFrom(
       api.list(filter({ search: 'нема-такої-адреси-zzz' }), {
         page: 1,
@@ -128,38 +157,57 @@ describe('MockStoresApi — довідник магазинів', () => {
     );
     expect(page.total).toBe(0);
     expect(page.items).toEqual([]);
+    expect(page.emptyMessage).toBe(EMPTY_STORES_MESSAGE);
   });
 
   it('зміна сторінки зберігає активні фільтри', async () => {
-    const applied = filter({ cities: ['Київ'] });
-    const first = await firstValueFrom(api.list(applied, { page: 1, pageSize: 5 }));
-    const second = await firstValueFrom(api.list(applied, { page: 2, pageSize: 5 }));
+    const applied = filter({ statuses: ['active'] });
+    const first = await firstValueFrom(api.list(applied, { page: 1, pageSize: 20 }));
+    const second = await firstValueFrom(api.list(applied, { page: 2, pageSize: 20 }));
+    expect(first.total).toBeGreaterThan(20);
     expect(second.total).toBe(first.total);
     expect(second.page).toBe(2);
-    expect(second.items.every((r) => r.city === 'Київ')).toBe(true);
+    expect(second.items.every((r) => r.ymsStatus === 'active')).toBe(true);
     expect(second.items[0].id).not.toBe(first.items[0].id);
   });
 
+  it('картка магазину віддає чинну конфігурацію, резерви й блокування', async () => {
+    const configured = db.state.stores.find((s) => s.configurations.length > 0)!;
+    const store = await firstValueFrom(api.get(configured.card.id));
+    expect(store.configuration).not.toBeNull();
+    expect(store.configuration!.slotSizeMinutes).toBe(
+      configured.configurations[0].slotSizeMinutes,
+    );
+    expect(store.reservedRules).toEqual(configured.reservedRules);
+    expect(store.slotBlocks).toEqual(configured.slotBlocks);
+  });
+
+  it('магазин без конфігурації віддає configuration = null', async () => {
+    const bare = db.state.stores.find((s) => s.configurations.length === 0)!;
+    const store = await firstValueFrom(api.get(bare.card.id));
+    expect(store.configuration).toBeNull();
+    expect(store.isConfigured).toBe(false);
+  });
+
   it('STC-03: неналаштований магазин неможливо активувати', async () => {
-    const target = db.state.stores.find((s) => !s.isConfigured);
-    expect(target).toBeDefined();
+    const target = db.state.stores.find((s) => !s.card.isConfigured)!;
     await expect(
       firstValueFrom(
-        api.updateGeneral(target!.id, {
-          displayName: target!.displayName,
+        api.updateGeneral(target.card.id, {
+          displayName: target.card.displayName,
           phone: null,
           addressOverride: null,
           ymsStatus: 'active',
           visibleToSuppliers: true,
         }),
       ),
-    ).rejects.toMatchObject({ status: 422, code: 'STORE_NOT_CONFIGURED' });
+    ).rejects.toMatchObject({ status: 409, code: 'STORE_NOT_CONFIGURED' });
   });
 
   it('STC-04/STC-07: зберігає видимість і addressOverride', async () => {
-    const target = db.state.stores.find((s) => s.isConfigured)!;
+    const target = db.state.stores.find((s) => s.card.isConfigured)!;
     const updated = await firstValueFrom(
-      api.updateGeneral(target.id, {
+      api.updateGeneral(target.card.id, {
         displayName: 'Сільпо тест',
         phone: '+380441234567',
         addressOverride: 'вʼїзд з двору',
@@ -169,115 +217,120 @@ describe('MockStoresApi — довідник магазинів', () => {
     );
     expect(updated.displayName).toBe('Сільпо тест');
     expect(updated.addressOverride).toBe('вʼїзд з двору');
+    expect(updated.effectiveAddress).toBe('вʼїзд з двору');
     expect(updated.visibleToSuppliers).toBe(false);
-    const row = toListRow(updated);
-    expect(row.address).toBe('вʼїзд з двору');
   });
 
-  it('STL-07: масове застосування шаблону робить магазини налаштованими', async () => {
-    const ids = db.state.stores
-      .filter((s) => !s.isConfigured)
-      .slice(0, 3)
-      .map((s) => s.id);
-    const result = await firstValueFrom(api.applyTemplate(ids, 'standard'));
-    expect(result.every((r) => r.ok)).toBe(true);
-    for (const id of ids) {
-      const store = db.state.stores.find((s) => s.id === id)!;
-      expect(store.isConfigured).toBe(true);
-      expect(store.slotSizeMinutes).toBe(30);
-      expect(store.maxVehicleWeightTons).toBe(20);
-    }
+  it('DATA-09: збереження конфігурації створює НОВУ версію', async () => {
+    const target = db.state.stores.find((s) => s.configurations.length > 0)!;
+    const before = target.configurations.length;
+    const created = await firstValueFrom(
+      api.createConfiguration(target.card.id, {
+        effectiveFrom: '2026-09-01',
+        slotSizeMinutes: 30,
+        maxVehicleWeightTons: 18,
+        receivingWindows: target.configurations[0].receivingWindows,
+        ramps: target.configurations[0].ramps,
+        calendarExceptions: [],
+        leadTimeMinutes: 120,
+        bookingHorizonDays: 21,
+        noShowGraceMinutes: 30,
+        holdMaxMinutes: 15,
+      }),
+    );
+    expect(created.version).toBe(before + 1);
+    expect(target.configurations).toHaveLength(before + 1);
+    expect(target.configurations[0].version).toBe(1);
   });
 
   it('UI-02: масова активація неналаштованих магазинів повертає помилку по кожному', async () => {
     const ids = db.state.stores
-      .filter((s) => !s.isConfigured)
+      .filter((s) => !s.card.isConfigured)
       .slice(0, 2)
-      .map((s) => s.id);
+      .map((s) => s.card.id);
     const result = await firstValueFrom(api.bulkStatus(ids, 'active'));
     expect(result.every((r) => !r.ok)).toBe(true);
-    expect(result[0].message).toBe('store.error.activate');
+    expect(result[0].message).toContain('не завершено налаштування');
   });
 
-  it('STC-63: рішення «Скасувати з нотифікацією» скасовує бронювання', async () => {
-    const store = db.state.stores.find(
-      (s) => s.isConfigured && db.state.bookings.some((b) => b.storeId === s.id),
-    )!;
-    const bookingItem = db.state.bookings.find(
-      (b) => b.storeId === store.id && b.status === 'booked',
-    );
-    if (!bookingItem) {
-      expect(store).toBeDefined();
-      return;
+  it('масова зміна видимості складається з покартковових оновлень', async () => {
+    const ids = db.state.stores.slice(0, 3).map((s) => s.card.id);
+    const result = await firstValueFrom(api.bulkVisibility(ids, false));
+    expect(result.every((r) => r.ok)).toBe(true);
+    for (const id of ids) {
+      expect(db.store(id)!.card.visibleToSuppliers).toBe(false);
     }
-    await firstValueFrom(
-      api.saveConfig({
-        storeId: store.id,
-        effectiveFrom: '2026-01-01',
-        config: {},
-        decisions: [
-          { conflictId: `cf-${bookingItem.id}`, resolution: 'cancel_notify' },
-        ],
-      }),
-    );
-    expect(
-      db.state.bookings.find((b) => b.id === bookingItem.id)!.status,
-    ).toBe('cancelled');
   });
 
-  it('невідомий магазин — 404 RESOURCE_NOT_FOUND', async () => {
+  it('STC-42: резерв на вимкнену рампу відхиляється', async () => {
+    const target = db.state.stores.find((s) => s.configurations.length > 0)!;
+    const config = target.configurations[0];
+    await expect(
+      firstValueFrom(
+        api.createReservedRule(target.card.id, {
+          supplierId: 'sup-1',
+          rampId: 'немає-такої-рампи',
+          slotStartTime: config.receivingWindows.find((w) => w.intervals.length > 0)!
+            .intervals[0].from,
+          dayOfWeek: 1,
+          date: null,
+          validFrom: '2026-09-01',
+          validTo: null,
+          active: true,
+        }),
+      ),
+    ).rejects.toMatchObject({ status: 422, code: 'CONFIG_VALIDATION_FAILED' });
+  });
+
+  it('STC-52: зняте блокування отримує releasedAt і повторно не знімається', async () => {
+    const target = db.state.stores.find((s) => s.slotBlocks.length > 0)!;
+    const blockId = target.slotBlocks[0].id;
+    const released = await firstValueFrom(
+      api.releaseSlotBlock(target.card.id, blockId),
+    );
+    expect(released.releasedAt).not.toBeNull();
+    await expect(
+      firstValueFrom(api.releaseSlotBlock(target.card.id, blockId)),
+    ).rejects.toMatchObject({ status: 422 });
+  });
+
+  it('невідомий магазин — 404 STORE_NOT_FOUND', async () => {
     await expect(firstValueFrom(api.get('st-нема'))).rejects.toMatchObject({
       status: 404,
-      code: 'RESOURCE_NOT_FOUND',
+      code: 'STORE_NOT_FOUND',
     });
   });
 
-  it('перелік міст не містить порожніх значень і відсортований', async () => {
+  it('довідник міст віддає місто і кількість магазинів', async () => {
     const cities = await firstValueFrom(api.cities());
     expect(cities.length).toBeGreaterThan(10);
-    expect(cities.every((c) => c.trim().length > 0)).toBe(true);
-    expect([...cities]).toEqual([...cities].sort((a, b) => a.localeCompare(b, 'uk')));
+    expect(cities.every((c) => c.city.trim().length > 0)).toBe(true);
+    expect(cities.every((c) => c.storeCount > 0)).toBe(true);
+    expect(cities.map((c) => c.city)).toEqual(
+      [...cities].map((c) => c.city).sort((a, b) => a.localeCompare(b, 'uk')),
+    );
   });
 });
 
 describe('matchesStoreFilter', () => {
-  const row = toListRow({
-    id: 'st-1998',
-    branchId: 'b',
-    companyId: 'c',
-    externalId: '1998',
-    city: 'Київ',
-    address: 'просп. Володимира Івасюка, 46',
-    latitude: '50.5',
-    longitude: '30.5',
-    hasPickup: true,
-    open: true,
-    displayName: 'Сільпо на Івасюка',
-    phone: null,
-    addressOverride: null,
-    ymsStatus: 'active',
-    visibleToSuppliers: true,
-    slotSizeMinutes: 30,
-    ramps: [],
-    maxVehicleWeightTons: 20,
-    leadTimeHours: 4,
-    bookingHorizonDays: 21,
-    receivingWindows: [],
-    exceptions: [],
-    reservedRules: [],
-    slotBlocks: [],
-    isConfigured: true,
-    lastSyncedAt: '2026-08-27T00:00:00.000Z',
-    missingSyncCount: 0,
-  });
+  const db = new MockDb();
+  const row = toListRow(
+    db.state.stores.find((s) => s.card.externalId === '1998') ?? db.state.stores[0],
+  );
 
   it('префіксний збіг за externalId', () => {
-    expect(matchesStoreFilter(row, filter({ search: '19' }))).toBe(true);
-    expect(matchesStoreFilter(row, filter({ search: '998' }))).toBe(false);
+    expect(
+      matchesStoreFilter(row, filter({ search: row.externalId.slice(0, 2) })),
+    ).toBe(true);
+    expect(matchesStoreFilter(row, filter({ search: 'zzz-нема' }))).toBe(false);
   });
 
   it('фільтр «налаштовано» працює як AND', () => {
-    expect(matchesStoreFilter(row, filter({ configured: true }))).toBe(true);
-    expect(matchesStoreFilter(row, filter({ configured: false }))).toBe(false);
+    expect(matchesStoreFilter(row, filter({ configured: row.isConfigured }))).toBe(
+      true,
+    );
+    expect(matchesStoreFilter(row, filter({ configured: !row.isConfigured }))).toBe(
+      false,
+    );
   });
 });

@@ -3,10 +3,10 @@
     <div>
       <a class="small" routerLink="/route-sheets">← {{ 'rs.title' | t }}</a>
       <h1>{{ 'rs.detailTitle' | t: { date: (date() | kyivDay) } }}</h1>
-      @if (sheet(); as data) {
+      @if (summary(); as info) {
         <p class="muted small">
-          {{ pointsLabel(data.pointsCount) }} ·
-          {{ data.driverName ?? ('rs.noDriver' | t) }}
+          {{ pointsLabel(info.pointsCount) }} ·
+          {{ driverName(info.driverId) ?? ('rs.noDriver' | t) }}
         </p>
       }
     </div>
@@ -29,15 +29,19 @@
         class="select"
         (change)="assignSheetDriver($any($event.target).value)"
       >
-        <option value="" [selected]="!data.driverId">
+        <option value="" [selected]="!summary()?.driverId">
           {{ 'rs.noDriver' | t }}
         </option>
         @for (driver of activeDrivers(); track driver.id) {
-          <option [value]="driver.id" [selected]="driver.id === data.driverId">
+          <option
+            [value]="driver.id"
+            [selected]="driver.id === summary()?.driverId"
+          >
             {{ driver.lastName }} {{ driver.firstName }} · {{ driver.phone }}
           </option>
         }
       </select>
+      <span class="field__hint">{{ 'rs.assignDriverSheetHint' | t }}</span>
     </div>
 
     @if (data.points.length === 0) {
@@ -49,7 +53,6 @@
             <tr>
               <th>{{ 'rs.col.time' | t }}</th>
               <th>{{ 'rs.col.store' | t }}</th>
-              <th>{{ 'rs.col.ramp' | t }}</th>
               <th>{{ 'rs.col.vehicle' | t }}</th>
               <th>{{ 'rs.col.order' | t }}</th>
               <th>{{ 'rs.col.pallets' | t }}</th>
@@ -59,16 +62,13 @@
             </tr>
           </thead>
           <tbody>
-            @for (point of data.points; track point.id) {
+            @for (point of data.points; track point.bookingId) {
               <tr>
-                <td class="nowrap"><strong>{{ point.slotStart | kyivTime }}</strong></td>
+                <td class="nowrap"><strong>{{ point.localTime }}</strong></td>
                 <td>
                   <div>{{ point.city }}, {{ point.address }}</div>
-                  <div class="muted small">
-                    {{ 'branch.externalId' | t: { externalId: point.storeExternalId } }}
-                  </div>
+                  <div class="muted small">{{ point.storeName }}</div>
                 </td>
-                <td>{{ point.rampName }}</td>
                 <td>
                   @if (canChangeDriver(point)) {
                     <select
@@ -79,14 +79,14 @@
                       @for (vehicle of activeVehicles(); track vehicle.id) {
                         <option
                           [value]="vehicle.id"
-                          [selected]="vehicle.id === point.vehicle.vehicleId"
+                          [selected]="vehicle.plateNumber === point.plateNumber"
                         >
                           {{ vehicle.plateNumber }}
                         </option>
                       }
                     </select>
                   } @else {
-                    {{ point.vehicle.plateNumber }}
+                    {{ point.plateNumber }}
                   }
                 </td>
                 <td>{{ point.orderId ?? ('common.notSet' | t) }}</td>
@@ -110,16 +110,11 @@
                       }
                     </select>
                   } @else {
-                    {{ point.driverName ?? ('common.notSet' | t) }}
+                    {{ driverName(point.driverId) ?? ('common.notSet' | t) }}
                   }
                 </td>
                 <td>
                   <app-status-badge [status]="point.status" />
-                  @if (point.delayed) {
-                    <div class="muted small">
-                      {{ 'home.delayed' | t: { reason: point.delayReason ?? '' } }}
-                    </div>
-                  }
                 </td>
                 <td class="actions">
                   @if (canTransfer(point)) {

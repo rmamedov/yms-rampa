@@ -15,7 +15,6 @@ import { toProblem } from '../../core/api/problem';
 import type {
   BranchDetail,
   HoldSession,
-  SlotCell,
   SlotGrid,
 } from '../../core/models/models';
 import { buildDateStrip, clampOffset } from '../../core/util/date-strip';
@@ -26,7 +25,11 @@ import {
   kyivTimeHm,
   kyivWeekdayLabel,
 } from '../../core/util/kyiv-time';
-import { isSelectableState } from '../../core/mocks/slot-engine';
+import {
+  buildSlotRows,
+  isSelectableState,
+  type SlotCell,
+} from '../../core/util/slot-matrix';
 import { ToastService } from '../../shared/ui/toast.service';
 import { TransferService } from '../../core/services/transfer.service';
 import { BookingPanelComponent } from './booking-panel.component';
@@ -65,6 +68,11 @@ export class BranchSlotsComponent implements OnInit, OnDestroy {
 
   protected readonly horizonDays = computed(
     () => this.branch()?.bookingHorizonDays ?? VISIBLE_DAYS,
+  );
+
+  /** Бекенд віддає плоский список слотів — матрицю «час × рампа» будуємо тут. */
+  protected readonly rows = computed(() =>
+    buildSlotRows(this.grid()?.slots ?? [], this.branch()?.ramps ?? []),
   );
 
   /** Підпис банера перенесення (SUP-RS-03). */
@@ -159,21 +167,24 @@ export class BranchSlotsComponent implements OnInit, OnDestroy {
     this.loadGrid();
   }
 
+  protected rampName(rampId: string): string {
+    return (
+      this.branch()?.ramps.find((ramp) => ramp.rampId === rampId)?.name ?? ''
+    );
+  }
+
   protected stateLabel(cell: SlotCell): string {
+    // GRID-04: власний резерв — єдина мітка «моє», яку віддає сітка;
+    // чиє саме бронювання зайняло слот, бекенд не розкриває.
     if (cell.state === 'available' && cell.mine) {
       return this.i18n.t('slots.state.availableMine');
-    }
-    if (cell.state === 'booked' && cell.mine) {
-      return this.i18n.t('slots.state.bookedMine');
     }
     return this.i18n.t(`slots.state.${cell.state}`);
   }
 
   protected cellAria(cell: SlotCell, time: string): string {
-    const ramp =
-      this.branch()?.ramps.find((r) => r.rampId === cell.rampId)?.name ?? '';
     return this.i18n.t('slots.cellAria', {
-      ramp,
+      ramp: this.rampName(cell.rampId),
       time,
       state: this.stateLabel(cell),
     });

@@ -8,18 +8,9 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
-import {
-  StoreListRow,
-  Supplier,
-  SupplierDriver,
-  SupplierStatus,
-  SupplierUser,
-  SupplierUserRole,
-  Vehicle,
-} from '../../core/models';
+import { StoreListRow, Supplier } from '../../core/models';
 import { SuppliersApi } from '../../core/data/suppliers.api';
 import { StoresApi } from '../../core/data/stores.api';
-import { AuditApi } from '../../core/data/audit.api';
 import { AuthService } from '../../core/auth/auth.service';
 import { ToastService } from '../../core/ui/toast.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
@@ -40,15 +31,17 @@ import {
 } from '../../core/utils/validators.util';
 import { DEFAULT_STORE_FILTER } from '../../core/utils/query-state.util';
 
-export type SupplierTabId = 'general' | 'stores' | 'users' | 'vehicles' | 'drivers';
+/**
+ * Картка постачальника.
+ *
+ * Вкладок «Користувачі», «Автопарк» і «Водії» тут немає: у контурі
+ * /api/admin/v1 бекенд таких маршрутів не надає — водії й ТЗ живуть
+ * лише в кабінеті постачальника (/api/supplier/v1/drivers, /vehicles),
+ * а користувачів створює internal-контур identity-partner-service.
+ */
+export type SupplierTabId = 'general' | 'stores';
 
-const TABS: readonly SupplierTabId[] = [
-  'general',
-  'stores',
-  'users',
-  'vehicles',
-  'drivers',
-];
+const TABS: readonly SupplierTabId[] = ['general', 'stores'];
 
 @Component({
   selector: 'app-supplier-detail-page',
@@ -64,7 +57,6 @@ const TABS: readonly SupplierTabId[] = [
 export class SupplierDetailPage {
   private readonly api = inject(SuppliersApi);
   private readonly storesApi = inject(StoresApi);
-  private readonly auditApi = inject(AuditApi);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
@@ -79,52 +71,50 @@ export class SupplierDetailPage {
 
   protected readonly name = signal('');
   protected readonly edrpou = signal('');
-  protected readonly contactPerson = signal('');
+  protected readonly contactName = signal('');
   protected readonly contactPhone = signal('+380');
   protected readonly contactEmail = signal('');
-  protected readonly status = signal<SupplierStatus>('active');
-  protected readonly accessMode = signal<'all' | 'whitelist'>('all');
+  protected readonly allStores = signal(true);
   protected readonly allowedStoreIds = signal<readonly string[]>([]);
-
-  protected readonly users = signal<readonly SupplierUser[]>([]);
-  protected readonly vehicles = signal<readonly Vehicle[]>([]);
-  protected readonly drivers = signal<readonly SupplierDriver[]>([]);
-  protected readonly vehicleSearch = signal('');
-  protected readonly driverSearch = signal('');
   protected readonly storeOptions = signal<readonly SelectOption[]>([]);
 
-  protected readonly userDialogOpen = signal(false);
-  protected readonly userFullName = signal('');
-  protected readonly userEmail = signal('');
-  protected readonly userPhone = signal('+380');
-  protected readonly userRole = signal<SupplierUserRole>('supplier_operator');
-  protected readonly userError = signal<string | null>(null);
+  protected readonly suspendOpen = signal(false);
+  protected readonly suspendReason = signal('');
 
   protected readonly canManage = computed(() => this.auth.can('supplier.manage'));
 
   protected readonly nameError = computed(() =>
     this.name().trim().length === 0 ? 'suppliers.error.name' : null,
   );
-  protected readonly edrpouError = computed(() => validateEdrpou(this.edrpou()));
+  /** edrpou у бекенді nullable — валідуємо лише заповнене значення. */
+  protected readonly edrpouError = computed(() =>
+    this.edrpou().trim() === '' ? null : validateEdrpou(this.edrpou()),
+  );
   protected readonly phoneError = computed(() =>
-    validateRequiredPhone(this.contactPhone()),
+    this.contactPhone().trim() === '' || this.contactPhone().trim() === '+380'
+      ? null
+      : validateRequiredPhone(this.contactPhone()),
   );
   protected readonly emailError = computed(() =>
-    validateEmail(this.contactEmail(), 'suppliers.error.email'),
+    this.contactEmail().trim() === ''
+      ? null
+      : validateEmail(this.contactEmail(), 'suppliers.error.email'),
+  );
+  protected readonly contactNameError = computed(() =>
+    this.contactName().trim() === '' ? 'suppliers.error.contactName' : null,
   );
   protected readonly invalid = computed(
     () =>
       this.nameError() !== null ||
       this.edrpouError() !== null ||
       this.phoneError() !== null ||
-      this.emailError() !== null,
+      this.emailError() !== null ||
+      this.contactNameError() !== null,
   );
 
   protected readonly crumbs = computed<readonly Crumb[]>(() => [
     { label: this.i18n.t('suppliers.title'), link: ['/suppliers'] },
-    {
-      label: this.supplier()?.name ?? this.i18n.t('suppliers.add'),
-    },
+    { label: this.supplier()?.name ?? this.i18n.t('suppliers.add') },
   ]);
 
   constructor() {
@@ -161,71 +151,33 @@ export class SupplierDetailPage {
       .get(id)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (supplier) => {
-          this.supplier.set(supplier);
-          this.name.set(supplier.name);
-          this.edrpou.set(supplier.edrpou);
-          this.contactPerson.set(supplier.contactPerson);
-          this.contactPhone.set(supplier.contactPhone);
-          this.contactEmail.set(supplier.contactEmail);
-          this.status.set(supplier.status);
-          this.accessMode.set(supplier.storeAccessMode);
-          this.allowedStoreIds.set(supplier.allowedStoreIds);
-          this.loadRelated(supplier.id);
-        },
+        next: (supplier) => this.apply(supplier),
         error: (error: unknown) => this.toast.error(error),
       });
   }
 
-  private loadRelated(supplierId: string): void {
-    this.api
-      .users(supplierId)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({ next: (users) => this.users.set(users), error: () => undefined });
-    this.reloadVehicles();
-    this.reloadDrivers();
-  }
-
-  protected reloadVehicles(): void {
-    const supplier = this.supplier();
-    if (!supplier) {
-      return;
-    }
-    this.api
-      .vehicles(supplier.id, this.vehicleSearch())
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (vehicles) => this.vehicles.set(vehicles),
-        error: () => undefined,
-      });
-  }
-
-  protected reloadDrivers(): void {
-    const supplier = this.supplier();
-    if (!supplier) {
-      return;
-    }
-    this.api
-      .drivers(supplier.id, this.driverSearch())
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (drivers) => this.drivers.set(drivers),
-        error: () => undefined,
-      });
+  private apply(supplier: Supplier): void {
+    this.supplier.set(supplier);
+    this.name.set(supplier.name);
+    this.edrpou.set(supplier.edrpou ?? '');
+    const contact = supplier.contacts[0];
+    this.contactName.set(contact?.name ?? '');
+    this.contactPhone.set(contact?.phone ?? '');
+    this.contactEmail.set(contact?.email ?? '');
+    this.allStores.set(supplier.storeAccess.allStores);
+    this.allowedStoreIds.set(supplier.storeAccess.storeIds);
   }
 
   protected selectTab(tab: SupplierTabId): void {
     this.activeTab.set(tab);
   }
 
-  protected setStatus(event: Event): void {
-    this.status.set((event.target as HTMLSelectElement).value as SupplierStatus);
+  protected setAccessMode(event: Event): void {
+    this.allStores.set((event.target as HTMLSelectElement).value === 'all');
   }
 
-  protected setAccessMode(event: Event): void {
-    this.accessMode.set(
-      (event.target as HTMLSelectElement).value as 'all' | 'whitelist',
-    );
+  protected accessMode(): 'all' | 'whitelist' {
+    return this.allStores() ? 'all' : 'whitelist';
   }
 
   protected save(): void {
@@ -233,49 +185,73 @@ export class SupplierDetailPage {
       return;
     }
     const current = this.supplier();
+    const draft = {
+      name: this.name().trim(),
+      edrpou: this.edrpou().trim() === '' ? null : this.edrpou().trim(),
+      allStores: this.allStores(),
+      storeIds: this.allStores() ? [] : this.allowedStoreIds(),
+      contacts: [
+        {
+          name: this.contactName().trim(),
+          phone: this.contactPhone().trim() === '' ? null : this.contactPhone().trim(),
+          email: this.contactEmail().trim() === '' ? null : this.contactEmail().trim(),
+        },
+      ],
+    };
+    const request$ = current
+      ? this.api.update(current.id, draft)
+      : this.api.create(draft);
+
+    request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (saved) => {
+        this.apply(saved);
+        this.isNew.set(false);
+        this.toast.success('conflicts.saved');
+        void this.router.navigate(['/suppliers', saved.id]);
+      },
+      error: (error: unknown) => this.toast.error(error),
+    });
+  }
+
+  /** SUP-02: призупинення окремим маршрутом, з необовʼязковою причиною. */
+  protected confirmSuspend(): void {
+    const supplier = this.supplier();
+    if (!supplier) {
+      return;
+    }
+    const reason = this.suspendReason().trim();
     this.api
-      .save({
-        id: current?.id,
-        name: this.name().trim(),
-        edrpou: this.edrpou().trim(),
-        contactPerson: this.contactPerson().trim(),
-        contactPhone: this.contactPhone().trim(),
-        contactEmail: this.contactEmail().trim(),
-        status: this.status(),
-        storeAccessMode: this.accessMode(),
-        allowedStoreIds: this.accessMode() === 'whitelist' ? this.allowedStoreIds() : [],
-      })
+      .suspend(supplier.id, reason === '' ? null : reason)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (saved) => {
-          this.supplier.set(saved);
-          this.isNew.set(false);
+          this.apply(saved);
+          this.suspendOpen.set(false);
+          this.suspendReason.set('');
           this.toast.success('conflicts.saved');
-          this.auditApi
-            .write({
-              objectType: 'supplier',
-              objectId: saved.id,
-              objectLabel: saved.name,
-              action: current ? 'update' : 'create',
-              changes: current
-                ? [
-                    {
-                      field: 'status',
-                      oldValue: current.status,
-                      newValue: saved.status,
-                    },
-                  ]
-                : [],
-            })
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe({ error: () => undefined });
-          void this.router.navigate(['/suppliers', saved.id]);
         },
         error: (error: unknown) => this.toast.error(error),
       });
   }
 
-  /** SUP-06: видалення заборонене за наявності бронювань. */
+  protected activate(): void {
+    const supplier = this.supplier();
+    if (!supplier) {
+      return;
+    }
+    this.api
+      .activate(supplier.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (saved) => {
+          this.apply(saved);
+          this.toast.success('conflicts.saved');
+        },
+        error: (error: unknown) => this.toast.error(error),
+      });
+  }
+
+  /** SUP-06: видалення заборонене за наявності бронювань (409). */
   protected remove(): void {
     const supplier = this.supplier();
     if (!supplier) {
@@ -286,66 +262,9 @@ export class SupplierDetailPage {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.toast.success('common.yes');
+          this.toast.success('suppliers.deleted');
           void this.router.navigate(['/suppliers']);
         },
-        error: (error: unknown) => this.toast.error(error),
-      });
-  }
-
-  protected openUserDialog(): void {
-    this.userFullName.set('');
-    this.userEmail.set('');
-    this.userPhone.set('+380');
-    this.userRole.set('supplier_operator');
-    this.userError.set(null);
-    this.userDialogOpen.set(true);
-  }
-
-  protected setUserRole(event: Event): void {
-    this.userRole.set((event.target as HTMLSelectElement).value as SupplierUserRole);
-  }
-
-  protected saveUser(): void {
-    const supplier = this.supplier();
-    if (!supplier) {
-      return;
-    }
-    const emailError = validateEmail(this.userEmail(), 'suppliers.error.email');
-    const phoneError = validateRequiredPhone(this.userPhone());
-    const error = emailError ?? phoneError;
-    if (this.userFullName().trim() === '' || error) {
-      this.userError.set(error ?? 'staff.error.fullName');
-      return;
-    }
-    this.api
-      .saveUser({
-        supplierId: supplier.id,
-        fullName: this.userFullName().trim(),
-        email: this.userEmail().trim(),
-        phone: this.userPhone().trim(),
-        role: this.userRole(),
-        active: true,
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this.userDialogOpen.set(false);
-          this.loadRelated(supplier.id);
-          this.toast.success('conflicts.saved');
-        },
-        error: (error: unknown) => this.toast.error(error),
-      });
-  }
-
-  /** SUP-04: скидання пароля — тимчасовий пароль надсилає notification-service. */
-  protected resetPassword(user: SupplierUser): void {
-    this.api
-      .resetUserPassword(user.id)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () =>
-          this.toast.success('suppliers.user.passwordReset', { email: user.email }),
         error: (error: unknown) => this.toast.error(error),
       });
   }

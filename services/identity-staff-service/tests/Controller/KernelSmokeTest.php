@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
+use App\Domain\Auth\TokenService;
 use App\Domain\Identity\AccessDecider;
 use App\Domain\Identity\Permission;
 use App\Domain\Identity\Role;
@@ -89,6 +90,62 @@ final class KernelSmokeTest extends TestCase
         /** @var array<string, mixed> $body */
         $body = json_decode((string) $response->getContent(), true, 512, \JSON_THROW_ON_ERROR);
         self::assertSame('RESOURCE_NOT_FOUND', $body['code']);
+    }
+
+    /**
+     * Контракт api-gateway: маршрут `/internal/v1/auth/verify` зареєстрований
+     * у справжньому ядрі, живе ПОЗА префіксом `/api/` (назовні nginx його не
+     * публікує) і без токена віддає 401 у форматі RFC 7807.
+     */
+    public function testInternalVerifyRouteIsRegisteredOutsideApiPrefix(): void
+    {
+        $response = $this->kernel->handle(Request::create('/internal/v1/auth/verify'));
+
+        self::assertSame(401, $response->getStatusCode());
+        self::assertSame('application/problem+json', $response->headers->get('Content-Type'));
+
+        /** @var array<string, mixed> $body */
+        $body = json_decode((string) $response->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        self::assertSame('AUTH_TOKEN_INVALID', $body['code']);
+    }
+
+    /**
+     * Наскрізно через ядро: валідний access-токен → 204 і повний набір
+     * заголовків ідентичності, які nginx знімає через `auth_request_set`.
+     */
+    public function testInternalVerifyReturnsIdentityHeadersThroughKernel(): void
+    {
+        $testContainer = $this->kernel->getContainer()->get('test.service_container');
+        \assert($testContainer instanceof \Psr\Container\ContainerInterface);
+
+        $users = $testContainer->get(StaffUserRepository::class);
+        $hasher = $testContainer->get(PasswordHasher::class);
+        $tokens = $testContainer->get(TokenService::class);
+
+        \assert($users instanceof StaffUserRepository);
+        \assert($hasher instanceof PasswordHasher);
+        \assert($tokens instanceof TokenService);
+
+        $user = \App\Domain\Identity\StaffUser::create(
+            email: \App\Domain\Identity\Email::fromString('operator@silpo.ua'),
+            passwordHash: $hasher->hash('Rampa!Staff2026'),
+            role: Role::StoreOperator,
+            storeIds: ['S-01', 'S-02'],
+            now: new \DateTimeImmutable('now', new \DateTimeZone('UTC')),
+        );
+        $users->save($user);
+
+        $response = $this->kernel->handle(Request::create(
+            uri: '/internal/v1/auth/verify',
+            server: ['HTTP_AUTHORIZATION' => 'Bearer '.$tokens->issueFor($user)->accessToken],
+        ));
+
+        self::assertSame(204, $response->getStatusCode());
+        self::assertSame($user->id(), $response->headers->get('X-User-Id'));
+        self::assertSame('store_operator', $response->headers->get('X-User-Role'));
+        self::assertSame('', $response->headers->get('X-Supplier-Id'));
+        self::assertSame('S-01,S-02', $response->headers->get('X-Store-Ids'));
+        self::assertSame('staff', $response->headers->get('X-Contour'));
     }
 
     /**

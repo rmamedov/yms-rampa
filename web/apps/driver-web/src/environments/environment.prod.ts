@@ -4,9 +4,9 @@ export type { DriverEnvironment };
 
 export const environment: DriverEnvironment = {
   production: true,
-  // Бекенд ще не запущено — прод-збірка демонструє робочі екрани на моках.
-  // Переключення на реальний API: useMocks = false.
-  useMocks: true,
+  // Прод працює з реальним бекендом через api-gateway; моки лишаються
+  // тільки для розробки (environment.ts, useMocks: true).
+  useMocks: false,
   apiBase: '/api/driver/v1',
   pollIntervalMs: 30_000,
   enableServiceWorker: true,

@@ -44,8 +44,8 @@
             <span class="muted small">
               {{ pointsLabel(sheet.pointsCount) }}
             </span>
-            <span class="chip" [class.chip--ok]="sheet.driverName">
-              {{ sheet.driverName ?? ('rs.noDriver' | t) }}
+            <span class="chip" [class.chip--ok]="driverName(sheet.driverId)">
+              {{ driverName(sheet.driverId) ?? ('rs.noDriver' | t) }}
             </span>
           </a>
         </li>

@@ -15,7 +15,6 @@ import {
 } from '../../../core/models';
 import { TranslatePipe } from '../../../core/i18n/translate.pipe';
 import {
-  canDeleteRamp,
   countDailySlots,
   validateRamps,
 } from '../../../core/utils/store-config.util';
@@ -83,12 +82,10 @@ export class StoreSlotsTabComponent {
     this.draftRamps.update((ramps) => [
       ...ramps,
       {
-        id: `${this.storeId()}-ramp-${nextNumber}-${Date.now()}`,
+        id: `${this.storeId()}-ramp-${nextNumber}`,
         number: nextNumber,
         name: null,
         enabled: true,
-        disabledFrom: null,
-        hasBookings: false,
       },
     ]);
     this.emit();
@@ -121,19 +118,15 @@ export class StoreSlotsTabComponent {
     this.emit();
   }
 
-  /** STC-22: рампу з історією бронювань видалити не можна — лише вимкнути. */
+  /**
+   * STC-22: рампу можна прибрати з нової версії конфігурації.
+   * Наслідки для наявних бронювань перевіряє бекенд під час збереження версії —
+   * ознаки «має бронювання» у контракті картки магазину немає.
+   */
   protected removeRamp(ramp: Ramp): void {
-    if (!canDeleteRamp(ramp)) {
-      this.rampError.set('slots.error.rampHasBookings');
-      return;
-    }
     this.rampError.set(null);
     this.draftRamps.update((ramps) => ramps.filter((r) => r.id !== ramp.id));
     this.emit();
-  }
-
-  protected canDelete(ramp: Ramp): boolean {
-    return canDeleteRamp(ramp);
   }
 
   private emit(): void {

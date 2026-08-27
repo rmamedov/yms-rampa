@@ -1,312 +1,475 @@
 import { inject, Injectable } from '@angular/core';
-import { map, Observable } from 'rxjs';
-import { ApiClient } from '../../http/api.client';
+import { catchError, forkJoin, map, Observable, of, switchMap } from 'rxjs';
+import { ApiClient, QueryParams } from '../../http/api.client';
+import { ApiError } from '../../http/problem';
 import {
-  AnalyticsDashboard,
+  AnalyticsBreakdown,
+  AnalyticsDimension,
+  AnalyticsExportDataset,
   AnalyticsFilter,
-  AuditEntry,
-  AuditFilter,
+  AnalyticsKpi,
   AuthSession,
   AuthTokens,
-  Booking,
   BulkResultRow,
-  ConfigChangeRequest,
-  ConfigConflict,
+  CityOption,
+  PAGE_SIZES,
   Page,
   PageQuery,
+  PageSize,
+  ReservedSlotRule,
+  SlotBlock,
+  STORE_SORT_COLUMNS,
   Store,
+  StoreConfiguration,
   StoreGeneralPatch,
   StoreListFilter,
   StoreListRow,
-  StaffUser,
   Supplier,
-  SupplierDriver,
   SupplierStatus,
-  SupplierUser,
-  SyncRun,
-  Vehicle,
+  SyncLog,
+  SyncReport,
   YmsStatus,
 } from '../../models';
 import { AuthApi } from '../auth.api';
-import { ConfigTemplateId, StoreConfigDraft, StoresApi } from '../stores.api';
 import {
-  SupplierDraft,
-  SupplierFilter,
-  SuppliersApi,
-  SupplierUserDraft,
-} from '../suppliers.api';
-import { StaffApi, StaffFilter, StaffUserDraft } from '../staff.api';
+  ReservedSlotRuleDraft,
+  SlotBlockDraft,
+  StoreConfigurationDraft,
+  StoresApi,
+} from '../stores.api';
+import { SupplierDraft, SupplierFilter, SuppliersApi } from '../suppliers.api';
 import { SyncApi } from '../sync.api';
 import { AnalyticsApi } from '../analytics.api';
-import { AuditApi, AuditWriteCommand } from '../audit.api';
+import {
+  fromCalendarException,
+  fromRamp,
+  toCityOption,
+  toConfiguration,
+  toPage,
+  toReservedRule,
+  toSession,
+  toSlotBlock,
+  toStore,
+  toStoreListRow,
+  toSupplier,
+  toSupplierPage,
+  toSyncLog,
+  toSyncReport,
+  toTokens,
+  WireBulkStatus,
+  WireCity,
+  WirePage,
+  WireConfiguration,
+  WireReservedRule,
+  WireSlotBlock,
+  WireStoreCard,
+  WireStoreRow,
+  WireSupplier,
+  WireSupplierList,
+  WireSyncLog,
+  WireSyncReport,
+  WireTokenResponse,
+} from './wire';
 
-function pageParams(query: PageQuery): Record<string, string | number> {
-  const params: Record<string, string | number> = {
-    page: query.page,
-    pageSize: query.pageSize,
-  };
-  if (query.sort) params['sort'] = query.sort;
-  if (query.direction) params['direction'] = query.direction;
+/** BranchCriteria::ALLOWED_PER_PAGE — усе інше бекенд відхиляє 422. */
+function perPageOf(query: PageQuery): PageSize {
+  return (PAGE_SIZES as readonly number[]).includes(query.pageSize)
+    ? query.pageSize
+    : 20;
+}
+
+/** Store-service сортує лише за визначеним переліком колонок. */
+function sortParams(query: PageQuery): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (query.sort && STORE_SORT_COLUMNS.includes(query.sort)) {
+    params['sortBy'] = query.sort;
+    params['sortDirection'] = query.direction ?? 'asc';
+  }
   return params;
 }
 
-/** POST /api/admin/v1/auth/login | /auth/refresh */
+function rowResult(id: string, label: string): BulkResultRow {
+  return { id, label, ok: true };
+}
+
+function rowFailure(id: string, error: unknown): BulkResultRow {
+  const problem = error instanceof ApiError ? error : null;
+  return {
+    id,
+    label: id,
+    ok: false,
+    message: problem?.problem.detail ?? 'error.unknown',
+  };
+}
+
+function analyticsParams(filter: AnalyticsFilter): QueryParams {
+  return {
+    from: filter.from,
+    to: filter.to,
+    city: filter.cities,
+    storeId: filter.storeIds,
+    supplierId: filter.supplierIds,
+  };
+}
+
+/** POST /api/admin/v1/auth/{login|refresh|logout} — identity-staff-service. */
 @Injectable()
 export class HttpAuthApi extends AuthApi {
   private readonly api = inject(ApiClient);
 
   login(email: string, password: string): Observable<AuthSession> {
-    return this.api.post<AuthSession>('/auth/login', { email, password });
+    return this.api
+      .post<WireTokenResponse>('/auth/login', { email, password })
+      .pipe(map(toSession));
   }
 
   refresh(refreshToken: string): Observable<AuthTokens> {
-    return this.api.post<AuthTokens>('/auth/refresh', { refreshToken });
+    return this.api
+      .post<WireTokenResponse>('/auth/refresh', { refreshToken })
+      .pipe(map(toTokens));
+  }
+
+  logout(refreshToken: string, allDevices = false): Observable<void> {
+    return this.api
+      .post<void>('/auth/logout', { refreshToken, allDevices })
+      .pipe(map(() => undefined));
   }
 }
 
-/** /api/admin/v1/stores/** (store-service через api-gateway) */
+/** /api/admin/v1/stores/** — store-service. */
 @Injectable()
 export class HttpStoresApi extends StoresApi {
   private readonly api = inject(ApiClient);
 
   list(filter: StoreListFilter, query: PageQuery): Observable<Page<StoreListRow>> {
-    return this.api.get<Page<StoreListRow>>('/stores', {
-      ...pageParams(query),
-      q: filter.search,
-      cities: filter.cities,
-      statuses: filter.statuses,
-      configured: filter.configured === null ? null : String(filter.configured),
-    });
+    return this.api
+      .get<WirePage<WireStoreRow>>('/stores', {
+        page: query.page,
+        perPage: perPageOf(query),
+        ...sortParams(query),
+        q: filter.search,
+        city: filter.cities,
+        ymsStatus: filter.statuses,
+        configured: filter.configured === null ? null : String(filter.configured),
+      })
+      .pipe(map((wire) => toPage(wire, toStoreListRow)));
   }
 
-  cities(): Observable<readonly string[]> {
-    return this.api.get<readonly string[]>('/stores/cities');
+  cities(): Observable<readonly CityOption[]> {
+    return this.api
+      .get<{ items: WireCity[] }>('/stores/cities')
+      .pipe(map((wire) => (wire.items ?? []).map(toCityOption)));
   }
 
+  /**
+   * Картка магазину не містить конфігурації — її, резерви й блокування
+   * бекенд віддає окремими маршрутами, тому збираємо їх разом.
+   * Відсутня конфігурація — 404 CONFIG_NOT_FOUND, це нормальний стан
+   * ненастроєного магазину, а не помилка.
+   */
   get(id: string): Observable<Store> {
-    return this.api.get<Store>(`/stores/${id}`);
+    return forkJoin({
+      card: this.api.get<WireStoreCard>(`/stores/${id}`),
+      configuration: this.currentConfiguration(id),
+      reservedRules: this.reservedRules(id),
+      slotBlocks: this.slotBlocks(id),
+    }).pipe(
+      map((parts) =>
+        toStore(parts.card, parts.configuration, parts.reservedRules, parts.slotBlocks),
+      ),
+    );
+  }
+
+  private currentConfiguration(id: string): Observable<StoreConfiguration | null> {
+    return this.api.get<WireConfiguration>(`/stores/${id}/configurations/current`).pipe(
+      map(toConfiguration),
+      catchError((error: unknown) => {
+        if (error instanceof ApiError && error.status === 404) {
+          return of(null);
+        }
+        throw error;
+      }),
+    );
   }
 
   updateGeneral(id: string, patch: StoreGeneralPatch): Observable<Store> {
-    return this.api.patch<Store>(`/stores/${id}/general`, patch);
-  }
-
-  checkConflicts(
-    id: string,
-    draft: StoreConfigDraft,
-    effectiveFrom: string,
-    nextYmsStatus?: YmsStatus,
-  ): Observable<readonly ConfigConflict[]> {
     return this.api
-      .post<{ conflicts: ConfigConflict[] }>(`/stores/${id}/config/conflicts`, {
-        effectiveFrom,
-        nextYmsStatus,
-        config: draft,
+      .patch<WireStoreCard>(`/stores/${id}`, {
+        displayName: patch.displayName,
+        phone: patch.phone,
+        addressOverride: patch.addressOverride,
+        ymsStatus: patch.ymsStatus,
+        visibleToSuppliers: patch.visibleToSuppliers,
       })
-      .pipe(map((response) => response.conflicts));
+      .pipe(switchMap(() => this.get(id)));
   }
 
-  saveConfig(request: ConfigChangeRequest): Observable<Store> {
-    return this.api.put<Store>(`/stores/${request.storeId}/config`, request);
+  configurations(storeId: string): Observable<readonly StoreConfiguration[]> {
+    return this.api
+      .get<{ items: WireConfiguration[] }>(`/stores/${storeId}/configurations`)
+      .pipe(map((wire) => (wire.items ?? []).map(toConfiguration)));
   }
 
-  bookings(id: string): Observable<readonly Booking[]> {
-    return this.api.get<readonly Booking[]>(`/stores/${id}/bookings`);
+  createConfiguration(
+    storeId: string,
+    draft: StoreConfigurationDraft,
+  ): Observable<StoreConfiguration> {
+    return this.api
+      .post<WireConfiguration>(`/stores/${storeId}/configurations`, {
+        effectiveFrom: draft.effectiveFrom,
+        slotSizeMinutes: draft.slotSizeMinutes,
+        maxVehicleWeightTons: draft.maxVehicleWeightTons,
+        receivingWindows: draft.receivingWindows.map((w) => ({
+          dayOfWeek: w.dayOfWeek,
+          intervals: w.intervals.map((i) => ({ from: i.from, to: i.to })),
+        })),
+        ramps: draft.ramps.map(fromRamp),
+        calendarExceptions: draft.calendarExceptions.map(fromCalendarException),
+        leadTimeMinutes: draft.leadTimeMinutes,
+        bookingHorizonDays: draft.bookingHorizonDays,
+        noShowGraceMinutes: draft.noShowGraceMinutes,
+        holdMaxMinutes: draft.holdMaxMinutes,
+      })
+      .pipe(map(toConfiguration));
   }
 
   bulkStatus(
     ids: readonly string[],
     status: YmsStatus,
   ): Observable<readonly BulkResultRow[]> {
-    return this.api.post<readonly BulkResultRow[]>('/stores/bulk/status', {
-      ids,
-      status,
-    });
+    return this.api
+      .post<WireBulkStatus>('/stores/bulk/status', {
+        branchIds: [...ids],
+        ymsStatus: status,
+      })
+      .pipe(
+        map((wire) => {
+          const failed = new Map(
+            (wire.failed ?? []).map((f) => [f.branchId, f.message]),
+          );
+          return ids.map<BulkResultRow>((id) =>
+            failed.has(id)
+              ? { id, label: id, ok: false, message: failed.get(id) }
+              : rowResult(id, id),
+          );
+        }),
+      );
   }
 
   bulkVisibility(
     ids: readonly string[],
     visible: boolean,
   ): Observable<readonly BulkResultRow[]> {
-    return this.api.post<readonly BulkResultRow[]>('/stores/bulk/visibility', {
-      ids,
-      visible,
-    });
+    if (ids.length === 0) {
+      return of([]);
+    }
+    return forkJoin(
+      ids.map((id) =>
+        this.api
+          .patch<WireStoreCard>(`/stores/${id}`, { visibleToSuppliers: visible })
+          .pipe(
+            map((card) => rowResult(id, card.mcpData?.externalId ?? id)),
+            catchError((error: unknown) => of(rowFailure(id, error))),
+          ),
+      ),
+    );
   }
 
-  applyTemplate(
-    ids: readonly string[],
-    template: ConfigTemplateId,
-  ): Observable<readonly BulkResultRow[]> {
-    return this.api.post<readonly BulkResultRow[]>('/stores/bulk/template', {
-      ids,
-      template,
-    });
+  reservedRules(storeId: string): Observable<readonly ReservedSlotRule[]> {
+    return this.api
+      .get<{ items: WireReservedRule[] }>(`/stores/${storeId}/reserved-slot-rules`)
+      .pipe(map((wire) => (wire.items ?? []).map(toReservedRule)));
+  }
+
+  createReservedRule(
+    storeId: string,
+    draft: ReservedSlotRuleDraft,
+  ): Observable<ReservedSlotRule> {
+    return this.api
+      .post<WireReservedRule>(`/stores/${storeId}/reserved-slot-rules`, draft)
+      .pipe(map(toReservedRule));
+  }
+
+  updateReservedRule(
+    storeId: string,
+    ruleId: string,
+    patch: Partial<ReservedSlotRuleDraft>,
+  ): Observable<ReservedSlotRule> {
+    return this.api
+      .patch<WireReservedRule>(
+        `/stores/${storeId}/reserved-slot-rules/${ruleId}`,
+        patch,
+      )
+      .pipe(map(toReservedRule));
+  }
+
+  deleteReservedRule(storeId: string, ruleId: string): Observable<void> {
+    return this.api
+      .delete<void>(`/stores/${storeId}/reserved-slot-rules/${ruleId}`)
+      .pipe(map(() => undefined));
+  }
+
+  slotBlocks(storeId: string): Observable<readonly SlotBlock[]> {
+    return this.api
+      .get<{ items: WireSlotBlock[] }>(`/stores/${storeId}/slot-blocks`)
+      .pipe(map((wire) => (wire.items ?? []).map(toSlotBlock)));
+  }
+
+  createSlotBlock(storeId: string, draft: SlotBlockDraft): Observable<SlotBlock> {
+    return this.api
+      .post<WireSlotBlock>(`/stores/${storeId}/slot-blocks`, {
+        rampIds: [...draft.rampIds],
+        blockFrom: draft.blockFrom,
+        blockTo: draft.blockTo,
+        reason: draft.reason,
+      })
+      .pipe(map(toSlotBlock));
+  }
+
+  releaseSlotBlock(storeId: string, blockId: string): Observable<SlotBlock> {
+    return this.api
+      .post<WireSlotBlock>(`/stores/${storeId}/slot-blocks/${blockId}/release`)
+      .pipe(map(toSlotBlock));
+  }
+
+  deleteSlotBlock(storeId: string, blockId: string): Observable<void> {
+    return this.api
+      .delete<void>(`/stores/${storeId}/slot-blocks/${blockId}`)
+      .pipe(map(() => undefined));
   }
 }
 
-/** /api/admin/v1/suppliers/** (partner-service) */
+/** /api/admin/v1/suppliers/** — partner-service. */
 @Injectable()
 export class HttpSuppliersApi extends SuppliersApi {
   private readonly api = inject(ApiClient);
 
   list(filter: SupplierFilter, query: PageQuery): Observable<Page<Supplier>> {
-    return this.api.get<Page<Supplier>>('/suppliers', {
-      ...pageParams(query),
-      q: filter.search,
-      statuses: filter.statuses,
-    });
+    const limit = perPageOf(query);
+    return this.api
+      .get<WireSupplierList>('/suppliers', {
+        q: filter.search,
+        status: filter.status,
+        limit,
+        offset: (query.page - 1) * limit,
+      })
+      .pipe(map((wire) => toSupplierPage(wire, query)));
   }
 
   all(): Observable<readonly Supplier[]> {
-    return this.api.get<readonly Supplier[]>('/suppliers/all');
+    return this.api
+      .get<WireSupplierList>('/suppliers', { limit: 200, offset: 0 })
+      .pipe(map((wire) => (wire.items ?? []).map(toSupplier)));
   }
 
   get(id: string): Observable<Supplier> {
-    return this.api.get<Supplier>(`/suppliers/${id}`);
+    return this.api.get<WireSupplier>(`/suppliers/${id}`).pipe(map(toSupplier));
   }
 
-  save(draft: SupplierDraft): Observable<Supplier> {
-    return draft.id
-      ? this.api.patch<Supplier>(`/suppliers/${draft.id}`, draft)
-      : this.api.post<Supplier>('/suppliers', draft);
+  create(draft: SupplierDraft): Observable<Supplier> {
+    return this.api
+      .post<WireSupplier>('/suppliers', supplierBody(draft))
+      .pipe(map(toSupplier));
+  }
+
+  update(id: string, draft: SupplierDraft): Observable<Supplier> {
+    return this.api
+      .patch<WireSupplier>(`/suppliers/${id}`, supplierBody(draft))
+      .pipe(map(toSupplier));
+  }
+
+  suspend(id: string, reason: string | null): Observable<Supplier> {
+    return this.api
+      .post<WireSupplier>(`/suppliers/${id}/suspend`, { reason })
+      .pipe(map(toSupplier));
+  }
+
+  activate(id: string): Observable<Supplier> {
+    return this.api
+      .post<WireSupplier>(`/suppliers/${id}/activate`)
+      .pipe(map(toSupplier));
   }
 
   remove(id: string): Observable<void> {
-    return this.api.delete<void>(`/suppliers/${id}`);
+    return this.api.delete<void>(`/suppliers/${id}`).pipe(map(() => undefined));
   }
 
   bulkStatus(
     ids: readonly string[],
     status: SupplierStatus,
   ): Observable<readonly BulkResultRow[]> {
-    return this.api.post<readonly BulkResultRow[]>('/suppliers/bulk/status', {
-      ids,
-      status,
-    });
-  }
-
-  users(supplierId: string): Observable<readonly SupplierUser[]> {
-    return this.api.get<readonly SupplierUser[]>(`/suppliers/${supplierId}/users`);
-  }
-
-  saveUser(draft: SupplierUserDraft): Observable<SupplierUser> {
-    return draft.id
-      ? this.api.patch<SupplierUser>(
-          `/suppliers/${draft.supplierId}/users/${draft.id}`,
-          draft,
-        )
-      : this.api.post<SupplierUser>(`/suppliers/${draft.supplierId}/users`, draft);
-  }
-
-  resetUserPassword(userId: string): Observable<void> {
-    return this.api.post<void>(`/supplier-users/${userId}/reset-password`);
-  }
-
-  vehicles(supplierId: string, search: string): Observable<readonly Vehicle[]> {
-    return this.api.get<readonly Vehicle[]>(`/suppliers/${supplierId}/vehicles`, {
-      q: search,
-    });
-  }
-
-  drivers(supplierId: string, search: string): Observable<readonly SupplierDriver[]> {
-    return this.api.get<readonly SupplierDriver[]>(
-      `/suppliers/${supplierId}/drivers`,
-      { q: search },
+    if (ids.length === 0) {
+      return of([]);
+    }
+    return forkJoin(
+      ids.map((id) =>
+        (status === 'suspended' ? this.suspend(id, null) : this.activate(id)).pipe(
+          map((supplier) => rowResult(id, supplier.name)),
+          catchError((error: unknown) => of(rowFailure(id, error))),
+        ),
+      ),
     );
   }
 }
 
-/** /api/admin/v1/staff-users/** (identity-staff-service) */
-@Injectable()
-export class HttpStaffApi extends StaffApi {
-  private readonly api = inject(ApiClient);
-
-  list(filter: StaffFilter, query: PageQuery): Observable<Page<StaffUser>> {
-    return this.api.get<Page<StaffUser>>('/staff-users', {
-      ...pageParams(query),
-      q: filter.search,
-      roles: filter.roles,
-      active: filter.active === null ? null : String(filter.active),
-    });
-  }
-
-  get(id: string): Observable<StaffUser> {
-    return this.api.get<StaffUser>(`/staff-users/${id}`);
-  }
-
-  save(draft: StaffUserDraft): Observable<StaffUser> {
-    return draft.id
-      ? this.api.patch<StaffUser>(`/staff-users/${draft.id}`, draft)
-      : this.api.post<StaffUser>('/staff-users', draft);
-  }
-
-  setActive(id: string, active: boolean): Observable<StaffUser> {
-    return this.api.patch<StaffUser>(`/staff-users/${id}/active`, { active });
-  }
+function supplierBody(draft: SupplierDraft): Record<string, unknown> {
+  return {
+    name: draft.name,
+    edrpou: draft.edrpou,
+    allStores: draft.allStores,
+    storeIds: draft.allStores ? [] : [...draft.storeIds],
+    contacts: draft.contacts.map((c) => ({
+      name: c.name,
+      phone: c.phone,
+      email: c.email,
+    })),
+  };
 }
 
-/** /api/admin/v1/mcp-sync/** (store-service) */
+/** /api/admin/v1/sync/** — store-service. */
 @Injectable()
 export class HttpSyncApi extends SyncApi {
   private readonly api = inject(ApiClient);
 
-  list(query: PageQuery): Observable<Page<SyncRun>> {
-    return this.api.get<Page<SyncRun>>('/mcp-sync/runs', pageParams(query));
+  log(page: number, perPage: PageSize): Observable<SyncLog> {
+    return this.api
+      .get<WireSyncLog>('/sync/log', { page, perPage })
+      .pipe(map(toSyncLog));
   }
 
-  get(id: string): Observable<SyncRun> {
-    return this.api.get<SyncRun>(`/mcp-sync/runs/${id}`);
-  }
-
-  run(): Observable<SyncRun> {
-    return this.api.post<SyncRun>('/mcp-sync/runs');
+  run(): Observable<SyncReport> {
+    return this.api.post<WireSyncReport>('/sync/run').pipe(map(toSyncReport));
   }
 }
 
-/** /api/admin/v1/analytics/dashboard (analytics-service) */
+/** /api/admin/v1/analytics/** — analytics-service. */
 @Injectable()
 export class HttpAnalyticsApi extends AnalyticsApi {
   private readonly api = inject(ApiClient);
 
-  dashboard(filter: AnalyticsFilter): Observable<AnalyticsDashboard> {
-    return this.api.get<AnalyticsDashboard>('/analytics/dashboard', {
-      from: filter.from,
-      to: filter.to,
-      cities: filter.cities,
-      storeIds: filter.storeIds,
-      supplierIds: filter.supplierIds,
-    });
+  kpi(filter: AnalyticsFilter): Observable<AnalyticsKpi> {
+    return this.api.get<AnalyticsKpi>('/analytics/kpi', analyticsParams(filter));
   }
-}
 
-/** /api/admin/v1/audit (аудит-лог, лише читання і додавання) */
-@Injectable()
-export class HttpAuditApi extends AuditApi {
-  private readonly api = inject(ApiClient);
-
-  list(filter: AuditFilter, query: PageQuery): Observable<Page<AuditEntry>> {
-    return this.api.get<Page<AuditEntry>>('/audit', {
-      ...pageParams(query),
-      userId: filter.userId,
-      objectType: filter.objectType,
-      action: filter.action,
-      from: filter.from,
-      to: filter.to,
+  breakdown(
+    filter: AnalyticsFilter,
+    dimension: AnalyticsDimension,
+  ): Observable<AnalyticsBreakdown> {
+    return this.api.get<AnalyticsBreakdown>('/analytics/breakdown', {
+      ...analyticsParams(filter),
+      dimension,
     });
   }
 
-  all(filter: AuditFilter): Observable<readonly AuditEntry[]> {
-    return this.api.get<readonly AuditEntry[]>('/audit/export', {
-      userId: filter.userId,
-      objectType: filter.objectType,
-      action: filter.action,
-      from: filter.from,
-      to: filter.to,
+  exportCsv(
+    filter: AnalyticsFilter,
+    dataset: AnalyticsExportDataset,
+    dimension: AnalyticsDimension,
+  ): Observable<string> {
+    return this.api.getText('/analytics/export.csv', {
+      ...analyticsParams(filter),
+      dataset,
+      dimension,
     });
-  }
-
-  write(command: AuditWriteCommand): Observable<AuditEntry> {
-    return this.api.post<AuditEntry>('/audit', command);
   }
 }

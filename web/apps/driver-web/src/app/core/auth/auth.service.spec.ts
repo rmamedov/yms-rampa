@@ -12,12 +12,13 @@ function response(role: 'driver' | 'supplier_admin', suffix = '1'): LoginRespons
     refreshToken: `refresh-${suffix}`,
     accessExpiresAt: Date.now() + 900_000,
     profile: {
-      driverId: 'drv-1',
-      fullName: 'Петренко Іван',
-      phone: '+380671234567',
-      supplierId: 'sup-1',
-      supplierName: 'ТОВ «Тест»',
+      accountId: 'acc-1',
+      login: '+380671234567',
       role,
+      contour: 'partner',
+      supplierId: 'sup-1',
+      driverId: role === 'driver' ? 'drv-1' : null,
+      mustChangePassword: false,
     },
   };
 }

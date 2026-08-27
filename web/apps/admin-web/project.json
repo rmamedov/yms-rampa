@@ -8,7 +8,9 @@
   "targets": {
     "build": {
       "executor": "@angular/build:application",
-      "outputs": ["{options.outputPath}"],
+      "outputs": [
+        "{options.outputPath}"
+      ],
       "defaultConfiguration": "production",
       "options": {
         "outputPath": "dist/apps/admin-web",
@@ -21,7 +23,9 @@
             "input": "apps/admin-web/public"
           }
         ],
-        "styles": ["apps/admin-web/src/styles.scss"]
+        "styles": [
+          "apps/admin-web/src/styles.scss"
+        ]
       },
       "configurations": {
         "production": {
@@ -37,7 +41,13 @@
               "maximumError": "8kb"
             }
           ],
-          "outputHashing": "all"
+          "outputHashing": "all",
+          "fileReplacements": [
+            {
+              "replace": "apps/admin-web/src/environments/environment.ts",
+              "with": "apps/admin-web/src/environments/environment.prod.ts"
+            }
+          ]
         },
         "development": {
           "optimization": false,
@@ -64,7 +74,9 @@
     },
     "test": {
       "executor": "@nx/jest:jest",
-      "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
+      "outputs": [
+        "{workspaceRoot}/coverage/{projectRoot}"
+      ],
       "options": {
         "jestConfig": "apps/admin-web/jest.config.cts",
         "tsConfig": "apps/admin-web/tsconfig.spec.json"

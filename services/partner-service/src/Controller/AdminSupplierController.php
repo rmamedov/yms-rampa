@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Domain\Access\Permission;
 use App\Domain\Service\SupplierService;
 use App\Domain\Supplier\StoreAccess;
 use App\Domain\Supplier\Supplier;
 use App\Domain\Supplier\SupplierContact;
 use App\Domain\Supplier\SupplierStatus;
+use App\Infrastructure\Http\ActorResolver;
 use App\Infrastructure\Http\JsonBody;
 use App\Infrastructure\Http\View;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -19,19 +21,31 @@ use Symfony\Component\Routing\Attribute\Route;
 /**
  * Адмін-API постачальників (розділ 5.4: SUP-01, SUP-02, SUP-03, SUP-06).
  *
- * Контур staff: доступ мають ролі super_admin і network_manager —
- * перевірку ролі виконує api-gateway (ADM-01, ADM-02).
+ * Контур staff. Шлюз лише автентифікує токен і підставляє заголовки
+ * ідентичності — РОЛЬ він не перевіряє, тому право за матрицею 4.4
+ * перевіряється тут:
+ *
+ *   читання (`supplier.read`)  — super_admin, network_manager, analyst;
+ *   зміна   (`supplier.manage`) — super_admin, network_manager (ADM-01, ADM-02).
+ *
+ * Розділ мережевий, тому потрібне повне право (✓): скоупного «S», яке має
+ * supplier_admin на власну картку, тут не досить — кабінет постачальника
+ * працює через /api/supplier/v1/…
  */
 #[Route('/api/admin/v1/suppliers')]
 final class AdminSupplierController
 {
-    public function __construct(private readonly SupplierService $suppliers)
-    {
+    public function __construct(
+        private readonly SupplierService $suppliers,
+        private readonly ActorResolver $actors,
+    ) {
     }
 
     #[Route('', name: 'admin_suppliers_list', methods: ['GET'])]
     public function list(Request $request): JsonResponse
     {
+        $this->actors->requireNetworkWide($request, Permission::SupplierRead);
+
         $query = $request->query->get('q');
         $statusRaw = $request->query->get('status');
         $status = \is_string($statusRaw) && '' !== $statusRaw ? SupplierStatus::fromInput($statusRaw) : null;
@@ -56,6 +70,8 @@ final class AdminSupplierController
     #[Route('', name: 'admin_suppliers_create', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
+        $this->actors->requireNetworkWide($request, Permission::SupplierManage);
+
         $body = JsonBody::fromRequest($request);
 
         $supplier = $this->suppliers->create(
@@ -69,8 +85,10 @@ final class AdminSupplierController
     }
 
     #[Route('/{id}', name: 'admin_suppliers_get', methods: ['GET'])]
-    public function get(string $id): JsonResponse
+    public function get(string $id, Request $request): JsonResponse
     {
+        $this->actors->requireNetworkWide($request, Permission::SupplierRead);
+
         return new JsonResponse(View::supplier($this->suppliers->get($id)));
     }
 
@@ -80,6 +98,8 @@ final class AdminSupplierController
     #[Route('/{id}', name: 'admin_suppliers_update', methods: ['PATCH', 'PUT'])]
     public function update(string $id, Request $request): JsonResponse
     {
+        $this->actors->requireNetworkWide($request, Permission::SupplierManage);
+
         $body = JsonBody::fromRequest($request);
         $supplier = $this->suppliers->get($id);
 
@@ -109,6 +129,8 @@ final class AdminSupplierController
     #[Route('/{id}/suspend', name: 'admin_suppliers_suspend', methods: ['POST'])]
     public function suspend(string $id, Request $request): JsonResponse
     {
+        $this->actors->requireNetworkWide($request, Permission::SupplierManage);
+
         $body = JsonBody::fromRequest($request);
 
         return new JsonResponse(View::supplier(
@@ -117,8 +139,10 @@ final class AdminSupplierController
     }
 
     #[Route('/{id}/activate', name: 'admin_suppliers_activate', methods: ['POST'])]
-    public function activate(string $id): JsonResponse
+    public function activate(string $id, Request $request): JsonResponse
     {
+        $this->actors->requireNetworkWide($request, Permission::SupplierManage);
+
         return new JsonResponse(View::supplier($this->suppliers->activate($id)));
     }
 
@@ -127,8 +151,10 @@ final class AdminSupplierController
      * статусу, інакше — 409 SUPPLIER_HAS_BOOKINGS.
      */
     #[Route('/{id}', name: 'admin_suppliers_delete', methods: ['DELETE'])]
-    public function delete(string $id): Response
+    public function delete(string $id, Request $request): Response
     {
+        $this->actors->requireNetworkWide($request, Permission::SupplierManage);
+
         $this->suppliers->delete($id);
 
         return new Response(null, Response::HTTP_NO_CONTENT);

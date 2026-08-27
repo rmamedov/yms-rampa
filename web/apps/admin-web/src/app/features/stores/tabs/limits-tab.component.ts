@@ -9,15 +9,20 @@ import {
 } from '@angular/core';
 import { TranslatePipe } from '../../../core/i18n/translate.pipe';
 import {
+  validateHoldMax,
   validateHorizon,
   validateLeadTime,
   validateMaxWeight,
+  validateNoShowGrace,
 } from '../../../core/utils/validators.util';
 
+/** Поля конфігурації бекенду — усі часові величини у ХВИЛИНАХ. */
 export interface LimitsChange {
   readonly maxVehicleWeightTons: number | null;
-  readonly leadTimeHours: number;
+  readonly leadTimeMinutes: number;
   readonly bookingHorizonDays: number;
+  readonly noShowGraceMinutes: number;
+  readonly holdMaxMinutes: number;
 }
 
 /** Вкладка «Обмеження»: maxVehicleWeightTons, lead time, горизонт (STC-30, STC-31). */
@@ -53,8 +58,8 @@ export interface LimitsChange {
             id="lead-time"
             type="number"
             min="0"
-            max="168"
-            step="1"
+            max="10080"
+            step="5"
             [value]="leadTime()"
             [disabled]="!canEdit()"
             (input)="setLeadTime($any($event.target).value)"
@@ -81,30 +86,74 @@ export interface LimitsChange {
             <div class="field-error">{{ error | t }}</div>
           }
         </div>
+
+        <div class="field">
+          <label for="no-show-grace">{{ 'limits.noShowGrace' | t }}</label>
+          <input
+            id="no-show-grace"
+            type="number"
+            min="0"
+            max="240"
+            step="5"
+            [value]="noShowGrace()"
+            [disabled]="!canEdit()"
+            (input)="setNoShowGrace($any($event.target).value)"
+          />
+          <div class="field-hint">{{ 'limits.noShowGrace.hint' | t }}</div>
+          @if (noShowGraceError(); as error) {
+            <div class="field-error">{{ error | t }}</div>
+          }
+        </div>
+
+        <div class="field">
+          <label for="hold-max">{{ 'limits.holdMax' | t }}</label>
+          <input
+            id="hold-max"
+            type="number"
+            min="1"
+            max="120"
+            step="1"
+            [value]="holdMax()"
+            [disabled]="!canEdit()"
+            (input)="setHoldMax($any($event.target).value)"
+          />
+          <div class="field-hint">{{ 'limits.holdMax.hint' | t }}</div>
+          @if (holdMaxError(); as error) {
+            <div class="field-error">{{ error | t }}</div>
+          }
+        </div>
       </div>
 
       @if (lowered()) {
-        <div class="notice notice-warn">{{ 'conflicts.reason.weight_limit' | t }}</div>
+        <div class="notice notice-warn">{{ 'limits.lowered' | t }}</div>
       }
     </div>
   `,
 })
 export class StoreLimitsTabComponent {
   readonly maxVehicleWeightTons = input.required<number | null>();
-  readonly leadTimeHours = input.required<number>();
+  readonly leadTimeMinutes = input.required<number>();
   readonly bookingHorizonDays = input.required<number>();
+  readonly noShowGraceMinutes = input.required<number>();
+  readonly holdMaxMinutes = input.required<number>();
   readonly canEdit = input(false);
   readonly changed = output<LimitsChange>();
 
   protected readonly weight = signal<number | null>(null);
-  protected readonly leadTime = signal(4);
+  protected readonly leadTime = signal(60);
   protected readonly horizon = signal(14);
+  protected readonly noShowGrace = signal(30);
+  protected readonly holdMax = signal(15);
 
   protected readonly weightError = computed(() => validateMaxWeight(this.weight()));
   protected readonly leadTimeError = computed(() => validateLeadTime(this.leadTime()));
   protected readonly horizonError = computed(() => validateHorizon(this.horizon()));
+  protected readonly noShowGraceError = computed(() =>
+    validateNoShowGrace(this.noShowGrace()),
+  );
+  protected readonly holdMaxError = computed(() => validateHoldMax(this.holdMax()));
 
-  /** STC-31: зменшення ліміту запускає перевірку конфліктів. */
+  /** STC-31: зменшення ліміту зачіпає вже наявні бронювання. */
   protected readonly lowered = computed(() => {
     const original = this.maxVehicleWeightTons();
     const next = this.weight();
@@ -114,8 +163,10 @@ export class StoreLimitsTabComponent {
   constructor() {
     effect(() => {
       this.weight.set(this.maxVehicleWeightTons());
-      this.leadTime.set(this.leadTimeHours());
+      this.leadTime.set(this.leadTimeMinutes());
       this.horizon.set(this.bookingHorizonDays());
+      this.noShowGrace.set(this.noShowGraceMinutes());
+      this.holdMax.set(this.holdMaxMinutes());
     });
   }
 
@@ -134,11 +185,23 @@ export class StoreLimitsTabComponent {
     this.emit();
   }
 
+  protected setNoShowGrace(raw: string): void {
+    this.noShowGrace.set(Number(raw));
+    this.emit();
+  }
+
+  protected setHoldMax(raw: string): void {
+    this.holdMax.set(Number(raw));
+    this.emit();
+  }
+
   private emit(): void {
     this.changed.emit({
       maxVehicleWeightTons: this.weight(),
-      leadTimeHours: this.leadTime(),
+      leadTimeMinutes: this.leadTime(),
       bookingHorizonDays: this.horizon(),
+      noShowGraceMinutes: this.noShowGrace(),
+      holdMaxMinutes: this.holdMax(),
     });
   }
 }

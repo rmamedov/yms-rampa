@@ -1,0 +1,62 @@
+# yaml-language-server: $schema=../../../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+#
+# ПРОД-ЗАЛЕЖНОСТІ ВІД СУСІДНІХ МІКРОСЕРВІСІВ (BOOK-02, GRID-01, SLOT-04).
+#
+# Файл читається ЛИШЕ при APP_ENV=prod. Dev і тести лишаються на
+# FixtureStoreConfigProvider / InMemory*-довідниках з config/services.yaml і
+# не потребують ані піднятих сусідів, ані мережі взагалі.
+#
+# ТРАНСПОРТ. Обидва базові URL показують на внутрішній шлюз nginx
+# (infra/nginx-yms-internal.conf), який слухає лише 127.0.0.1:8081 і роздає
+# запити за префіксом шляху:
+#     /internal/v1/stores…     → store-service
+#     /internal/v1/suppliers…  → partner-service
+# Через auth_request службові маршрути не проходять і заголовків ідентичності
+# не мають, тому клієнти нічого не підписують.
+#
+# ПОРЯДОК ЗАВАНТАЖЕННЯ (пастка, через яку цей файл сам себе не вмикає):
+#     config/packages/*.yaml → config/packages/prod/*.yaml
+#         → config/services.yaml → config/services_prod.yaml
+# config/services.yaml завантажується ПІЗНІШЕ і глобом App\ перереєстровує
+# класи src/ автовайрингом, а своїми аліасами повертає порти на заглушки —
+# мовчки затираючи все, що оголошено тут. Саме тому цей файл імпортується ще
+# раз, останнім, з config/services_prod.yaml. Не видаляйте той імпорт.
+
+parameters:
+    # Дефолти env-змінних; на проді значення приходять з оточення.
+    env(STORE_SERVICE_BASE_URL): 'http://127.0.0.1:8081'
+    env(PARTNER_SERVICE_BASE_URL): 'http://127.0.0.1:8081'
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    # --- store-service ------------------------------------------------------
+    #
+    # Один клієнт на обидва адаптери: його памʼятний кеш тримає рівно один
+    # мережевий виклик на магазин у межах запиту, хоча побудова сітки читає
+    # тіло тричі (налаштування + блокування + резерви).
+    App\Infrastructure\Store\HttpStoreServiceClient:
+        arguments:
+            $http: '@http_client'
+            $baseUrl: '%env(STORE_SERVICE_BASE_URL)%'
+
+    App\Infrastructure\Store\HttpStoreConfigProvider:
+        arguments:
+            $client: '@App\Infrastructure\Store\HttpStoreServiceClient'
+
+    App\Infrastructure\Store\HttpSlotOverlayProvider:
+        arguments:
+            $client: '@App\Infrastructure\Store\HttpStoreServiceClient'
+
+    # --- partner-service ----------------------------------------------------
+    App\Infrastructure\Supplier\HttpSupplierDirectory:
+        arguments:
+            $http: '@http_client'
+            $baseUrl: '%env(PARTNER_SERVICE_BASE_URL)%'
+
+    # --- Порти домену → продакшн-адаптери -----------------------------------
+    App\Domain\Store\StoreConfigProvider: '@App\Infrastructure\Store\HttpStoreConfigProvider'
+    App\Domain\Slot\SlotOverlayProvider: '@App\Infrastructure\Store\HttpSlotOverlayProvider'
+    App\Domain\Supplier\SupplierDirectory: '@App\Infrastructure\Supplier\HttpSupplierDirectory'

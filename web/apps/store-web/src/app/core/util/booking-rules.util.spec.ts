@@ -30,10 +30,24 @@ describe('Статусні переходи магазину (STW-13…16, STW-3
     expect(canStoreTransition('arrived', 'rejected')).toBe(true);
     expect(canStoreTransition('unloading', 'completed')).toBe(true);
     expect(canStoreTransition('booked', 'no_show')).toBe(true);
+    expect(canStoreTransition('booked', 'arrived')).toBe(true);
 
     expect(canStoreTransition('booked', 'unloading')).toBe(false);
     expect(canStoreTransition('completed', 'unloading')).toBe(false);
     expect(canStoreTransition('rejected', 'completed')).toBe(false);
+  });
+
+  it('«На місці» (ST-01) доступне лише зі статусу booked', () => {
+    expect(
+      evaluateAction(makeBooking({ status: 'booked' }), 'arrived', ctx()).enabled,
+    ).toBe(true);
+    const denied = evaluateAction(
+      makeBooking({ status: 'arrived' }),
+      'arrived',
+      ctx(),
+    );
+    expect(denied.enabled).toBe(false);
+    expect(denied.reasonKey).toBe('action.disabled.wrongStatus');
   });
 
   it('«Розвантаження почалось» доступне лише зі статусу arrived', () => {
@@ -97,6 +111,7 @@ describe('Статусні переходи магазину (STW-13…16, STW-3
       'complete',
     );
     expect(nextSwipeAction(makeBooking({ status: 'completed' }), ctx())).toBeNull();
+    // booked → перший допустимий перехід тепер «На місці» (ST-01).
     expect(
       nextSwipeAction(
         makeBooking({
@@ -105,7 +120,7 @@ describe('Статусні переходи магазину (STW-13…16, STW-3
         }),
         ctx(),
       ),
-    ).toBe('noShow');
+    ).toBe('arrived');
   });
 });
 
@@ -144,7 +159,7 @@ describe('Форма підтвердження розвантаження (STW-
         {
           unloadedPalletsCount: 20,
           partialUnload: true,
-          reason: 'other',
+          reason: 'інше',
           comment: '   ',
         },
         26,
@@ -171,10 +186,10 @@ describe('Форма відмови в прийомі (STW-35)', () => {
       'reject.reasonRequired',
     );
     expect(
-      validateRejectForm({ reason: 'missing_documents', comment: '' }).valid,
+      validateRejectForm({ reason: 'відсутні документи', comment: '' }).valid,
     ).toBe(true);
     expect(
-      validateRejectForm({ reason: 'other', comment: '' }).errors,
+      validateRejectForm({ reason: 'інше', comment: '' }).errors,
     ).toContain('reject.commentRequired');
   });
 });
@@ -187,7 +202,7 @@ describe('Форма затримки (STW-18)', () => {
 
   it('ETA має бути пізнішим за початок слоту', () => {
     const result = validateDelayForm(
-      { reason: 'ramp_busy', comment: '', eta: '2026-08-27T06:30:00.000Z' },
+      { reason: 'затори', comment: '', eta: '2026-08-27T06:30:00.000Z' },
       booking,
     );
     expect(result.valid).toBe(false);
@@ -197,7 +212,7 @@ describe('Форма затримки (STW-18)', () => {
   it('приймає коректну затримку і перевіряє довжину коментаря', () => {
     expect(
       validateDelayForm(
-        { reason: 'ramp_busy', comment: 'затор', eta: '2026-08-27T08:15:00.000Z' },
+        { reason: 'затори', comment: 'затор', eta: '2026-08-27T08:15:00.000Z' },
         booking,
       ).valid,
     ).toBe(true);
@@ -205,7 +220,7 @@ describe('Форма затримки (STW-18)', () => {
     expect(
       validateDelayForm(
         {
-          reason: 'ramp_busy',
+          reason: 'затори',
           comment: 'x'.repeat(501),
           eta: '2026-08-27T08:15:00.000Z',
         },

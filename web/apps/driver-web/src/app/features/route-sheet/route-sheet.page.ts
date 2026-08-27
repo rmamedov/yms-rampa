@@ -15,41 +15,32 @@ import { firstValueFrom } from 'rxjs';
 import { RouteSheetStore } from '../../core/state/route-sheet.store';
 import { AuthService } from '../../core/auth/auth.service';
 import { NetworkService } from '../../core/offline/network.service';
-import { ArrivalQueueService } from '../../core/offline/arrival-queue.service';
 import { NavigatorPreferenceService } from '../../core/nav/navigator-preference.service';
 import { InstallPromptService } from '../../core/pwa/install-prompt.service';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { PointCardComponent } from './point-card.component';
-import { DelayFormComponent } from './delay-form.component';
 import { BottomSheetComponent } from '../../shared/ui/bottom-sheet.component';
-import { ConfirmDialogComponent } from '../../shared/ui/confirm-dialog.component';
-import type { DelayPayload, RoutePoint } from '../../core/models/route-sheet.model';
+import type { RoutePoint } from '../../core/models/route-sheet.model';
 import type { NavigatorApp } from '../../core/util/deep-links';
+import { formatPhone } from '../../core/util/phone.util';
 import {
   dateChipLabel,
   formatKyivTime,
   kyivDateKey,
 } from '../../core/util/time.util';
 
-type SheetKind = 'none' | 'menu' | 'navigator' | 'delay';
+type SheetKind = 'none' | 'menu' | 'navigator';
 
 @Component({
   selector: 'app-route-sheet-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslatePipe,
-    PointCardComponent,
-    DelayFormComponent,
-    BottomSheetComponent,
-    ConfirmDialogComponent,
-  ],
+  imports: [TranslatePipe, PointCardComponent, BottomSheetComponent],
   templateUrl: './route-sheet.page.html',
   styleUrl: './route-sheet.page.scss',
 })
 export class RouteSheetPage implements OnInit {
   protected readonly store = inject(RouteSheetStore);
   protected readonly network = inject(NetworkService);
-  protected readonly queue = inject(ArrivalQueueService);
   protected readonly install = inject(InstallPromptService);
   private readonly auth = inject(AuthService);
   private readonly navigators = inject(NavigatorPreferenceService);
@@ -59,19 +50,20 @@ export class RouteSheetPage implements OnInit {
   private readonly injector = inject(Injector);
   private scrolledToActive = false;
 
-  /** Перемальовує залежні від часу стани (вікно «На місці») раз на хвилину. */
+  /** Перемальовує залежні від часу мітки (чипси дат) раз на хвилину. */
   protected readonly nowTick = signal(Date.now());
 
   protected readonly openSheet = signal<SheetKind>('none');
-  protected readonly confirmPoint = signal<RoutePoint | null>(null);
-  protected readonly delayPoint = signal<RoutePoint | null>(null);
   protected readonly navigatorPoint = signal<RoutePoint | null>(null);
-  protected readonly toast = signal<string | null>(null);
-  protected readonly arrivingId = signal<string | null>(null);
-  protected readonly delayError = signal<string | null>(null);
-  protected readonly delayBusy = signal(false);
 
-  protected readonly profile = this.auth.profile;
+  /**
+   * Імені водія бекенд не віддає — у профілі є лише логін (телефон E.164),
+   * тож у шапці показуємо саме його.
+   */
+  protected readonly driverLabel = computed(() => {
+    const profile = this.auth.profile();
+    return profile ? formatPhone(profile.login) : null;
+  });
 
   protected readonly dateChips = computed(() =>
     this.store.dates().map((d) => ({
@@ -106,27 +98,11 @@ export class RouteSheetPage implements OnInit {
     return at ? this.i18n.t('sheet.updatedAt', { time: formatKyivTime(at) }) : null;
   });
 
-  protected readonly confirmHeading = computed(() => {
-    const point = this.confirmPoint();
-    return point
-      ? this.i18n.t('arrive.confirmTitle', { store: point.store.name })
-      : '';
-  });
-
   ngOnInit(): void {
     this.install.init();
     void this.store.initialize();
     // Полінг статусів раз на 30 с (RT-04).
     this.store.startPolling();
-    // Автоматична відправка черги офлайн-відміток при відновленні звʼязку (DRV-34).
-    effect(
-      () => {
-        if (this.network.online() && this.queue.pendingCount() > 0) {
-          void this.store.flushQueue();
-        }
-      },
-      { injector: this.injector },
-    );
     // Активна точка прокручується у видиму область при відкритті листа (DRV-16).
     effect(
       () => {
@@ -153,10 +129,6 @@ export class RouteSheetPage implements OnInit {
     });
   }
 
-  protected windowStateFor(point: RoutePoint) {
-    return this.store.windowState(point, this.nowTick());
-  }
-
   protected isActive(index: number): boolean {
     return index === this.store.activeIndex();
   }
@@ -175,7 +147,7 @@ export class RouteSheetPage implements OnInit {
   protected onRouteRequested(point: RoutePoint): void {
     const preferred = this.navigators.preferred();
     if (preferred) {
-      this.navigators.openRoute(preferred, point.store);
+      this.navigators.openRoute(preferred, point);
       return;
     }
     this.openNavigatorSheet(point);
@@ -190,73 +162,10 @@ export class RouteSheetPage implements OnInit {
     const point = this.navigatorPoint();
     this.closeSheet();
     if (point) {
-      this.navigators.openRoute(app, point.store);
+      this.navigators.openRoute(app, point);
     } else {
       // Виклик із меню «Змінити навігатор» — просто запамʼятовуємо вибір.
       this.navigators.set(app);
-    }
-  }
-
-  // --- Відмітка «На місці» ---------------------------------------------------
-
-  protected requestArrive(point: RoutePoint): void {
-    this.confirmPoint.set(point);
-  }
-
-  protected cancelArrive(): void {
-    this.confirmPoint.set(null);
-  }
-
-  protected async confirmArrive(): Promise<void> {
-    const point = this.confirmPoint();
-    this.confirmPoint.set(null);
-    if (!point) {
-      return;
-    }
-    // ФАКТИЧНИЙ час натискання фіксується тут і передається на сервер (DRV-34).
-    const pressedAt = new Date().toISOString();
-    this.arrivingId.set(point.bookingId);
-    const result = await this.store.markArrived(point.bookingId, pressedAt);
-    this.arrivingId.set(null);
-    if (result.queued) {
-      this.showToast(this.i18n.t('arrive.queuedOffline'));
-    } else if (!result.ok && result.message) {
-      this.showToast(result.message);
-    }
-  }
-
-  // --- orderId ---------------------------------------------------------------
-
-  protected async saveOrderId(event: {
-    point: RoutePoint;
-    orderId: string;
-  }): Promise<void> {
-    const result = await this.store.saveOrderId(event.point.bookingId, event.orderId);
-    if (!result.ok && result.message) {
-      this.showToast(result.message);
-    }
-  }
-
-  // --- Затримка --------------------------------------------------------------
-
-  protected openDelay(point: RoutePoint): void {
-    this.delayPoint.set(point);
-    this.delayError.set(null);
-    this.openSheet.set('delay');
-  }
-
-  protected async submitDelay(payload: DelayPayload): Promise<void> {
-    const point = this.delayPoint();
-    if (!point) {
-      return;
-    }
-    this.delayBusy.set(true);
-    const result = await this.store.reportDelay(point.bookingId, payload);
-    this.delayBusy.set(false);
-    if (result.ok) {
-      this.closeSheet();
-    } else {
-      this.delayError.set(result.message ?? this.i18n.t('delay.error.generic'));
     }
   }
 
@@ -268,9 +177,7 @@ export class RouteSheetPage implements OnInit {
 
   protected closeSheet(): void {
     this.openSheet.set('none');
-    this.delayPoint.set(null);
     this.navigatorPoint.set(null);
-    this.delayError.set(null);
   }
 
   /** Друкована версія маршрутного листа у новій вкладці (DRV-40, PRN-01). */
@@ -300,10 +207,5 @@ export class RouteSheetPage implements OnInit {
 
   protected dismissInstall(): void {
     this.install.dismissForever();
-  }
-
-  private showToast(message: string): void {
-    this.toast.set(message);
-    setTimeout(() => this.toast.set(null), 4000);
   }
 }

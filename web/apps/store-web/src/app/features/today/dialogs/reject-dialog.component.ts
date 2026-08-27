@@ -35,7 +35,8 @@ import { validateRejectForm } from '../../../core/util/booking-rules.util';
         >
           <option [ngValue]="null">—</option>
           @for (item of reasons; track item) {
-            <option [ngValue]="item">{{ 'rejectReason.' + item | t }}</option>
+            <!-- Значення довідника бекенду вже україномовні (RejectionReason). -->
+            <option [ngValue]="item">{{ item }}</option>
           }
         </select>
       </div>

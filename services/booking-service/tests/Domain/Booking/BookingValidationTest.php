@@ -130,7 +130,7 @@ final class BookingValidationTest extends TestCase
     {
         $booking = BookingFactory::scheduled('2026-08-28 10:00');
         $booking->cancel(
-            new Actor('su-1', Role::StoreManager, storeId: Scenario::STORE_ID),
+            new Actor('su-1', Role::StoreManager, storeIds: [Scenario::STORE_ID]),
             Scenario::kyiv('2026-08-28 09:45'),
             2,
         );

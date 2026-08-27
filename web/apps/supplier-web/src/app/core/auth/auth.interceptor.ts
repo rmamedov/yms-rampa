@@ -28,10 +28,10 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
         return throwError(() => error);
       }
       return auth.refreshTokens().pipe(
-        switchMap((tokens) =>
+        switchMap((session) =>
           next(
             req.clone({
-              setHeaders: { Authorization: `Bearer ${tokens.accessToken}` },
+              setHeaders: { Authorization: `Bearer ${session.accessToken}` },
             }),
           ),
         ),

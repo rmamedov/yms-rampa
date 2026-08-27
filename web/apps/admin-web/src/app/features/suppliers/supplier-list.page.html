@@ -58,21 +58,12 @@
             aria-label="select-all-suppliers"
           />
         </th>
-        <th class="sortable" (click)="sortBy('name')">
-          {{ 'suppliers.col.name' | t }}{{ sortIndicator('name') }}
-        </th>
-        <th class="sortable" (click)="sortBy('edrpou')">
-          {{ 'suppliers.col.edrpou' | t }}{{ sortIndicator('edrpou') }}
-        </th>
+        <th>{{ 'suppliers.col.name' | t }}</th>
+        <th>{{ 'suppliers.col.edrpou' | t }}</th>
         <th>{{ 'suppliers.col.contact' | t }}</th>
         <th>{{ 'common.phone' | t }}</th>
-        <th class="sortable" (click)="sortBy('status')">
-          {{ 'suppliers.col.status' | t }}{{ sortIndicator('status') }}
-        </th>
+        <th>{{ 'suppliers.col.status' | t }}</th>
         <th>{{ 'suppliers.col.stores' | t }}</th>
-        <th class="sortable" (click)="sortBy('bookingsCount')">
-          {{ 'suppliers.col.bookings' | t }}{{ sortIndicator('bookingsCount') }}
-        </th>
       </tr>
     </thead>
     <tbody>
@@ -87,9 +78,9 @@
             />
           </td>
           <td><a [routerLink]="['/suppliers', row.id]">{{ row.name }}</a></td>
-          <td class="mono">{{ row.edrpou }}</td>
-          <td>{{ row.contactPerson }}</td>
-          <td class="mono">{{ row.contactPhone }}</td>
+          <td class="mono">{{ row.edrpou ?? '—' }}</td>
+          <td>{{ primaryContact(row).name }}</td>
+          <td class="mono">{{ primaryContact(row).phone ?? '—' }}</td>
           <td>
             <span
               class="badge"
@@ -98,12 +89,11 @@
               >{{ 'suppliers.status.' + row.status | t }}</span
             >
           </td>
-          <td>{{ accessLabel(row) | t: { n: row.allowedStoreIds.length } }}</td>
-          <td>{{ row.bookingsCount }}</td>
+          <td>{{ accessLabel(row) | t: { n: row.storeAccess.storeIds.length } }}</td>
         </tr>
       } @empty {
         <tr>
-          <td colspan="8">
+          <td colspan="7">
             <app-empty-state
               [message]="'suppliers.empty' | t"
               [actionLabel]="'common.reset' | t"

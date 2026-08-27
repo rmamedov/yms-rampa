@@ -33,7 +33,13 @@ final readonly class DomainExceptionSubscriber implements EventSubscriberInterfa
             return;
         }
 
-        if (!str_starts_with($event->getRequest()->getPathInfo(), '/api/')) {
+        // Публічний API (/api/) і службові маршрути (/internal/) віддають
+        // помилки в одному форматі: booking-service читає з відповіді поле
+        // `code` (напр. SUPPLIER_NOT_FOUND) і без problem+json отримав би
+        // HTML-сторінку помилки Symfony замість машинної причини.
+        $path = $event->getRequest()->getPathInfo();
+
+        if (!str_starts_with($path, '/api/') && !str_starts_with($path, '/internal/')) {
             return;
         }
 

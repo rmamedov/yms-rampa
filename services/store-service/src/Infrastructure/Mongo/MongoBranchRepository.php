@@ -135,10 +135,24 @@ final readonly class MongoBranchRepository implements BranchRepository
                 : ['$not' => ['$size' => 0]];
         }
 
+        // Обидва предикати лягають на `_id`, тому обʼєднуються через $and,
+        // інакше другий перетер би перший.
+        $idPredicates = [];
+
+        // RBAC-17: скоуп-предикат виконує СХОВИЩЕ, а не пост-фільтрація в памʼяті.
+        // Порожній перелік дає `$in: []` — вибірка гарантовано порожня (RBAC-13).
+        if (null !== $criteria->scopedStoreIds) {
+            $idPredicates[] = ['_id' => ['$in' => $criteria->scopedStoreIds]];
+        }
+
         if (null !== $criteria->configured && null !== $criteria->configuredStoreIds) {
-            $filter['_id'] = $criteria->configured
+            $idPredicates[] = ['_id' => $criteria->configured
                 ? ['$in' => $criteria->configuredStoreIds]
-                : ['$nin' => $criteria->configuredStoreIds];
+                : ['$nin' => $criteria->configuredStoreIds]];
+        }
+
+        if ([] !== $idPredicates) {
+            $filter['$and'] = $idPredicates;
         }
 
         $query = trim((string) $criteria->query);

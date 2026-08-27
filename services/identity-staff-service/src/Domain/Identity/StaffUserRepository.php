@@ -15,6 +15,15 @@ interface StaffUserRepository
     public function findById(string $id): ?StaffUser;
 
     /**
+     * Вузьке читання для перевірки токена шлюзом (`/internal/v1/auth/verify`).
+     *
+     * Викликається на КОЖЕН запит до API, тому реалізація зобовʼязана:
+     *  - шукати за первинним ключем `_id` (індекс існує завжди, 10.5);
+     *  - повертати лише role/storeIds/active, без хеша пароля та його історії.
+     */
+    public function findIdentityById(string $id): ?IdentitySnapshot;
+
+    /**
      * Пошук за унікальним індексом `{email:1}` (10.5).
      */
     public function findByEmail(Email $email): ?StaffUser;

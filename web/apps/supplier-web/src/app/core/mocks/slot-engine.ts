@@ -1,19 +1,21 @@
-import type {
-  Ramp,
-  ReceivingWindow,
-  SlotCell,
-  SlotGrid,
-  SlotRow,
-  SlotState,
-} from '../models/models';
-import { kyivOffsetMinutes, kyivToUtc } from '../util/kyiv-time';
+import type { Ramp, Slot, SlotGrid, SlotState } from '../models/models';
+import { kyivOffsetMinutes, kyivToUtc, utcIso } from '../util/kyiv-time';
 
 /**
- * Обчислювана сітка слотів (SLOT-01, GRID-01).
+ * Обчислювана сітка слотів (SLOT-01, GRID-01) — мок-двійник
+ * booking-service\Domain\Slot\SlotGridGenerator.
+ *
  * Слоти не матеріалізуються: сітка будується з конфігурації магазину,
  * поверх якої накладаються блокування, резерви, бронювання та холди.
  * Пріоритет станів (SLOT-03): past → blocked → booked → held → reserved → available.
+ * Відповідь — ПЛОСКИЙ список слотів, точно як у бекенду.
  */
+
+/** Вікно прийому у локальному часі магазину. */
+export interface ReceivingWindow {
+  readonly from: string;
+  readonly to: string;
+}
 
 export interface SlotEngineStore {
   readonly storeId: string;
@@ -29,7 +31,6 @@ export interface EngineBooking {
   readonly id: string;
   readonly rampId: string;
   readonly slotStart: string;
-  readonly mine: boolean;
 }
 
 export interface EngineHold {
@@ -43,6 +44,7 @@ export interface EngineBlock {
   readonly rampId: string | null;
   readonly from: string;
   readonly to: string;
+  readonly reason?: string;
 }
 
 /** Розклад резервів: вікно доби за конкретним постачальником. */
@@ -50,6 +52,7 @@ export interface EngineReserve {
   readonly rampId: string;
   readonly from: string;
   readonly to: string;
+  /** true — резерв належить постачальнику, який дивиться сітку. */
   readonly mine: boolean;
 }
 
@@ -108,9 +111,9 @@ export function buildSlotGrid(input: SlotEngineInput): SlotGrid {
   const offsetMinutes = kyivOffsetMinutes(kyivToUtc(date, '12:00'));
   const leadEdge = now.getTime() + store.leadTimeMinutes * 60000;
 
-  const bookingIndex = new Map<string, EngineBooking>();
+  const bookingIndex = new Set<string>();
   for (const booking of input.bookings) {
-    bookingIndex.set(`${booking.rampId}|${booking.slotStart}`, booking);
+    bookingIndex.add(`${booking.rampId}|${booking.slotStart}`);
   }
   const holdIndex = new Set<string>();
   for (const hold of input.holds) {
@@ -119,27 +122,27 @@ export function buildSlotGrid(input: SlotEngineInput): SlotGrid {
     }
   }
 
-  const rows: SlotRow[] = [];
-  const starts = slotStartsForWindows(store.windows, store.slotSizeMinutes);
+  const slots: Slot[] = [];
 
-  for (const startMin of starts) {
+  for (const startMin of slotStartsForWindows(
+    store.windows,
+    store.slotSizeMinutes,
+  )) {
     const endMin = startMin + store.slotSizeMinutes;
     const slotStartMs = midnightUtcNaive + (startMin - offsetMinutes) * 60000;
-    const slotStart = new Date(slotStartMs).toISOString();
-    const slotEnd = new Date(
-      slotStartMs + store.slotSizeMinutes * 60000,
-    ).toISOString();
+    const slotStart = utcIso(new Date(slotStartMs));
+    const slotEnd = utcIso(
+      new Date(slotStartMs + store.slotSizeMinutes * 60000),
+    );
     const isPast = slotStartMs < leadEdge;
 
-    const cells: SlotCell[] = store.ramps.map((ramp) => {
+    for (const ramp of store.ramps) {
       const key = `${ramp.rampId}|${slotStart}`;
-      const blocked = input.blocks.some(
-        (block) =>
-          (block.rampId === null || block.rampId === ramp.rampId) &&
-          overlaps(startMin, endMin, block.from, block.to),
+      const block = input.blocks.find(
+        (item) =>
+          (item.rampId === null || item.rampId === ramp.rampId) &&
+          overlaps(startMin, endMin, item.from, item.to),
       );
-      const booking = bookingIndex.get(key);
-      const held = holdIndex.has(key);
       const reserve = input.reserves.find(
         (item) =>
           item.rampId === ramp.rampId &&
@@ -147,52 +150,42 @@ export function buildSlotGrid(input: SlotEngineInput): SlotGrid {
       );
 
       let state: SlotState = 'available';
-      let mine = false;
-      let bookingId: string | undefined;
-
       if (isPast) {
         state = 'past';
-      } else if (blocked) {
+      } else if (block) {
         state = 'blocked';
-      } else if (booking) {
+      } else if (bookingIndex.has(key)) {
         state = 'booked';
-        mine = booking.mine;
-        bookingId = booking.mine ? booking.id : undefined;
-      } else if (held) {
+      } else if (holdIndex.has(key)) {
         state = 'held';
-      } else if (reserve) {
-        // GRID-04: власнику резерву слот показується як доступний з міткою.
-        state = reserve.mine ? 'available' : 'reserved';
-        mine = reserve.mine;
+      } else if (reserve && !reserve.mine) {
+        // GRID-04: власнику резерву слот лишається доступним з міткою.
+        state = 'reserved';
       }
 
-      return { rampId: ramp.rampId, slotStart, slotEnd, state, mine, bookingId };
-    });
-
-    rows.push({ label: fromMinutes(startMin), slotStart, cells });
+      const slot: Slot = {
+        rampId: ramp.rampId,
+        slotStart,
+        slotEnd,
+        localStart: fromMinutes(startMin),
+        state,
+        selectable: state === 'available',
+        ...(reserve?.mine && state === 'available'
+          ? { reservedForYou: true }
+          : {}),
+        ...(block?.reason ? { blockReason: block.reason } : {}),
+      };
+      slots.push(slot);
+    }
   }
 
   return {
     storeId: store.storeId,
     date,
-    ramps: [...store.ramps],
-    rows,
     maxVehicleWeightTons: store.maxVehicleWeightTons,
     slotSizeMinutes: store.slotSizeMinutes,
     leadTimeMinutes: store.leadTimeMinutes,
-    bookingHorizonDays: store.bookingHorizonDays,
-    now: now.toISOString(),
+    now: utcIso(now),
+    slots,
   };
-}
-
-/** Чи є у сітці хоч один слот, доступний для бронювання. */
-export function hasAvailableSlot(grid: SlotGrid): boolean {
-  return grid.rows.some((row) =>
-    row.cells.some((cell) => cell.state === 'available'),
-  );
-}
-
-/** Клікабельні лише available-слоти (SUP-SLOT-04). */
-export function isSelectableState(state: SlotState): boolean {
-  return state === 'available';
 }

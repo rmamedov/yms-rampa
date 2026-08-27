@@ -1,5 +1,10 @@
 /**
- * Моделі домену бронювання (розділ 10.3.1 SRS) у розрізі, потрібному store-web.
+ * Моделі домену бронювання у розрізі, потрібному store-web.
+ *
+ * Форма полів повторює відповідь booking-service
+ * (`App\Infrastructure\Http\BookingPresenter::toArray()`) — див. wire.model.ts.
+ * Оптимістичної версії (`version`) бекенд НЕ має: конкурентні зміни ловляться
+ * доменними переходами (409 INVALID_STATUS_TRANSITION).
  */
 
 export type BookingType = 'scheduled' | 'walk_in';
@@ -13,44 +18,42 @@ export type BookingStatus =
   | 'no_show'
   | 'rejected';
 
-/** Причини відмови в прийомі (STW-35). */
-export type RejectReason =
-  | 'weight_exceeded'
-  | 'cargo_mismatch'
-  | 'missing_documents'
-  | 'other';
+/**
+ * Довідники причин. ЗНАЧЕННЯ — рівно ті рядки, які приймають backed-enum'и
+ * booking-service (`RejectionReason`, `PartialUnloadReason`, `DelayReason`):
+ * вони україномовні, тому одночасно є й підписами в UI.
+ */
 
-export const REJECT_REASONS: readonly RejectReason[] = [
-  'weight_exceeded',
-  'cargo_mismatch',
-  'missing_documents',
-  'other',
-];
+/** Спільне значення «інше», для якого коментар обовʼязковий. */
+export const REASON_OTHER = 'інше';
 
-/** Причини часткового розвантаження (STW-36). */
-export type PartialUnloadReason =
-  | 'no_space'
-  | 'damaged'
-  | 'order_mismatch'
-  | 'partial_refusal'
-  | 'other';
+/** `App\Domain\Booking\RejectionReason` (ST-07). */
+export const REJECT_REASONS = [
+  'перевищення тоннажу',
+  'невідповідність вантажу',
+  'відсутні документи',
+  REASON_OTHER,
+] as const;
+export type RejectReason = (typeof REJECT_REASONS)[number];
 
-export const PARTIAL_UNLOAD_REASONS: readonly PartialUnloadReason[] = [
-  'no_space',
-  'damaged',
-  'order_mismatch',
-  'partial_refusal',
-  'other',
-];
+/** `App\Domain\Booking\PartialUnloadReason` (ST-03). */
+export const PARTIAL_UNLOAD_REASONS = [
+  'немає місця',
+  'бій/брак',
+  'розбіжність із замовленням',
+  'відмова частини вантажу',
+  REASON_OTHER,
+] as const;
+export type PartialUnloadReason = (typeof PARTIAL_UNLOAD_REASONS)[number];
 
-/** Довідник причин затримки (STW-19). */
-export type DelayReason = 'ramp_busy' | 'previous_vehicle' | 'technical';
-
-export const DELAY_REASONS: readonly DelayReason[] = [
-  'ramp_busy',
-  'previous_vehicle',
-  'technical',
-];
+/** `App\Domain\Booking\DelayReason` (DLY-01). */
+export const DELAY_REASONS = [
+  'затори',
+  'поломка',
+  'затримка на попередній точці',
+  REASON_OTHER,
+] as const;
+export type DelayReason = (typeof DELAY_REASONS)[number];
 
 export interface Vehicle {
   readonly plateNumber: string;
@@ -58,127 +61,138 @@ export interface Vehicle {
   readonly brand: string | null;
 }
 
-export interface DriverInfo {
-  readonly driverId: string;
-  readonly fullName: string;
-  readonly phone: string;
+/** Снапшот філії всередині бронювання (DATA-13). */
+export interface StoreSnapshot {
+  readonly externalId: string;
+  readonly displayName: string;
+  readonly city: string;
+  readonly address: string;
 }
 
+/**
+ * Прапорець затримки. `reason` — вільний текст бекенду: для причини «інше»
+ * він приходить у вигляді «інше: <коментар>», окремого поля comment немає.
+ */
 export interface DelayedFlag {
   readonly flag: boolean;
-  readonly reason: DelayReason | null;
+  readonly reason: string | null;
   /** ISO 8601 UTC */
   readonly eta: string | null;
-  readonly comment?: string | null;
 }
 
 export interface RejectionInfo {
   readonly at: string;
   readonly by: string;
-  readonly reason: RejectReason;
+  readonly reason: string;
   readonly comment: string | null;
 }
 
 export interface PartialUnloadInfo {
   readonly flag: boolean;
-  readonly reason: PartialUnloadReason;
-  readonly comment?: string | null;
+  readonly reason: string;
+  readonly comment: string | null;
+}
+
+export interface CancellationInfo {
+  readonly by: string;
+  readonly userId: string | null;
+  readonly reason: string | null;
+}
+
+/** Запис журналу переходів (`statusHistory`, DATA-14). */
+export interface StatusChange {
+  readonly from: BookingStatus | null;
+  readonly to: BookingStatus;
+  /** ISO 8601 UTC */
+  readonly at: string;
+  /** userId ініціатора переходу. */
+  readonly by: string;
+  readonly meta: Readonly<Record<string, unknown>>;
 }
 
 export interface Booking {
   readonly id: string;
   readonly type: BookingType;
+  readonly status: BookingStatus;
   readonly storeId: string;
+  readonly store: StoreSnapshot;
   readonly rampId: string;
   /** ISO 8601 UTC */
   readonly slotStart: string;
   /** ISO 8601 UTC */
   readonly slotEnd: string;
+  /** YYYY-MM-DD у таймзоні магазину. */
+  readonly localDate: string;
+  /** HH:mm у таймзоні магазину. */
+  readonly localTime: string;
   readonly supplierId: string | null;
-  readonly supplierNameSnapshot: string;
+  readonly supplierName: string;
   readonly vehicle: Vehicle;
-  readonly driver: DriverInfo | null;
+  /** Бекенд віддає лише ідентифікатор водія — ПІБ і телефон недоступні. */
+  readonly driverId: string | null;
   readonly orderId: string | null;
   readonly palletsCount: number;
-  readonly status: BookingStatus;
   readonly delayed: DelayedFlag;
   readonly arrivedAt: string | null;
   readonly unloadingStartedAt: string | null;
   readonly completedAt: string | null;
   readonly cancelledAt: string | null;
+  readonly cancellation: CancellationInfo | null;
   readonly rejectedAt: RejectionInfo | null;
   readonly unloadedPalletsCount: number | null;
   readonly partialUnload: PartialUnloadInfo | null;
-  /** Версія для оптимістичного контролю гонок (STW-17). */
-  readonly version: number;
+  readonly rescheduleOf: string | null;
+  readonly routeSheetId: string | null;
+  readonly createdBy: string;
+  readonly createdAt: string;
   readonly updatedAt: string;
+  /** Джерело журналу дій — окремого ендпоінта аудиту бекенд не має. */
+  readonly statusHistory: readonly StatusChange[];
 }
 
-/** Актор журналу дій (STW-33). */
-export type AuditActorKind =
-  | 'staff'
-  | 'driver'
-  | 'supplier'
-  | 'system_cron'
-  | 'admin';
+// ---------------------------------------------------------------------------
+// Тіла запитів (назви полів — рівно як у RequestPayload бекенду)
+// ---------------------------------------------------------------------------
 
-export type AuditActionType =
-  | 'status_changed'
-  | 'delay_set'
-  | 'delay_updated'
-  | 'delay_cleared'
-  | 'ramp_reassigned'
-  | 'created'
-  | 'rejected'
-  | 'unload_recorded'
-  | 'slot_blocked';
-
-export interface AuditEntry {
-  readonly id: string;
-  readonly bookingId: string;
-  /** ISO 8601 UTC */
-  readonly at: string;
-  readonly actorKind: AuditActorKind;
-  /** ПІБ + роль співробітника, або «водій»/«постачальник»/system-cron. */
-  readonly actorName: string;
-  readonly actorRole: string | null;
-  readonly action: AuditActionType;
-  readonly fromValue: string | null;
-  readonly toValue: string | null;
-  readonly comment: string | null;
-}
-
+/** POST /bookings/{id}/completed */
 export interface CompleteUnloadingPayload {
   readonly unloadedPalletsCount: number;
-  readonly partialUnload: boolean;
-  readonly partialUnloadReason: PartialUnloadReason | null;
-  readonly partialUnloadComment: string | null;
+  /** null — розвантажено все заявлене. */
+  readonly partialUnload: {
+    readonly reason: PartialUnloadReason;
+    readonly comment: string | null;
+  } | null;
 }
 
+/** POST /bookings/{id}/rejected */
 export interface RejectPayload {
   readonly reason: RejectReason;
   readonly comment: string | null;
 }
 
+/** POST /bookings/{id}/delay */
 export interface DelayPayload {
   readonly reason: DelayReason;
-  readonly comment: string | null;
   /** ISO 8601 UTC */
   readonly eta: string;
+  readonly comment: string | null;
 }
 
-export interface WalkInPayload {
-  readonly supplierId: string | null;
-  /** Назва «поза системою», якщо supplierId відсутній. */
-  readonly externalSupplierName: string | null;
-  readonly plateNumber: string;
-  readonly weightTons: number;
-  readonly palletsCount: number;
-  readonly orderId: string | null;
-  readonly rampId: string;
-  readonly slotStart: string;
-}
-
+/** POST /bookings/{id}/reassign */
 export interface ReassignPayload {
   readonly rampId: string;
+}
+
+/** POST /bookings/walk-in */
+export interface WalkInPayload {
+  readonly storeId: string;
+  readonly rampId: string;
+  /** ISO 8601 UTC */
+  readonly slotStart: string;
+  readonly vehicle: Vehicle;
+  readonly palletsCount: number;
+  readonly supplierId: string | null;
+  /** Назва «поза системою», якщо supplierId відсутній. */
+  readonly supplierName: string | null;
+  readonly orderId: string | null;
 }

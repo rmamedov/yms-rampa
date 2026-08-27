@@ -2,6 +2,7 @@ import {
   canExtendHold,
   extendedExpiry,
   holdRemainingSeconds,
+  holdServerNow,
   isHoldExpired,
 } from './hold';
 
@@ -25,28 +26,40 @@ describe('життєвий цикл холду (HOLD-01, HOLD-02, SUP-BOOK-01)',
   });
 
   it('продовжує TTL на 5 хв, але не далі за holdMaxMinutes', () => {
-    const maxUntil = new Date('2026-03-12T09:15:00Z');
+    const maxExpiresAt = new Date('2026-03-12T09:15:00Z');
     // Звичайне продовження: now + 5 хв
-    expect(extendedExpiry(base, maxUntil).toISOString()).toBe(
+    expect(extendedExpiry(base, maxExpiresAt).toISOString()).toBe(
       '2026-03-12T09:05:00.000Z',
     );
-    // Біля межі 15 хв продовження обрізається до maxUntil
+    // Біля межі 15 хв продовження обрізається до maxExpiresAt
     expect(
-      extendedExpiry(new Date('2026-03-12T09:13:00Z'), maxUntil).toISOString(),
+      extendedExpiry(new Date('2026-03-12T09:13:00Z'), maxExpiresAt).toISOString(),
     ).toBe('2026-03-12T09:15:00.000Z');
   });
 
   it('припиняє heartbeat, коли досягнуто межі життя холду', () => {
     const atLimit = {
       expiresAt: '2026-03-12T09:15:00Z',
-      maxUntil: '2026-03-12T09:15:00Z',
+      maxExpiresAt: '2026-03-12T09:15:00Z',
     };
     expect(canExtendHold(atLimit, base)).toBe(false);
     expect(
       canExtendHold(
-        { expiresAt: '2026-03-12T09:05:00Z', maxUntil: '2026-03-12T09:15:00Z' },
+        {
+          expiresAt: '2026-03-12T09:05:00Z',
+          maxExpiresAt: '2026-03-12T09:15:00Z',
+        },
         base,
       ),
     ).toBe(true);
+  });
+
+  it('відновлює серверний now із expiresAt і secondsLeft (бекенд не віддає now)', () => {
+    expect(
+      holdServerNow({
+        expiresAt: '2026-03-12T09:05:00Z',
+        secondsLeft: 300,
+      }).toISOString(),
+    ).toBe('2026-03-12T09:00:00.000Z');
   });
 });

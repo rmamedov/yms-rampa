@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\InMemory;
 
 use App\Domain\Identity\Email;
+use App\Domain\Identity\IdentitySnapshot;
 use App\Domain\Identity\Role;
 use App\Domain\Identity\StaffUser;
 use App\Domain\Identity\StaffUserRepository;
@@ -33,6 +34,13 @@ final class InMemoryStaffUserRepository implements StaffUserRepository
     public function findById(string $id): ?StaffUser
     {
         return $this->byId[$id] ?? null;
+    }
+
+    public function findIdentityById(string $id): ?IdentitySnapshot
+    {
+        $user = $this->byId[$id] ?? null;
+
+        return null === $user ? null : IdentitySnapshot::fromUser($user);
     }
 
     public function findByEmail(Email $email): ?StaffUser

@@ -118,8 +118,8 @@
             </td>
             <td class="mono">{{ rule.slotStartTime }}</td>
             <td>{{ rampLabel(rule.rampId) }}</td>
-            <td>{{ formatDate(rule.validFrom) }}</td>
-            <td>{{ rule.validTo ? formatDate(rule.validTo) : '∞' }}</td>
+            <td>{{ formatIsoDate(rule.validFrom) }}</td>
+            <td>{{ formatIsoDate(rule.validTo) }}</td>
             <td>
               <label class="checkbox">
                 <input

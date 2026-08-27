@@ -14,6 +14,7 @@ use App\Domain\Shared\IdGenerator;
 use App\Domain\Shared\NotFoundException;
 use App\Domain\Supplier\StoreAccess;
 use App\Domain\Supplier\Supplier;
+use App\Domain\Supplier\SupplierAccessSnapshot;
 use App\Domain\Supplier\SupplierContact;
 use App\Domain\Supplier\SupplierRepository;
 use App\Domain\Supplier\SupplierStatus;
@@ -74,6 +75,18 @@ final readonly class SupplierService
                 \sprintf('Постачальника «%s» не знайдено.', $id),
                 'SUPPLIER_NOT_FOUND',
             );
+    }
+
+    /**
+     * Знімок постачальника для booking-service (BOOK-02): статус і прив'язка
+     * до магазинів у формі, придатній для перевірки права бронювати.
+     *
+     * Неіснуючий постачальник — NotFoundException з кодом SUPPLIER_NOT_FOUND,
+     * як і в адмін-API: службовий виклик не має власного трактування «немає».
+     */
+    public function accessSnapshot(string $id): SupplierAccessSnapshot
+    {
+        return SupplierAccessSnapshot::fromSupplier($this->get($id));
     }
 
     /**

@@ -14,17 +14,12 @@
           (change)="onStoreChange($any($event.target).value)"
         >
           @for (store of stores(); track store.storeId) {
-            <option [value]="store.storeId">
-              {{ store.displayName }} · {{ store.externalId }} · {{ store.city }},
-              {{ store.address }}
-            </option>
+            <option [value]="store.storeId">{{ storeLabel(store) }}</option>
           }
         </select>
       </label>
     } @else if (selectedStore(); as store) {
-      <span class="appbar__storename">
-        {{ store.displayName }} · {{ store.city }}, {{ store.address }}
-      </span>
+      <span class="appbar__storename">{{ storeLabel(store) }}</span>
     }
 
     <nav class="appbar__nav">

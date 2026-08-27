@@ -28,7 +28,7 @@
     }
   </div>
 
-  <h3 class="bcard__supplier">{{ b.supplierNameSnapshot }}</h3>
+  <h3 class="bcard__supplier">{{ b.supplierName }}</h3>
 
   <dl class="bcard__grid">
     <div>
@@ -49,12 +49,13 @@
     </div>
   </dl>
 
+  <!--
+    Бекенд віддає лише driverId: ПІБ і телефон водія в контурі магазину
+    недоступні (див. заявку на бекенд у README контракту).
+  -->
   <p class="bcard__driver">
-    @if (b.driver) {
-      <span>{{ b.driver.fullName }}</span>
-      <a class="bcard__phone" [href]="'tel:' + b.driver.phone">{{
-        b.driver.phone
-      }}</a>
+    @if (b.driverId) {
+      <span>{{ 'card.driverId' | t: { id: b.driverId } }}</span>
     } @else {
       <span class="muted">{{ 'card.noDriver' | t }}</span>
     }
@@ -69,6 +70,15 @@
   }
 
   <footer class="bcard__actions">
+    @if (can('arrived')) {
+      <button
+        type="button"
+        class="btn btn--sm btn--primary"
+        (click)="emit('arrived')"
+      >
+        {{ 'action.arrived' | t }}
+      </button>
+    }
     @if (can('startUnloading')) {
       <button
         type="button"
@@ -106,11 +116,6 @@
     @if (can('delay')) {
       <button type="button" class="btn btn--sm" (click)="emit('delay')">
         {{ 'action.delay' | t }}
-      </button>
-    }
-    @if (can('clearDelay')) {
-      <button type="button" class="btn btn--sm" (click)="emit('clearDelay')">
-        {{ 'action.clearDelay' | t }}
       </button>
     }
     @if (b.status === 'booked' || b.status === 'arrived') {

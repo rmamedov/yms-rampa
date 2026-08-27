@@ -1,7 +1,7 @@
 import { InjectionToken } from '@angular/core';
 import { defer, delay, Observable, of, throwError } from 'rxjs';
 import { environment } from '../../../../environments/environment';
-import { Page, PageQuery, SortDirection } from '../../models';
+import { PAGE_SIZES, Page, PageQuery, SortDirection } from '../../models';
 import { ApiError, ProblemDetails } from '../../http/problem';
 
 /** Затримка мок-відповідей; у тестах перекривається на 0. */
@@ -60,8 +60,26 @@ export function sortItems<T extends Record<string, unknown>>(
   return sorted;
 }
 
+/**
+ * BranchCriteria::ALLOWED_PER_PAGE — бекенд приймає лише 20/50/100,
+ * решту відхиляє 422 VALIDATION_FAILED.
+ */
+export function isAllowedPerPage(value: number): boolean {
+  return (PAGE_SIZES as readonly number[]).includes(value);
+}
+
+export const PER_PAGE_PROBLEM: ProblemDetails = {
+  code: 'VALIDATION_FAILED',
+  title: 'Некоректні дані',
+  detail: `Розмір сторінки має бути одним із: ${PAGE_SIZES.join(', ')}`,
+};
+
 /** Серверна пагінація (UI-01). */
-export function paginate<T>(items: readonly T[], query: PageQuery): Page<T> {
+export function paginate<T>(
+  items: readonly T[],
+  query: PageQuery,
+  emptyMessage: string | null = null,
+): Page<T> {
   const pageSize = query.pageSize > 0 ? query.pageSize : 20;
   const pages = Math.max(1, Math.ceil(items.length / pageSize));
   const page = Math.min(Math.max(1, query.page), pages);
@@ -71,6 +89,7 @@ export function paginate<T>(items: readonly T[], query: PageQuery): Page<T> {
     total: items.length,
     page,
     pageSize,
+    emptyMessage: items.length === 0 ? emptyMessage : null,
   };
 }
 

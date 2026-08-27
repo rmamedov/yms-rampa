@@ -5,33 +5,28 @@ import {
   Page,
   PageQuery,
   Supplier,
-  SupplierDriver,
   SupplierStatus,
-  SupplierUser,
-  Vehicle,
 } from '../../models';
-import {
-  SupplierDraft,
-  SupplierFilter,
-  SuppliersApi,
-  SupplierUserDraft,
-} from '../suppliers.api';
+import { SupplierDraft, SupplierFilter, SuppliersApi } from '../suppliers.api';
 import { MockDb } from './mock-db';
 import {
-  compareValues,
   fail,
   MOCK_LATENCY,
   normalize,
-  paginate,
   respond,
-  sortItems,
 } from './mock-support';
 
+const MAX_LIMIT = 200;
+
+/**
+ * Мок partner-service. Список працює на limit/offset — так само,
+ * як AdminSupplierController: сортування бекенд не приймає.
+ */
 export function matchesSupplierFilter(
   supplier: Supplier,
   filter: SupplierFilter,
 ): boolean {
-  if (filter.statuses.length > 0 && !filter.statuses.includes(supplier.status)) {
+  if (filter.status !== null && supplier.status !== filter.status) {
     return false;
   }
   const search = normalize(filter.search);
@@ -40,8 +35,7 @@ export function matchesSupplierFilter(
   }
   return (
     normalize(supplier.name).includes(search) ||
-    supplier.edrpou.startsWith(search) ||
-    normalize(supplier.contactPerson).includes(search)
+    normalize(supplier.edrpou ?? '').includes(search)
   );
 }
 
@@ -52,90 +46,140 @@ export class MockSuppliersApi extends SuppliersApi {
 
   list(filter: SupplierFilter, query: PageQuery): Observable<Page<Supplier>> {
     return respond(() => {
-      const filtered = this.db.state.suppliers.filter((s) =>
+      const matched = this.db.state.suppliers.filter((s) =>
         matchesSupplierFilter(s, filter),
       );
-      const sorted = sortItems(
-        filtered as unknown as Array<Record<string, unknown>>,
-        query.sort ?? 'name',
-        query.direction ?? 'asc',
-        (a, b) => compareValues(a['name'], b['name']),
-      ) as unknown as Supplier[];
-      return paginate(sorted, query);
+      const limit = Math.max(1, Math.min(MAX_LIMIT, query.pageSize));
+      const offset = Math.max(0, (query.page - 1) * limit);
+      return {
+        items: copy(matched.slice(offset, offset + limit)),
+        total: matched.length,
+        page: query.page,
+        pageSize: limit,
+      };
     }, this.latency);
   }
 
   all(): Observable<readonly Supplier[]> {
-    return respond(() => [...this.db.state.suppliers], this.latency);
+    return respond(
+      () => copy(this.db.state.suppliers.slice(0, MAX_LIMIT)),
+      this.latency,
+    );
   }
 
   get(id: string): Observable<Supplier> {
     const supplier = this.db.state.suppliers.find((s) => s.id === id);
     if (!supplier) {
-      return fail(404, { code: 'RESOURCE_NOT_FOUND' }, this.latency);
+      return fail(404, { code: 'SUPPLIER_NOT_FOUND' }, this.latency);
     }
-    return respond(() => ({ ...supplier }), this.latency);
+    return respond(() => copy(supplier), this.latency);
   }
 
-  save(draft: SupplierDraft): Observable<Supplier> {
-    const nameTaken = this.db.state.suppliers.some(
-      (s) => s.id !== draft.id && normalize(s.name) === normalize(draft.name),
-    );
-    if (nameTaken) {
+  create(draft: SupplierDraft): Observable<Supplier> {
+    if (draft.name.trim() === '') {
       return fail(
         422,
-        { detail: 'Постачальник з такою назвою вже існує' },
-        this.latency,
-      );
-    }
-    const edrpouTaken = this.db.state.suppliers.some(
-      (s) => s.id !== draft.id && s.edrpou === draft.edrpou,
-    );
-    if (edrpouTaken) {
-      return fail(
-        422,
-        { detail: 'Постачальник з таким кодом ЄДРПОУ вже існує' },
+        { code: 'SUPPLIER_NAME_REQUIRED', detail: 'Вкажіть назву постачальника.' },
         this.latency,
       );
     }
     return respond(() => {
-      if (draft.id) {
-        const index = this.db.state.suppliers.findIndex((s) => s.id === draft.id);
-        const updated: Supplier = {
-          ...this.db.state.suppliers[index],
-          ...draft,
-          id: draft.id,
-        };
-        this.db.state.suppliers[index] = updated;
-        return { ...updated };
-      }
-      const created: Supplier = {
-        ...draft,
+      const supplier: Supplier = {
         id: this.db.nextId('sup'),
-        bookingsCount: 0,
+        name: draft.name.trim(),
+        edrpou: draft.edrpou,
+        status: 'active',
+        statusLabel: 'Активний',
+        storeAccess: {
+          allStores: draft.allStores,
+          storeIds: draft.allStores ? [] : [...draft.storeIds],
+        },
+        contacts: draft.contacts.map((c) => ({ ...c })),
+        suspendedAt: null,
+        suspendReason: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
-      this.db.state.suppliers = [created, ...this.db.state.suppliers];
-      return { ...created };
+      this.db.state.suppliers = [supplier, ...this.db.state.suppliers];
+      return copy(supplier);
     }, this.latency);
   }
 
-  /** SUP-06: постачальника з історією бронювань видалити не можна. */
+  update(id: string, draft: SupplierDraft): Observable<Supplier> {
+    const index = this.db.state.suppliers.findIndex((s) => s.id === id);
+    if (index < 0) {
+      return fail(404, { code: 'SUPPLIER_NOT_FOUND' }, this.latency);
+    }
+    return respond(() => {
+      const current = this.db.state.suppliers[index];
+      const updated: Supplier = {
+        ...current,
+        name: draft.name.trim(),
+        edrpou: draft.edrpou,
+        storeAccess: {
+          allStores: draft.allStores,
+          storeIds: draft.allStores ? [] : [...draft.storeIds],
+        },
+        contacts: draft.contacts.map((c) => ({ ...c })),
+        updatedAt: new Date().toISOString(),
+      };
+      this.db.state.suppliers[index] = updated;
+      return copy(updated);
+    }, this.latency);
+  }
+
+  /** SUP-02: призупинення блокує логіни постачальника й водіїв. */
+  suspend(id: string, reason: string | null): Observable<Supplier> {
+    return this.setStatus(id, 'suspended', reason);
+  }
+
+  activate(id: string): Observable<Supplier> {
+    return this.setStatus(id, 'active', null);
+  }
+
+  private setStatus(
+    id: string,
+    status: SupplierStatus,
+    reason: string | null,
+  ): Observable<Supplier> {
+    const index = this.db.state.suppliers.findIndex((s) => s.id === id);
+    if (index < 0) {
+      return fail(404, { code: 'SUPPLIER_NOT_FOUND' }, this.latency);
+    }
+    return respond(() => {
+      const updated: Supplier = {
+        ...this.db.state.suppliers[index],
+        status,
+        statusLabel: status === 'active' ? 'Активний' : 'Призупинений',
+        suspendedAt: status === 'suspended' ? new Date().toISOString() : null,
+        suspendReason: status === 'suspended' ? reason : null,
+        updatedAt: new Date().toISOString(),
+      };
+      this.db.state.suppliers[index] = updated;
+      return copy(updated);
+    }, this.latency);
+  }
+
+  /** SUP-06: видалення можливе лише за відсутності бронювань. */
   remove(id: string): Observable<void> {
-    const supplier = this.db.state.suppliers.find((s) => s.id === id);
-    if (!supplier) {
-      return fail(404, { code: 'RESOURCE_NOT_FOUND' }, this.latency);
+    const index = this.db.state.suppliers.findIndex((s) => s.id === id);
+    if (index < 0) {
+      return fail(404, { code: 'SUPPLIER_NOT_FOUND' }, this.latency);
     }
     const hasBookings = this.db.state.bookings.some((b) => b.supplierId === id);
-    if (hasBookings || supplier.bookingsCount > 0) {
+    if (hasBookings) {
       return fail(
         409,
-        { detail: 'Постачальника з історією бронювань не можна видалити' },
+        {
+          code: 'SUPPLIER_HAS_BOOKINGS',
+          detail: 'Постачальника не можна видалити: є бронювання.',
+        },
         this.latency,
       );
     }
     return respond(() => {
       this.db.state.suppliers = this.db.state.suppliers.filter((s) => s.id !== id);
-      return undefined as void;
+      return undefined;
     }, this.latency);
   }
 
@@ -148,76 +192,23 @@ export class MockSuppliersApi extends SuppliersApi {
         ids.map((id) => {
           const index = this.db.state.suppliers.findIndex((s) => s.id === id);
           if (index < 0) {
-            return { id, label: id, ok: false, message: 'error.RESOURCE_NOT_FOUND' };
+            return { id, label: id, ok: false, message: 'Постачальника не знайдено' };
           }
-          const supplier = this.db.state.suppliers[index];
-          this.db.state.suppliers[index] = { ...supplier, status };
-          return { id, label: supplier.name, ok: true };
+          const current = this.db.state.suppliers[index];
+          this.db.state.suppliers[index] = {
+            ...current,
+            status,
+            statusLabel: status === 'active' ? 'Активний' : 'Призупинений',
+            suspendedAt: status === 'suspended' ? new Date().toISOString() : null,
+            updatedAt: new Date().toISOString(),
+          };
+          return { id, label: current.name, ok: true };
         }),
       this.latency,
     );
   }
+}
 
-  users(supplierId: string): Observable<readonly SupplierUser[]> {
-    return respond(
-      () => this.db.state.supplierUsers.filter((u) => u.supplierId === supplierId),
-      this.latency,
-    );
-  }
-
-  saveUser(draft: SupplierUserDraft): Observable<SupplierUser> {
-    const emailTaken = this.db.state.supplierUsers.some(
-      (u) => u.id !== draft.id && normalize(u.email) === normalize(draft.email),
-    );
-    if (emailTaken) {
-      return fail(
-        422,
-        { detail: 'Користувач з таким e-mail вже існує' },
-        this.latency,
-      );
-    }
-    return respond(() => {
-      if (draft.id) {
-        const index = this.db.state.supplierUsers.findIndex((u) => u.id === draft.id);
-        const updated: SupplierUser = { ...draft, id: draft.id };
-        this.db.state.supplierUsers[index] = updated;
-        return { ...updated };
-      }
-      const created: SupplierUser = { ...draft, id: this.db.nextId('supu') };
-      this.db.state.supplierUsers = [...this.db.state.supplierUsers, created];
-      return { ...created };
-    }, this.latency);
-  }
-
-  resetUserPassword(userId: string): Observable<void> {
-    const exists = this.db.state.supplierUsers.some((u) => u.id === userId);
-    if (!exists) {
-      return fail(404, { code: 'RESOURCE_NOT_FOUND' }, this.latency);
-    }
-    return respond(() => undefined as void, this.latency);
-  }
-
-  vehicles(supplierId: string, search: string): Observable<readonly Vehicle[]> {
-    return respond(() => {
-      const term = normalize(search);
-      return this.db.state.vehicles.filter(
-        (v) =>
-          v.supplierId === supplierId &&
-          (term === '' || normalize(v.plate).includes(term)),
-      );
-    }, this.latency);
-  }
-
-  drivers(supplierId: string, search: string): Observable<readonly SupplierDriver[]> {
-    return respond(() => {
-      const term = normalize(search);
-      return this.db.state.drivers.filter(
-        (d) =>
-          d.supplierId === supplierId &&
-          (term === '' ||
-            normalize(d.fullName).includes(term) ||
-            d.phone.includes(search.trim())),
-      );
-    }, this.latency);
-  }
+function copy<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
 }

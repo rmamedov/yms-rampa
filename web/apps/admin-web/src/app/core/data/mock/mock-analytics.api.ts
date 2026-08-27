@@ -1,50 +1,211 @@
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
-  AnalyticsDashboard,
+  AnalyticsBreakdown,
+  AnalyticsDimension,
+  AnalyticsExportDataset,
   AnalyticsFilter,
-  Booking,
-  DelayRow,
-  NoShowRow,
-  Store,
-  SupplierDeliveryRow,
-  UnloadingTimeRow,
-  UtilizationRow,
+  AnalyticsKpi,
+  BreakdownRow,
+  KpiSummary,
 } from '../../models';
 import { AnalyticsApi } from '../analytics.api';
-import { MockDb, createRandom, DELAY_REASONS } from './mock-db';
-import { MOCK_LATENCY, respond } from './mock-support';
+import { MockBookingFact, MockDb, MockStore } from './mock-db';
+import { fail, MOCK_LATENCY, respond } from './mock-support';
 import { diffDays } from '../../utils/time.util';
 import { AuthService } from '../../auth/auth.service';
 
-/** ANL-10: фільтри застосовуються до всіх віджетів дашборда одночасно. */
+/** AnalyticsController::NO_DATA_MESSAGE (ANL-13). */
+export const NO_DATA_MESSAGE = 'Немає даних за обраний період';
+
+/** AnalyticsQueryFactory::MAX_PERIOD_DAYS. */
+export const MAX_PERIOD_DAYS = 366;
+
+/** KpiSummary::TARGET_* analytics-service. */
+export const KPI_TARGETS = {
+  utilizationPercent: 60,
+  onTimePercent: 85,
+  medianWaitingMinutes: 20,
+  noShowPercent: 5,
+} as const;
+
+function round(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function median(values: readonly number[]): number {
+  if (values.length === 0) {
+    return 0;
+  }
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
+}
+
+function average(values: readonly number[]): number {
+  return values.length === 0
+    ? 0
+    : values.reduce((sum, v) => sum + v, 0) / values.length;
+}
+
+function tally(values: readonly string[]): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const value of values) {
+    result[value] = (result[value] ?? 0) + 1;
+  }
+  return result;
+}
+
+/** Описовий рядок фільтрів — AnalyticsQuery::describe(). */
+export function describeFilter(filter: AnalyticsFilter): string {
+  const parts = [`період: ${filter.from} — ${filter.to} (UTC)`];
+  if (filter.cities.length > 0) parts.push(`міста: ${filter.cities.join('|')}`);
+  if (filter.storeIds.length > 0) parts.push(`магазини: ${filter.storeIds.join('|')}`);
+  if (filter.supplierIds.length > 0)
+    parts.push(`постачальники: ${filter.supplierIds.join('|')}`);
+  return parts.join('; ');
+}
+
 export function matchesAnalyticsFilter(
-  booking: Booking,
-  store: Store | undefined,
+  fact: MockBookingFact,
   filter: AnalyticsFilter,
 ): boolean {
-  if (!store) {
+  const date = fact.slotStart.slice(0, 10);
+  if (diffDays(filter.from, date) < 0 || diffDays(date, filter.to) < 0) {
     return false;
   }
-  if (diffDays(filter.from, booking.date) < 0) {
+  if (filter.cities.length > 0 && !filter.cities.includes(fact.city)) {
     return false;
   }
-  if (diffDays(booking.date, filter.to) < 0) {
+  if (filter.storeIds.length > 0 && !filter.storeIds.includes(fact.storeId)) {
     return false;
   }
-  if (filter.cities.length > 0 && !filter.cities.includes(store.city)) {
-    return false;
-  }
-  if (filter.storeIds.length > 0 && !filter.storeIds.includes(store.id)) {
-    return false;
-  }
-  if (
-    filter.supplierIds.length > 0 &&
-    !filter.supplierIds.includes(booking.supplierId)
-  ) {
+  if (filter.supplierIds.length > 0 && !filter.supplierIds.includes(fact.supplierId)) {
     return false;
   }
   return true;
+}
+
+/** KPI-01…KPI-04 + ANL-04 у формі KpiSummary::toArray(). */
+export function buildKpi(
+  facts: readonly MockBookingFact[],
+  availableMinutes: number,
+): KpiSummary {
+  const counted = facts.filter((f) => f.status !== 'cancelled');
+  const bookedMinutes = counted.reduce((sum, f) => sum + f.slotMinutes, 0);
+  const slotSizes = counted.map((f) => f.slotMinutes);
+  const averageSlot = average(slotSizes);
+
+  const onTimeFacts = facts.filter((f) => f.onTime !== null);
+  const onTimeCount = onTimeFacts.filter((f) => f.onTime === true).length;
+  const lateCount = onTimeFacts.filter((f) => f.onTime === false).length;
+
+  const waiting = facts
+    .map((f) => f.waitingMinutes)
+    .filter((v): v is number => v !== null);
+  const unloading = facts
+    .map((f) => f.unloadingMinutes)
+    .filter((v): v is number => v !== null);
+
+  const noShowCount = facts.filter((f) => f.status === 'no_show').length;
+  const cancelled = facts.filter((f) => f.status === 'cancelled').length;
+  const noShowTotal = facts.length - cancelled;
+
+  return {
+    kpi01_rampUtilization: {
+      bookedMinutes: round(bookedMinutes),
+      availableMinutes: round(availableMinutes),
+      utilizationPercent:
+        availableMinutes === 0 ? 0 : round((bookedMinutes / availableMinutes) * 100),
+      slotsCounted: counted.length,
+    },
+    kpi02_onTimeDelivery: {
+      onTimeCount,
+      totalCount: onTimeFacts.length,
+      onTimePercent:
+        onTimeFacts.length === 0
+          ? 0
+          : round((onTimeCount / onTimeFacts.length) * 100),
+      earlyCount: 0,
+      lateCount,
+      withoutArrivalCount: facts.length - onTimeFacts.length,
+    },
+    kpi03_waitingTime: {
+      averageMinutes: round(average(waiting)),
+      medianMinutes: round(median(waiting)),
+      sampleSize: waiting.length,
+    },
+    kpi04_noShowRate: {
+      noShowCount,
+      totalCount: noShowTotal,
+      noShowPercent: noShowTotal === 0 ? 0 : round((noShowCount / noShowTotal) * 100),
+      cancelledExcluded: cancelled,
+    },
+    anl04_unloadingTime: {
+      averageMinutes: round(average(unloading)),
+      medianMinutes: round(median(unloading)),
+      sampleSize: unloading.length,
+      averageSlotMinutes: round(averageSlot),
+    },
+    counters: {
+      total: facts.length,
+      byStatus: tally(facts.map((f) => f.status)),
+      byType: tally(facts.map((f) => f.type)),
+      byRejectionReason: tally(
+        facts.map((f) => f.rejectedReason).filter((v): v is string => v !== null),
+      ),
+      byDelayReason: tally(
+        facts.map((f) => f.delayReason).filter((v): v is string => v !== null),
+      ),
+      delayedCount: facts.filter((f) => f.delayed).length,
+      partialUnloadCount: facts.filter(
+        (f) => f.status === 'completed' && f.unloadedPalletsCount < f.palletsCount,
+      ).length,
+      plannedPallets: facts.reduce((sum, f) => sum + f.palletsCount, 0),
+      unloadedPallets: facts.reduce((sum, f) => sum + f.unloadedPalletsCount, 0),
+    },
+    targets: { ...KPI_TARGETS },
+  };
+}
+
+const DIMENSION_LABELS: Readonly<Record<AnalyticsDimension, string>> = {
+  network: 'Мережа',
+  city: 'Місто',
+  store: 'Магазин',
+  ramp: 'Рампа',
+  supplier: 'Постачальник',
+  day: 'День',
+  week: 'Тиждень',
+  month: 'Місяць',
+  type: 'Тип бронювання',
+  rejection_reason: 'Причина відмови',
+};
+
+function dimensionKey(fact: MockBookingFact, dimension: AnalyticsDimension): string {
+  switch (dimension) {
+    case 'network':
+      return 'network';
+    case 'city':
+      return fact.city;
+    case 'store':
+      return fact.storeId;
+    case 'ramp':
+      return `${fact.storeId}:${fact.rampId}`;
+    case 'supplier':
+      return fact.supplierId;
+    case 'day':
+      return fact.slotStart.slice(0, 10);
+    case 'week':
+      return fact.slotStart.slice(0, 7);
+    case 'month':
+      return fact.slotStart.slice(0, 7);
+    case 'type':
+      return fact.type;
+    case 'rejection_reason':
+      return fact.rejectedReason ?? 'none';
+  }
 }
 
 @Injectable()
@@ -63,188 +224,239 @@ export class MockAnalyticsApi extends AnalyticsApi {
       : null;
   }
 
-  dashboard(filter: AnalyticsFilter): Observable<AnalyticsDashboard> {
-    return respond(() => {
-      const allowed = this.allowedStoreIds();
-      const storeById = new Map(this.db.state.stores.map((s) => [s.id, s]));
-      const bookings = this.db.state.bookings.filter(
-        (b) =>
-          (allowed === null || allowed.includes(b.storeId)) &&
-          matchesAnalyticsFilter(b, storeById.get(b.storeId), filter),
-      );
+  private periodProblem(filter: AnalyticsFilter): { code: string; detail: string } | null {
+    if (!filter.from || !filter.to) {
       return {
-        recalculatedAt: new Date(Date.now() - 25_000).toISOString(),
-        utilization: buildUtilization(bookings, storeById),
-        deliveries: buildDeliveries(bookings),
-        noShow: buildNoShow(bookings, storeById),
-        unloading: buildUnloading(bookings, storeById),
-        delays: buildDelays(bookings, storeById),
+        code: 'ANALYTICS_INVALID_PERIOD',
+        detail: 'Не вказано період: потрібні параметри from і to (або preset).',
       };
+    }
+    const days = diffDays(filter.from, filter.to);
+    if (days < 0) {
+      return {
+        code: 'ANALYTICS_INVALID_PERIOD',
+        detail: 'Початок періоду не може бути пізнішим за кінець.',
+      };
+    }
+    if (days + 1 > MAX_PERIOD_DAYS) {
+      return {
+        code: 'ANALYTICS_PERIOD_TOO_LONG',
+        detail: `Період задовгий: ${days + 1} діб, максимум ${MAX_PERIOD_DAYS}.`,
+      };
+    }
+    return null;
+  }
+
+  private facts(filter: AnalyticsFilter): readonly MockBookingFact[] {
+    const allowed = this.allowedStoreIds();
+    return this.db.state.bookings.filter(
+      (f) =>
+        (allowed === null || allowed.includes(f.storeId)) &&
+        matchesAnalyticsFilter(f, filter),
+    );
+  }
+
+  /** Доступні хвилини сітки — з чинних конфігурацій магазинів у вибірці. */
+  private availableMinutes(
+    filter: AnalyticsFilter,
+    storeIds: readonly string[],
+  ): number {
+    const days = Math.max(1, diffDays(filter.from, filter.to) + 1);
+    let total = 0;
+    for (const id of storeIds) {
+      const store: MockStore | undefined = this.db.store(id);
+      const config = store?.configurations[store.configurations.length - 1];
+      if (!config) {
+        continue;
+      }
+      const weekly = config.receivingWindows.reduce(
+        (sum, w) =>
+          sum +
+          w.intervals.reduce(
+            (acc, i) => acc + minutesOf(i.to) - minutesOf(i.from),
+            0,
+          ),
+        0,
+      );
+      const ramps = Math.max(1, config.ramps.filter((r) => r.enabled).length);
+      total += (weekly / 7) * days * ramps;
+    }
+    return Math.round(total);
+  }
+
+  kpi(filter: AnalyticsFilter): Observable<AnalyticsKpi> {
+    const problem = this.periodProblem(filter);
+    if (problem) {
+      return fail(422, problem, this.latency);
+    }
+    return respond(() => {
+      const facts = this.facts(filter);
+      const storeIds = [...new Set(facts.map((f) => f.storeId))];
+      const kpi = buildKpi(facts, this.availableMinutes(filter, storeIds));
+      return {
+        filters: describeFilter(filter),
+        kpi,
+        recalculatedAt: new Date(Date.now() - 25_000).toISOString(),
+        empty: facts.length === 0,
+        message: facts.length === 0 ? NO_DATA_MESSAGE : null,
+      };
+    }, this.latency);
+  }
+
+  breakdown(
+    filter: AnalyticsFilter,
+    dimension: AnalyticsDimension,
+  ): Observable<AnalyticsBreakdown> {
+    const problem = this.periodProblem(filter);
+    if (problem) {
+      return fail(422, problem, this.latency);
+    }
+    return respond(() => {
+      const facts = this.facts(filter);
+      const grouped = new Map<string, MockBookingFact[]>();
+      for (const fact of facts) {
+        const key = dimensionKey(fact, dimension);
+        const list = grouped.get(key) ?? [];
+        list.push(fact);
+        grouped.set(key, list);
+      }
+      const rows: BreakdownRow[] = [...grouped.entries()]
+        .map(([key, list]) => ({
+          dimension,
+          key,
+          kpi: buildKpi(
+            list,
+            this.availableMinutes(filter, [
+              ...new Set(list.map((f) => f.storeId)),
+            ]),
+          ),
+        }))
+        .sort((a, b) => b.kpi.counters.total - a.kpi.counters.total);
+      return {
+        filters: describeFilter(filter),
+        dimension,
+        dimensionLabel: DIMENSION_LABELS[dimension],
+        rows,
+        recalculatedAt: new Date(Date.now() - 25_000).toISOString(),
+        empty: rows.length === 0,
+        message: rows.length === 0 ? NO_DATA_MESSAGE : null,
+      };
+    }, this.latency);
+  }
+
+  /** ANL-11: CSV з рядком фільтрів попереду — як AnalyticsCsvView. */
+  exportCsv(
+    filter: AnalyticsFilter,
+    dataset: AnalyticsExportDataset,
+    dimension: AnalyticsDimension,
+  ): Observable<string> {
+    const problem = this.periodProblem(filter);
+    if (problem) {
+      return fail(422, problem, this.latency);
+    }
+    return respond(() => {
+      const facts = this.facts(filter);
+      if (dataset === 'bookings') {
+        return csv(
+          describeFilter(filter),
+          [
+            'bookingId',
+            'Магазин',
+            'Місто',
+            'Постачальник',
+            'Рампа',
+            'Початок слоту (UTC)',
+            'Кінець слоту (UTC)',
+            'Тип',
+            'Статус',
+            'Очікування, хв',
+            'Розвантаження, хв',
+            'Палет заплановано',
+            'Палет розвантажено',
+            'Затримка',
+          ],
+          facts.map((f) => [
+            f.bookingId,
+            f.storeId,
+            f.city,
+            f.supplierId,
+            f.rampId,
+            f.slotStart,
+            f.slotEnd,
+            f.type,
+            f.status,
+            f.waitingMinutes,
+            f.unloadingMinutes,
+            f.palletsCount,
+            f.unloadedPalletsCount,
+            f.delayed,
+          ]),
+        );
+      }
+      const grouped = new Map<string, MockBookingFact[]>();
+      for (const fact of facts) {
+        const key = dimensionKey(fact, dimension);
+        const list = grouped.get(key) ?? [];
+        list.push(fact);
+        grouped.set(key, list);
+      }
+      return csv(
+        describeFilter(filter),
+        [
+          'Розріз',
+          'Ключ',
+          'Бронювань',
+          'KPI-01 утилізація, %',
+          'KPI-02 у слот, %',
+          'KPI-03 очікування медіана, хв',
+          'KPI-04 no-show, %',
+        ],
+        [...grouped.entries()].map(([key, list]) => {
+          const kpi = buildKpi(
+            list,
+            this.availableMinutes(filter, [...new Set(list.map((f) => f.storeId))]),
+          );
+          return [
+            DIMENSION_LABELS[dimension],
+            key,
+            kpi.counters.total,
+            kpi.kpi01_rampUtilization.utilizationPercent,
+            kpi.kpi02_onTimeDelivery.onTimePercent,
+            kpi.kpi03_waitingTime.medianMinutes,
+            kpi.kpi04_noShowRate.noShowPercent,
+          ];
+        }),
+      );
     }, this.latency);
   }
 }
 
-/** KPI-01: утилізація = заброньовані хвилини / доступні хвилини сітки. */
-function buildUtilization(
-  bookings: readonly Booking[],
-  storeById: ReadonlyMap<string, Store>,
-): UtilizationRow[] {
-  const grouped = new Map<string, Booking[]>();
-  for (const booking of bookings) {
-    const list = grouped.get(booking.storeId) ?? [];
-    list.push(booking);
-    grouped.set(booking.storeId, list);
-  }
-  const rows: UtilizationRow[] = [];
-  for (const [storeId, list] of grouped) {
-    const store = storeById.get(storeId);
-    if (!store || store.slotSizeMinutes === null) {
-      continue;
-    }
-    const enabledRamps = Math.max(1, store.ramps.filter((r) => r.enabled).length);
-    const dailyMinutes = store.receivingWindows.reduce(
-      (sum, w) =>
-        sum +
-        w.intervals.reduce(
-          (acc, i) => acc + minutes(i.to) - minutes(i.from),
-          0,
-        ),
-      0,
-    );
-    const days = new Set(list.map((b) => b.date)).size || 1;
-    const available = Math.max(
-      store.slotSizeMinutes,
-      Math.round((dailyMinutes / 7) * days * enabledRamps),
-    );
-    const booked = list.filter((b) => b.status !== 'cancelled').length *
-      store.slotSizeMinutes;
-    rows.push({
-      storeId,
-      storeName: store.displayName,
-      city: store.city,
-      bookedSlotMinutes: booked,
-      availableSlotMinutes: available,
-      utilization: Math.min(1, Math.round((booked / available) * 1000) / 1000),
-    });
-  }
-  return rows.sort((a, b) => b.utilization - a.utilization).slice(0, 25);
-}
-
-function buildDeliveries(bookings: readonly Booking[]): SupplierDeliveryRow[] {
-  const grouped = new Map<string, { name: string; rows: Booking[] }>();
-  for (const booking of bookings) {
-    const entry = grouped.get(booking.supplierId) ?? {
-      name: booking.supplierName,
-      rows: [],
-    };
-    entry.rows.push(booking);
-    grouped.set(booking.supplierId, entry);
-  }
-  return [...grouped.entries()]
-    .map(([supplierId, entry]) => ({
-      supplierId,
-      supplierName: entry.name,
-      booked: entry.rows.filter((b) => b.status === 'booked').length,
-      completed: entry.rows.filter((b) => b.status === 'completed').length,
-      cancelled: entry.rows.filter((b) => b.status === 'cancelled').length,
-      noShow: entry.rows.filter((b) => b.status === 'no_show').length,
-    }))
-    .sort(
-      (a, b) =>
-        b.booked + b.completed - (a.booked + a.completed) ||
-        a.supplierName.localeCompare(b.supplierName, 'uk'),
-    )
-    .slice(0, 15);
-}
-
-function buildNoShow(
-  bookings: readonly Booking[],
-  storeById: ReadonlyMap<string, Store>,
-): NoShowRow[] {
-  const grouped = new Map<string, Booking[]>();
-  for (const booking of bookings) {
-    const key = `${booking.supplierId}|${booking.storeId}`;
-    const list = grouped.get(key) ?? [];
-    list.push(booking);
-    grouped.set(key, list);
-  }
-  return [...grouped.entries()]
-    .map(([key, list]) => {
-      const [supplierId, storeId] = key.split('|');
-      const noShow = list.filter((b) => b.status === 'no_show').length;
-      return {
-        supplierId,
-        supplierName: list[0].supplierName,
-        storeName: storeById.get(storeId)?.displayName ?? storeId,
-        noShow,
-        total: list.length,
-        share: list.length === 0 ? 0 : Math.round((noShow / list.length) * 1000) / 1000,
-      };
-    })
-    .filter((row) => row.noShow > 0)
-    .sort((a, b) => b.share - a.share)
-    .slice(0, 20);
-}
-
-function buildUnloading(
-  bookings: readonly Booking[],
-  storeById: ReadonlyMap<string, Store>,
-): UnloadingTimeRow[] {
-  const rnd = createRandom(4242);
-  const grouped = new Map<string, number>();
-  for (const booking of bookings) {
-    if (booking.status !== 'completed') {
-      continue;
-    }
-    grouped.set(booking.storeId, (grouped.get(booking.storeId) ?? 0) + 1);
-  }
-  return [...grouped.keys()]
-    .map((storeId) => {
-      const store = storeById.get(storeId);
-      const slot = store?.slotSizeMinutes ?? 30;
-      const avg = Math.round(slot * (0.6 + rnd() * 0.8));
-      return {
-        storeId,
-        storeName: store?.displayName ?? storeId,
-        avgMinutes: avg,
-        medianMinutes: Math.max(5, avg - Math.round(rnd() * 6)),
-        slotSizeMinutes: slot,
-      };
-    })
-    .sort((a, b) => b.avgMinutes - a.avgMinutes)
-    .slice(0, 20);
-}
-
-function buildDelays(
-  bookings: readonly Booking[],
-  storeById: ReadonlyMap<string, Store>,
-): DelayRow[] {
-  const rnd = createRandom(777);
-  const rows: DelayRow[] = [];
-  const grouped = new Map<string, Booking[]>();
-  for (const booking of bookings) {
-    const key = `${booking.storeId}|${booking.supplierId}`;
-    const list = grouped.get(key) ?? [];
-    list.push(booking);
-    grouped.set(key, list);
-  }
-  for (const [key, list] of grouped) {
-    const [storeId] = key.split('|');
-    const delayed = Math.floor(rnd() * Math.max(1, list.length));
-    if (delayed === 0) {
-      continue;
-    }
-    rows.push({
-      storeName: storeById.get(storeId)?.displayName ?? storeId,
-      supplierName: list[0].supplierName,
-      delayed,
-      reason: DELAY_REASONS[Math.floor(rnd() * DELAY_REASONS.length)],
-    });
-  }
-  return rows.sort((a, b) => b.delayed - a.delayed).slice(0, 20);
-}
-
-function minutes(time: string): number {
+function minutesOf(time: string): number {
   const [h, m] = time.split(':');
   return Number(h) * 60 + Number(m);
+}
+
+function csvCell(value: unknown): string {
+  const text =
+    value === null || value === undefined
+      ? ''
+      : typeof value === 'boolean'
+        ? value
+          ? 'так'
+          : 'ні'
+        : String(value);
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function csv(
+  filtersLine: string,
+  headers: readonly string[],
+  rows: ReadonlyArray<readonly unknown[]>,
+): string {
+  const lines = [
+    csvCell(`Фільтри: ${filtersLine}`),
+    headers.map(csvCell).join(','),
+    ...rows.map((row) => row.map(csvCell).join(',')),
+  ];
+  return `${lines.join('\n')}\n`;
 }

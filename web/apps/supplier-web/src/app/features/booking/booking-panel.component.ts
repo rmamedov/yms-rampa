@@ -9,18 +9,26 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { Observable, map, of, switchMap } from 'rxjs';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { BookingApi, VehicleApi } from '../../core/api/contracts';
 import { ERROR_CODES, toProblem } from '../../core/api/problem';
 import type {
   Booking,
   BranchDetail,
+  CreateBookingRequest,
+  HoldSession,
+  SlotKey,
   Vehicle,
   VehicleInput,
 } from '../../core/models/models';
-import type { HoldSession } from '../../core/models/models';
-import { canExtendHold } from '../../core/util/hold';
-import { formatCountdown, kyivDayLabel, kyivDateIso, kyivTimeHm } from '../../core/util/kyiv-time';
+import { canExtendHold, holdServerNow } from '../../core/util/hold';
+import {
+  formatCountdown,
+  kyivDayLabel,
+  kyivDateIso,
+  kyivTimeHm,
+} from '../../core/util/kyiv-time';
 import { filterVehicles } from '../../core/util/search';
 import {
   isStandardPlate,
@@ -208,7 +216,7 @@ export class BookingPanelComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     const hold = this.hold();
-    this.clockSkewMs = Date.now() - new Date(hold.now).getTime();
+    this.clockSkewMs = Date.now() - holdServerNow(hold).getTime();
     this.tick();
     this.timer = setInterval(() => this.tick(), 1000);
     this.heartbeatTimer = setInterval(() => this.heartbeat(), HEARTBEAT_MS);
@@ -217,9 +225,13 @@ export class BookingPanelComponent implements OnInit, OnDestroy {
     this.vehiclesApi.list().subscribe({
       next: (list) => {
         this.vehicles.set(list);
+        // Знімок авто в бронюванні зберігає лише держномер (DATA-13),
+        // тому авто для перенесення шукаємо саме за ним.
         const source = this.transfer.source();
-        if (!this.selectedVehicleId() && source?.vehicle.vehicleId) {
-          const match = list.find((v) => v.id === source.vehicle.vehicleId);
+        if (!this.selectedVehicleId() && source) {
+          const match = list.find(
+            (v) => v.plateNumber === source.vehicle.plateNumber,
+          );
           if (match) {
             this.selectedVehicleId.set(match.id);
           }
@@ -260,6 +272,14 @@ export class BookingPanelComponent implements OnInit, OnDestroy {
     };
   }
 
+  private slotKey(hold: HoldSession): SlotKey {
+    return {
+      storeId: hold.storeId,
+      rampId: hold.rampId,
+      slotStart: hold.slotStart,
+    };
+  }
+
   /** SUP-BOOK-01: зворотний таймер життя hold. */
   private tick(): void {
     const current = this.holdOverride() ?? this.hold();
@@ -277,12 +297,15 @@ export class BookingPanelComponent implements OnInit, OnDestroy {
   /** HOLD-02: продовження при активності, але не далі holdMaxMinutes. */
   protected heartbeat(): void {
     const hold = this.holdOverride() ?? this.hold();
-    if (this.expired() || !canExtendHold(hold, new Date(Date.now() - this.clockSkewMs))) {
+    if (
+      this.expired() ||
+      !canExtendHold(hold, new Date(Date.now() - this.clockSkewMs))
+    ) {
       return;
     }
-    this.bookingApi.heartbeat(hold.holdToken).subscribe({
+    this.bookingApi.extendHold(this.slotKey(hold), hold.holdToken).subscribe({
       next: (updated) => {
-        this.clockSkewMs = Date.now() - new Date(updated.now).getTime();
+        this.clockSkewMs = Date.now() - holdServerNow(updated).getTime();
         this.holdOverride.set(updated);
         this.tick();
       },
@@ -314,21 +337,27 @@ export class BookingPanelComponent implements OnInit, OnDestroy {
     const source = this.transfer.source();
     const hold = this.holdOverride() ?? this.hold();
 
-    this.bookingApi
-      .create({
-        storeId: hold.storeId,
-        rampId: hold.rampId,
-        slotStart: hold.slotStart,
-        holdToken: hold.holdToken,
-        vehicleId: this.addingVehicle()
-          ? undefined
-          : (this.selectedVehicleId() ?? undefined),
-        newVehicle: this.addingVehicle() ? this.newVehicleInput() : undefined,
-        orderId: this.orderId().trim() || undefined,
-        palletsCount: this.pallets() ?? 0,
-        confirmConflict: withConflict,
-        transferFromBookingId: source?.id,
-      })
+    // booking-service приймає СНІМОК авто; довідник машин живе в
+    // partner-service, тому нове авто спершу заводимо там.
+    this.resolveVehicle()
+      .pipe(
+        switchMap((vehicle) => {
+          const request: CreateBookingRequest = {
+            storeId: hold.storeId,
+            rampId: hold.rampId,
+            slotStart: hold.slotStart,
+            holdToken: hold.holdToken,
+            vehicle,
+            orderId: this.orderId().trim() || undefined,
+            palletsCount: this.pallets() ?? 0,
+            driverId: source?.driverId ?? undefined,
+            confirmConflict: withConflict,
+          };
+          return source
+            ? this.bookingApi.reschedule(source.id, request)
+            : this.bookingApi.create(request);
+        }),
+      )
       .subscribe({
         next: (booking) => {
           this.submitting.set(false);
@@ -354,6 +383,7 @@ export class BookingPanelComponent implements OnInit, OnDestroy {
               this.conflicted.emit();
               return;
             case ERROR_CODES.holdExpired:
+            case ERROR_CODES.holdNotOwned:
               this.expired.set(true);
               this.stopTimers();
               this.toasts.error(this.toasts.messageFor(problem));
@@ -363,6 +393,25 @@ export class BookingPanelComponent implements OnInit, OnDestroy {
           }
         },
       });
+  }
+
+  /** Обране авто з довідника або щойно створене. */
+  private resolveVehicle(): Observable<VehicleInput> {
+    if (!this.addingVehicle()) {
+      const selected = this.selectedVehicle();
+      return of({
+        plateNumber: selected?.plateNumber ?? '',
+        weightTons: selected?.weightTons ?? 0,
+        brand: selected?.brand ?? undefined,
+      });
+    }
+    return this.vehiclesApi.create(this.newVehicleInput()).pipe(
+      map((vehicle) => ({
+        plateNumber: vehicle.plateNumber,
+        weightTons: vehicle.weightTons,
+        brand: vehicle.brand ?? undefined,
+      })),
+    );
   }
 
   protected close(): void {
@@ -387,7 +436,7 @@ export class BookingPanelComponent implements OnInit, OnDestroy {
     if (!this.confirmed && !this.expired()) {
       const hold = this.holdOverride() ?? this.hold();
       this.bookingApi
-        .release(hold.holdToken)
+        .releaseHold(this.slotKey(hold), hold.holdToken)
         .subscribe({ error: () => undefined });
     }
   }

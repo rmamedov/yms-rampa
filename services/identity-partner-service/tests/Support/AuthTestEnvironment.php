@@ -7,6 +7,7 @@ namespace App\Tests\Support;
 use App\Domain\Account\Contour;
 use App\Domain\Account\PartnerAccount;
 use App\Domain\Account\PartnerRole;
+use App\Domain\Auth\AccessTokenIntrospector;
 use App\Domain\Auth\AuthenticationService;
 use App\Domain\Auth\SessionFactory;
 use App\Domain\Auth\SessionService;
@@ -19,6 +20,7 @@ use App\Domain\Security\SecretGenerator;
 use App\Domain\Security\SupplierPasswordPolicy;
 use App\Domain\Session\LoginThrottle;
 use App\Infrastructure\InMemory\FixedClock;
+use App\Infrastructure\InMemory\InMemoryAccessTokenDenylist;
 use App\Infrastructure\InMemory\InMemoryLoginAttemptRepository;
 use App\Infrastructure\InMemory\InMemoryPartnerAccountRepository;
 use App\Infrastructure\InMemory\InMemoryRefreshTokenRepository;
@@ -55,6 +57,8 @@ final class AuthTestEnvironment
     public AuthenticationService $authentication;
     public SessionService $sessions;
     public PartnerAccountProvisioner $provisioner;
+    public InMemoryAccessTokenDenylist $denylist;
+    public AccessTokenIntrospector $introspector;
 
     public function __construct(string $now = '2026-08-27T09:00:00+00:00')
     {
@@ -103,6 +107,15 @@ final class AuthTestEnvironment
             sessions: $this->sessionFactory,
             secrets: $this->secrets,
             clock: $this->clock,
+        );
+
+        $this->denylist = new InMemoryAccessTokenDenylist($this->clock);
+
+        // Перевірка токена для api-gateway (GET /internal/v1/auth/verify).
+        $this->introspector = new AccessTokenIntrospector(
+            tokens: $this->codec,
+            denylist: $this->denylist,
+            accounts: $this->accounts,
         );
 
         $this->provisioner = new PartnerAccountProvisioner(

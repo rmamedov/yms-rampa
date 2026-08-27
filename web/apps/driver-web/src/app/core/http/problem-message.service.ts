@@ -10,24 +10,28 @@ import { I18nService } from '../i18n/i18n.service';
 export class ProblemMessageService {
   private readonly i18n = inject(I18nService);
 
+  /**
+   * Лише коди, які реально можуть прийти у контурі водія:
+   * identity-partner-service (AuthException::errorCode) і booking-service
+   * (DomainProblem::errorCode) на маршруті route-sheet. Коди контуру
+   * постачальника (SLOT_*, VEHICLE_TOO_HEAVY тощо) сюди не долітають.
+   */
   private readonly byCode: Record<string, string> = {
     AUTH_INVALID_CREDENTIALS: 'login.error.invalidCredentials',
     AUTH_ACCOUNT_DISABLED: 'login.error.accountDisabled',
     AUTH_ACCOUNT_LOCKED: 'login.error.accountLocked',
-    AUTH_RATE_LIMITED: 'login.error.rateLimited',
     AUTH_ROLE_NOT_ALLOWED: 'login.error.notDriver',
+    PARTNER_LOGIN_INVALID: 'login.error.phoneInvalid',
     AUTH_TOKEN_INVALID: 'session.expired',
+    AUTH_TOKEN_EXPIRED: 'session.expired',
     AUTH_REFRESH_REUSED: 'session.expired',
     NETWORK_UNAVAILABLE: 'login.error.network',
-    BOOKING_ALREADY_ARRIVED: 'arrive.alreadyArrived',
-    BOOKING_CANCELLED: 'arrive.cancelled',
-    ARRIVAL_WINDOW_NOT_OPEN: 'arrive.windowClosed',
-    DELAY_ETA_IN_PAST: 'delay.error.etaPast',
-    SLOT_ALREADY_BOOKED: 'error.slotAlreadyBooked',
-    SLOT_HELD: 'error.slotHeld',
-    VEHICLE_TOO_HEAVY: 'error.vehicleTooHeavy',
-    DATE_OUT_OF_HORIZON: 'error.dateOutOfHorizon',
-    BOOKING_LIMIT_EXCEEDED: 'error.bookingLimitExceeded',
+    ACCESS_DENIED: 'error.accessDenied',
+    NOT_FOUND: 'error.notFound',
+    ROUTE_NOT_FOUND: 'error.notFound',
+    BOOKING_NOT_FOUND: 'error.notFound',
+    UPSTREAM_UNAVAILABLE: 'error.upstreamUnavailable',
+    INTERNAL_ERROR: 'error.generic',
   };
 
   /** Текст помилки для показу водієві. */

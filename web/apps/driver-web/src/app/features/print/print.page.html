@@ -1,4 +1,4 @@
-@if (sheet(); as data) {
+@if (sheet()) {
   <article class="sheet">
     <button type="button" class="print-btn no-print" (click)="print()">
       {{ 'print.print' | t }}
@@ -7,19 +7,9 @@
     <h1 class="heading">{{ 'print.title' | t }}</h1>
 
     <dl class="head">
-      <div><dt>{{ 'print.supplier' | t }}</dt><dd>{{ data.supplierName }}</dd></div>
       <div><dt>{{ 'print.date' | t }}</dt><dd>{{ displayDate() }}</dd></div>
-      <div>
-        <dt>{{ 'print.driver' | t }}</dt>
-        <dd>{{ data.driverName }}, {{ driverPhone() }}</dd>
-      </div>
-      <div>
-        <dt>{{ 'print.vehicle' | t }}</dt>
-        <dd>
-          {{ data.vehicle.plate }}, {{ data.vehicle.model }},
-          {{ data.vehicle.capacityTons }} т
-        </dd>
-      </div>
+      <div><dt>{{ 'print.driver' | t }}</dt><dd>{{ driverPhone() }}</dd></div>
+      <div><dt>{{ 'print.vehicle' | t }}</dt><dd>{{ plateNumbers() }}</dd></div>
     </dl>
 
     <div class="table-wrap">
@@ -39,7 +29,7 @@
         @for (row of rows(); track $index) {
           <tr>
             <td>{{ row.time }}</td>
-            <td>{{ row.externalId }}</td>
+            <td>{{ row.storeName }}</td>
             <td>{{ row.city }}</td>
             <td>{{ row.address }}</td>
             <td>{{ row.ramp }}</td>
@@ -58,7 +48,7 @@
 
     <footer class="foot">
       <span>{{ 'print.generatedAt' | t }}: {{ generatedAt }}</span>
-      <span>{{ 'print.code' | t }}: {{ data.routeSheetId }}</span>
+      <span>{{ 'print.code' | t }}: {{ sheetCode() }}</span>
       <span class="warn">{{ 'print.warning' | t }}</span>
     </footer>
   </article>

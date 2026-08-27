@@ -1,36 +1,44 @@
 import { inject, Injectable } from '@angular/core';
 import { Observable, tap } from 'rxjs';
-import { Page, PageQuery, SyncRun } from '../../models';
+import { PageSize, SyncLog, SyncLogEntry, SyncReport } from '../../models';
 import { SyncApi } from '../sync.api';
-import { MockDb } from './mock-db';
-import { fail, MOCK_LATENCY, paginate, respond } from './mock-support';
+import {
+  MockDb,
+  SYNC_STATUS_LABELS,
+  SYNC_TRIGGER_LABELS,
+} from './mock-db';
+import { fail, MOCK_LATENCY, respond } from './mock-support';
+import { AuthService } from '../../auth/auth.service';
 
 @Injectable()
 export class MockSyncApi extends SyncApi {
   private readonly db = inject(MockDb);
+  private readonly auth = inject(AuthService);
   private readonly latency = inject(MOCK_LATENCY);
 
-  list(query: PageQuery): Observable<Page<SyncRun>> {
+  /** SYNC-01: журнал запусків із серверною пагінацією. */
+  log(page: number, perPage: PageSize): Observable<SyncLog> {
     return respond(() => {
-      const sorted = [...this.db.state.syncRuns].sort((a, b) =>
-        query.direction === 'asc'
-          ? a.startedAt.localeCompare(b.startedAt)
-          : b.startedAt.localeCompare(a.startedAt),
+      const sorted = [...this.db.state.syncLog].sort((a, b) =>
+        b.startedAt.localeCompare(a.startedAt),
       );
-      return paginate(sorted, query);
+      const safePage = Math.max(1, page);
+      const size = Math.max(1, Math.min(100, perPage));
+      const offset = (safePage - 1) * size;
+      const lastSuccessful = sorted.find((e) => e.status === 'success');
+      return {
+        items: sorted.slice(offset, offset + size),
+        total: sorted.length,
+        page: safePage,
+        perPage: size,
+        lastSuccessfulAt: lastSuccessful?.finishedAt ?? null,
+        running: this.db.state.syncRunning,
+      };
     }, this.latency);
   }
 
-  get(id: string): Observable<SyncRun> {
-    const run = this.db.state.syncRuns.find((r) => r.id === id);
-    if (!run) {
-      return fail(404, { code: 'RESOURCE_NOT_FOUND' }, this.latency);
-    }
-    return respond(() => run, this.latency);
-  }
-
   /** SYNC-02: повторний запуск під час активної синхронізації заборонений. */
-  run(initiatedBy: string): Observable<SyncRun> {
+  run(): Observable<SyncReport> {
     if (this.db.state.syncRunning) {
       return fail(
         409,
@@ -40,49 +48,48 @@ export class MockSyncApi extends SyncApi {
     }
     return respond(() => {
       const startedAt = new Date();
-      const stores = this.db.state.stores;
-      const changed = stores.slice(2, 5).map((s) => ({
-        externalId: s.externalId,
-        city: s.city,
-        changes: [
-          { field: 'address', oldValue: s.address, newValue: `${s.address}` },
-          { field: 'open', oldValue: String(!s.open), newValue: String(s.open) },
-        ],
-      }));
-      const run: SyncRun = {
-        id: this.db.nextId('sync'),
-        startedAt: startedAt.toISOString(),
-        finishedAt: new Date(startedAt.getTime() + 38_000).toISOString(),
-        durationMs: 38_000,
-        type: 'manual',
-        initiatedBy,
+      const finishedAt = new Date(startedAt.getTime() + 38_000);
+      const report: SyncReport = {
         status: 'success',
-        error: null,
-        newCount: 1,
-        changedCount: changed.length,
-        missingCount: 1,
-        diff: {
-          created: [
-            {
-              externalId: '9001',
-              city: 'Київ',
-              address: 'вул. Нова, 1 (нова філія MCP)',
-            },
-          ],
-          changed,
-          missing: [
-            {
-              externalId: stores[7]?.externalId ?? '0000',
-              city: stores[7]?.city ?? 'Київ',
-              address: stores[7]?.address ?? '',
-              missingSyncCount: 1,
-              hasFutureBookings: true,
-            },
-          ],
-        },
+        trigger: 'manual',
+        initiator: this.auth.user()?.id ?? null,
+        startedAt: startedAt.toISOString(),
+        finishedAt: finishedAt.toISOString(),
+        durationSeconds: 38,
+        fetched: 1204,
+        skipped: 3,
+        created: 1,
+        updated: 4,
+        missing: 1,
+        archived: 0,
+        conflicts: 0,
+        ineligible: 12,
+        eligible: 1192,
+        ineligibleByReason: { branch_closed: 9, no_configuration: 3 },
+        errors: [],
       };
-      this.db.state.syncRuns = [run, ...this.db.state.syncRuns];
-      return run;
+      const entry: SyncLogEntry = {
+        id: this.db.nextId('sync'),
+        status: report.status,
+        statusLabel: SYNC_STATUS_LABELS[report.status],
+        trigger: report.trigger,
+        triggerLabel: SYNC_TRIGGER_LABELS[report.trigger],
+        initiator: report.initiator,
+        source: 'mcp',
+        startedAt: report.startedAt,
+        finishedAt: report.finishedAt,
+        durationSeconds: report.durationSeconds,
+        fetched: report.fetched,
+        created: report.created,
+        updated: report.updated,
+        missing: report.missing,
+        archived: report.archived,
+        conflicts: report.conflicts,
+        skipped: report.skipped,
+        errors: [],
+      };
+      this.db.state.syncLog = [entry, ...this.db.state.syncLog];
+      return report;
     }, this.latency).pipe(
       tap({
         subscribe: () => {

@@ -32,24 +32,33 @@ final readonly class SupplierCatalogService
     /**
      * Список міст, у яких є видимі постачальнику магазини.
      *
+     * @param list<string>|null $allowedStoreIds whitelist магазинів (SUP-03), див. stores()
+     *
      * @return list<array{city: string, storeCount: int}>
      */
-    public function cities(): array
+    public function cities(?array $allowedStoreIds = null): array
     {
-        return $this->branches->cities($this->visibilityCriteria());
+        return $this->branches->cities($this->visibilityCriteria($allowedStoreIds));
     }
 
     /**
-     * @param list<string>|null $allowedStoreIds whitelist магазинів постачальника (SUP-03);
-     *                                           null = режим «всі магазини»
+     * @param list<string>|null $allowedStoreIds whitelist магазинів постачальника (SUP-03):
+     *                                           null — заголовок X-Store-Ids для партнерського
+     *                                           контуру порожній «бо не застосовно», скоуп задає
+     *                                           supplierId (RBAC-14) і видимість магазину
+     *                                           (STC-04 / DATA-08); перелік — додаткове ЗВУЖЕННЯ
+     *                                           вибірки, ніколи не розширення
      *
      * @return array<string, mixed>
      */
     public function stores(?string $city = null, ?array $allowedStoreIds = null, int $page = 1, int $perPage = 100): array
     {
+        // RBAC-17: whitelist — предикат запиту до сховища, а не пост-фільтрація
+        // сторінки в памʼяті (інакше total і пагінація брешуть).
         $criteria = new BranchCriteria(
             cities: null === $city || '' === trim($city) ? [] : [$city],
             statuses: [YmsStatus::Active],
+            scopedStoreIds: $allowedStoreIds,
             visibleToSuppliers: true,
             eligibleOnly: true,
             page: max(1, $page),
@@ -62,10 +71,6 @@ final readonly class SupplierCatalogService
         $items = [];
 
         foreach ($result->items as $branch) {
-            if (null !== $allowedStoreIds && !\in_array($branch->id(), $allowedStoreIds, true)) {
-                continue;
-            }
-
             $items[] = BranchPresenter::supplierView(
                 $branch,
                 $this->configurations->findEffectiveAt($branch->id(), $now),
@@ -74,7 +79,7 @@ final readonly class SupplierCatalogService
 
         return [
             'items' => $items,
-            'total' => null === $allowedStoreIds ? $result->total : \count($items),
+            'total' => $result->total,
             'page' => $result->page,
             'perPage' => $result->perPage,
         ];
@@ -117,10 +122,14 @@ final readonly class SupplierCatalogService
             && $branch->isEligible();
     }
 
-    private function visibilityCriteria(): BranchCriteria
+    /**
+     * @param list<string>|null $allowedStoreIds
+     */
+    private function visibilityCriteria(?array $allowedStoreIds = null): BranchCriteria
     {
         return new BranchCriteria(
             statuses: [YmsStatus::Active],
+            scopedStoreIds: $allowedStoreIds,
             visibleToSuppliers: true,
             eligibleOnly: true,
         );

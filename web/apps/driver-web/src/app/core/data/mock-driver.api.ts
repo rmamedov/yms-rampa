@@ -1,16 +1,11 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, defer, delay, of, throwError } from 'rxjs';
 import { DriverApi } from './driver.api';
+import { toDayRouteSheet } from './route-sheet.mapper';
 import { MockBackend } from '../mock/mock-backend';
 import { NetworkService } from '../offline/network.service';
 import { ApiProblemError } from '../models/problem.model';
-import type {
-  ArrivePayload,
-  AvailableDate,
-  DelayPayload,
-  RoutePoint,
-  RouteSheet,
-} from '../models/route-sheet.model';
+import type { DayRouteSheet } from '../models/route-sheet.model';
 
 /** Штучна затримка мережі, щоб стани завантаження були видимі. */
 const LATENCY_MS = 180;
@@ -20,24 +15,9 @@ export class MockDriverApi extends DriverApi {
   private readonly backend = inject(MockBackend);
   private readonly network = inject(NetworkService);
 
-  override availableDates(): Observable<readonly AvailableDate[]> {
-    return this.wrap(() => this.backend.availableDates());
-  }
-
-  override routeSheet(date: string): Observable<RouteSheet | null> {
-    return this.wrap(() => this.backend.routeSheet(date));
-  }
-
-  override setOrderId(bookingId: string, orderId: string): Observable<RoutePoint> {
-    return this.wrap(() => this.backend.setOrderId(bookingId, orderId));
-  }
-
-  override arrive(bookingId: string, payload: ArrivePayload): Observable<RoutePoint> {
-    return this.wrap(() => this.backend.arrive(bookingId, payload));
-  }
-
-  override setDelay(bookingId: string, payload: DelayPayload): Observable<RoutePoint> {
-    return this.wrap(() => this.backend.setDelay(bookingId, payload));
+  override routeSheet(date: string): Observable<DayRouteSheet | null> {
+    // Той самий мапінг конверта, що й у HttpDriverApi — форма даних однакова.
+    return this.wrap(() => toDayRouteSheet(this.backend.routeSheet(date)));
   }
 
   private wrap<T>(fn: () => T): Observable<T> {

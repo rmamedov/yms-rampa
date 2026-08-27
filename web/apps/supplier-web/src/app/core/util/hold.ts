@@ -20,25 +20,38 @@ export function isHoldExpired(
 }
 
 /**
- * Продовження холду при активності: TTL знову 5 хв, але не далі за maxUntil
+ * Продовження холду при активності: TTL знову 5 хв, але не далі за maxExpiresAt
  * (сумарний максимум життя однієї hold — holdMaxMinutes).
  */
 export function extendedExpiry(
   now: Date,
-  maxUntil: Date,
+  maxExpiresAt: Date,
   ttlMinutes: number = HOLD_TTL_MINUTES,
 ): Date {
   const candidate = new Date(now.getTime() + ttlMinutes * 60000);
-  return candidate.getTime() > maxUntil.getTime() ? maxUntil : candidate;
+  return candidate.getTime() > maxExpiresAt.getTime() ? maxExpiresAt : candidate;
 }
 
 /** Чи має сенс надсилати heartbeat: hold живий і межа ще не досягнута. */
 export function canExtendHold(
-  hold: Pick<HoldSession, 'expiresAt' | 'maxUntil'>,
+  hold: Pick<HoldSession, 'expiresAt' | 'maxExpiresAt'>,
   now: Date,
 ): boolean {
   if (isHoldExpired(hold, now)) {
     return false;
   }
-  return new Date(hold.maxUntil).getTime() > new Date(hold.expiresAt).getTime();
+  return (
+    new Date(hold.maxExpiresAt).getTime() > new Date(hold.expiresAt).getTime()
+  );
+}
+
+/**
+ * Серверний момент відповіді: бекенд не віддає `now`, але віддає
+ * `secondsLeft` разом із `expiresAt` — цього досить, щоб зняти розбіжність
+ * годинників клієнта та сервера (GRID-05).
+ */
+export function holdServerNow(
+  hold: Pick<HoldSession, 'expiresAt' | 'secondsLeft'>,
+): Date {
+  return new Date(new Date(hold.expiresAt).getTime() - hold.secondsLeft * 1000);
 }

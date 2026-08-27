@@ -8,6 +8,10 @@ export type QueryParams = Readonly<
   Record<string, string | number | boolean | readonly string[] | null | undefined>
 >;
 
+/**
+ * Списки бекенд приймає і як повторювані параметри, і як перелік через кому
+ * (AnalyticsQueryFactory::list, StoreCatalogService::listParam) — шлемо через кому.
+ */
 function toHttpParams(params?: QueryParams): HttpParams {
   let httpParams = new HttpParams();
   if (!params) {
@@ -30,7 +34,7 @@ function toHttpParams(params?: QueryParams): HttpParams {
 
 /**
  * Обгортка над HttpClient для контуру /api/admin/v1/...
- * Усі помилки нормалізуються в ApiError (RFC 7807).
+ * Усі помилки нормалізуються в ApiError (RFC 7807 application/problem+json).
  */
 @Injectable({ providedIn: 'root' })
 export class ApiClient {
@@ -44,6 +48,13 @@ export class ApiClient {
   get<T>(path: string, params?: QueryParams): Observable<T> {
     return this.http
       .get<T>(this.url(path), { params: toHttpParams(params) })
+      .pipe(catchError((e: unknown) => throwError(() => parseProblem(e))));
+  }
+
+  /** ANL-11: /analytics/export.csv віддає text/csv, а не JSON. */
+  getText(path: string, params?: QueryParams): Observable<string> {
+    return this.http
+      .get(this.url(path), { params: toHttpParams(params), responseType: 'text' })
       .pipe(catchError((e: unknown) => throwError(() => parseProblem(e))));
   }
 

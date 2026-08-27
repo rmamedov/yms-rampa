@@ -118,17 +118,20 @@ export class WalkInDialogComponent implements OnInit {
     const option = this.selectedOption();
     if (!option) return;
 
-    const payload: WalkInPayload = {
-      supplierId: this.useExternal() ? null : this.supplierId(),
-      externalSupplierName: this.useExternal()
-        ? this.externalName().trim()
-        : null,
-      plateNumber: this.plate().trim(),
-      weightTons: this.weight() as number,
-      palletsCount: this.pallets() as number,
-      orderId: this.orderId().trim() || null,
+    // Тіло POST /api/store/v1/bookings/walk-in: авто йде вкладеним обʼєктом
+    // `vehicle`, а назва постачальника «поза системою» — полем `supplierName`.
+    const payload: Omit<WalkInPayload, 'storeId'> = {
       rampId: option.rampId,
       slotStart: option.slotStart,
+      vehicle: {
+        plateNumber: this.plate().trim(),
+        weightTons: this.weight() as number,
+        brand: null,
+      },
+      palletsCount: this.pallets() as number,
+      supplierId: this.useExternal() ? null : this.supplierId(),
+      supplierName: this.useExternal() ? this.externalName().trim() : null,
+      orderId: this.orderId().trim() || null,
     };
     this.store.createWalkIn(payload, () => this.closed.emit());
   }

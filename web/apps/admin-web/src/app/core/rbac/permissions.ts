@@ -141,31 +141,27 @@ export const ROLES_REQUIRING_STORES: readonly StaffRole[] = [
   'store_operator',
 ];
 
-export type SectionId =
-  | 'stores'
-  | 'suppliers'
-  | 'staff'
-  | 'sync'
-  | 'analytics'
-  | 'audit';
+/**
+ * Розділи admin-web, які реально має бекенд контуру /api/admin/v1.
+ * Розділів «Staff-користувачі» і «Журнал аудиту» тут немає: маршрутів
+ * ні для CRUD staff-акаунтів, ні для аудит-логу бекенд не надає
+ * (див. problems у звіті — заявка на бекенд).
+ */
+export type SectionId = 'stores' | 'suppliers' | 'sync' | 'analytics';
 
 /** Розділ admin-web → право, що відкриває його (ADM-02). */
 export const SECTION_PERMISSION: Readonly<Record<SectionId, Permission>> = {
   stores: 'store.read',
   suppliers: 'supplier.read',
-  staff: 'users.manage.staff',
   sync: 'store.sync.manage',
   analytics: 'analytics.view',
-  audit: 'audit.read',
 };
 
 export const SECTION_ORDER: readonly SectionId[] = [
   'stores',
   'suppliers',
-  'staff',
   'sync',
   'analytics',
-  'audit',
 ];
 
 export function isStaffRole(role: AnyRole): role is StaffRole {

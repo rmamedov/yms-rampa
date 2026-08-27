@@ -10,6 +10,7 @@ export const STATUS_TONE: Record<BookingStatus, string> = {
   completed: 'success',
   cancelled: 'danger',
   no_show: 'danger',
+  rejected: 'danger',
 };
 
 @Component({

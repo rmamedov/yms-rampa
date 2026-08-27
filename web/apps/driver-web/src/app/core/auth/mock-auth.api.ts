@@ -21,10 +21,15 @@ export class MockAuthApi extends AuthApi {
         request.phone === MOCK_NON_DRIVER_CREDENTIALS.phone &&
         request.password === MOCK_NON_DRIVER_CREDENTIALS.password
       ) {
-        // Роль, відмінна від driver (DRV-10).
-        return of(this.issue({ ...MOCK_DRIVER, role: 'supplier_admin' })).pipe(
-          delay(250),
-        );
+        // Роль, відмінна від driver (DRV-10): у постачальника driverId порожній.
+        return of(
+          this.issue({
+            ...MOCK_DRIVER,
+            role: 'supplier_admin',
+            login: MOCK_NON_DRIVER_CREDENTIALS.phone,
+            driverId: null,
+          }),
+        ).pipe(delay(250));
       }
       if (
         request.phone !== MOCK_CREDENTIALS.phone ||
@@ -33,6 +38,9 @@ export class MockAuthApi extends AuthApi {
         return throwError(
           () =>
             new ApiProblemError(401, {
+              type: 'about:blank',
+              title: 'Помилка автентифікації',
+              status: 401,
               code: 'AUTH_INVALID_CREDENTIALS',
               detail: 'Невірний телефон або пароль',
             }),
@@ -48,6 +56,9 @@ export class MockAuthApi extends AuthApi {
         return throwError(
           () =>
             new ApiProblemError(401, {
+              type: 'about:blank',
+              title: 'Помилка автентифікації',
+              status: 401,
               code: 'AUTH_TOKEN_INVALID',
               detail: 'Сесія завершилась',
             }),

@@ -1,22 +1,31 @@
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 import { AnalyticsApi } from '../analytics.api';
-import { MockAnalyticsApi, matchesAnalyticsFilter } from './mock-analytics.api';
+import {
+  KPI_TARGETS,
+  MockAnalyticsApi,
+  NO_DATA_MESSAGE,
+  describeFilter,
+  matchesAnalyticsFilter,
+} from './mock-analytics.api';
 import { MockDb } from './mock-db';
 import { MOCK_LATENCY } from './mock-support';
+import { AnalyticsFilter } from '../../models';
 import { AuthApi } from '../auth.api';
 import { MockAuthApi } from './mock-auth.api';
 import { AuthService } from '../../auth/auth.service';
-import { AnalyticsFilter, Booking, Store } from '../../models';
 import { addDays, kyivDate } from '../../utils/time.util';
 
-const WIDE: AnalyticsFilter = {
-  from: addDays(kyivDate(), -60),
-  to: addDays(kyivDate(), 60),
-  cities: [],
-  storeIds: [],
-  supplierIds: [],
-};
+function filter(overrides: Partial<AnalyticsFilter> = {}): AnalyticsFilter {
+  return {
+    from: addDays(kyivDate(), -29),
+    to: addDays(kyivDate(), 29),
+    cities: [],
+    storeIds: [],
+    supplierIds: [],
+    ...overrides,
+  };
+}
 
 describe('MockAnalyticsApi — дашборди (5.7)', () => {
   let api: AnalyticsApi;
@@ -42,33 +51,58 @@ describe('MockAnalyticsApi — дашборди (5.7)', () => {
 
   afterEach(() => localStorage.clear());
 
-  it('ANL-14: дашборд повертає мітку recalculatedAt', async () => {
-    const data = await firstValueFrom(api.dashboard(WIDE));
-    expect(new Date(data.recalculatedAt).getTime()).toBeLessThanOrEqual(Date.now());
-    expect(Date.now() - new Date(data.recalculatedAt).getTime()).toBeLessThan(60_000);
+  it('ANL-14: відповідь несе мітку recalculatedAt і рядок фільтрів', async () => {
+    const result = await firstValueFrom(api.kpi(filter()));
+    expect(result.recalculatedAt).toBeTruthy();
+    expect(result.filters).toContain('період:');
   });
 
-  it('ANL-01/02: утилізація і поставки рахуються по всій мережі', async () => {
-    const data = await firstValueFrom(api.dashboard(WIDE));
-    expect(data.utilization.length).toBeGreaterThan(0);
-    expect(data.deliveries.length).toBeGreaterThan(0);
-    expect(data.utilization.every((r) => r.utilization >= 0 && r.utilization <= 1)).toBe(
-      true,
+  it('KPI-01…KPI-04 віддаються у формі KpiSummary бекенду', async () => {
+    const result = await firstValueFrom(api.kpi(filter()));
+    expect(result.kpi.kpi01_rampUtilization).toEqual(
+      expect.objectContaining({
+        bookedMinutes: expect.any(Number),
+        availableMinutes: expect.any(Number),
+        utilizationPercent: expect.any(Number),
+        slotsCounted: expect.any(Number),
+      }),
     );
+    expect(result.kpi.kpi02_onTimeDelivery.onTimePercent).toBeGreaterThanOrEqual(0);
+    expect(result.kpi.kpi03_waitingTime.sampleSize).toBeGreaterThanOrEqual(0);
+    expect(result.kpi.kpi04_noShowRate.totalCount).toBeGreaterThanOrEqual(0);
+    expect(result.kpi.anl04_unloadingTime.averageSlotMinutes).toBeGreaterThanOrEqual(0);
+    expect(result.kpi.targets).toEqual(KPI_TARGETS);
   });
 
-  it('ANL-10: фільтр за містом застосовується до всіх віджетів', async () => {
-    const data = await firstValueFrom(api.dashboard({ ...WIDE, cities: ['Київ'] }));
-    expect(data.utilization.every((r) => r.city === 'Київ')).toBe(true);
+  it('ANL-10: фільтр за містом звужує вибірку', async () => {
+    const city = db.state.bookings[0].city;
+    const result = await firstValueFrom(api.breakdown(filter({ cities: [city] }), 'city'));
+    expect(result.rows.every((r) => r.key === city)).toBe(true);
   });
 
-  it('ANL-13: період без даних дає порожні набори, а не помилку', async () => {
-    const data = await firstValueFrom(
-      api.dashboard({ ...WIDE, from: '2020-01-01', to: '2020-01-02' }),
+  it('ANL-13: період без даних дає empty і текст бекенду, а не помилку', async () => {
+    const result = await firstValueFrom(
+      api.kpi(filter({ from: '2020-01-01', to: '2020-01-02' })),
     );
-    expect(data.utilization).toEqual([]);
-    expect(data.deliveries).toEqual([]);
-    expect(data.noShow).toEqual([]);
+    expect(result.empty).toBe(true);
+    expect(result.message).toBe(NO_DATA_MESSAGE);
+    expect(result.kpi.counters.total).toBe(0);
+  });
+
+  it('ANL-10: період обовʼязковий — інакше 422 ANALYTICS_INVALID_PERIOD', async () => {
+    await expect(
+      firstValueFrom(api.kpi(filter({ from: '', to: '' }))),
+    ).rejects.toMatchObject({ status: 422, code: 'ANALYTICS_INVALID_PERIOD' });
+
+    await expect(
+      firstValueFrom(api.kpi(filter({ from: '2026-08-27', to: '2026-08-01' }))),
+    ).rejects.toMatchObject({ status: 422, code: 'ANALYTICS_INVALID_PERIOD' });
+  });
+
+  it('задовгий період відхиляється ANALYTICS_PERIOD_TOO_LONG', async () => {
+    await expect(
+      firstValueFrom(api.kpi(filter({ from: '2024-01-01', to: '2026-01-01' }))),
+    ).rejects.toMatchObject({ status: 422, code: 'ANALYTICS_PERIOD_TOO_LONG' });
   });
 
   it('ANL-12: для store_manager дані обмежені його магазинами', async () => {
@@ -76,9 +110,9 @@ describe('MockAnalyticsApi — дашборди (5.7)', () => {
     const session = await firstValueFrom(
       auth.login('store.manager@silpo.ua', 'demo'),
     );
-    const data = await firstValueFrom(api.dashboard(WIDE));
+    const result = await firstValueFrom(api.breakdown(filter(), 'store'));
     expect(
-      data.utilization.every((r) => session.user.storeIds.includes(r.storeId)),
+      result.rows.every((r) => session.user.storeIds.includes(r.key)),
     ).toBe(true);
   });
 
@@ -88,50 +122,48 @@ describe('MockAnalyticsApi — дашборди (5.7)', () => {
       auth.login('store.manager@silpo.ua', 'demo'),
     );
     const outside = db.state.stores.find(
-      (s) => !session.user.storeIds.includes(s.id),
+      (s) => !session.user.storeIds.includes(s.card.id),
     )!;
-    const data = await firstValueFrom(
-      api.dashboard({ ...WIDE, storeIds: [outside.id] }),
+    const result = await firstValueFrom(
+      api.breakdown(filter({ storeIds: [outside.card.id] }), 'store'),
     );
-    expect(data.utilization).toEqual([]);
+    expect(result.rows).toEqual([]);
+    expect(result.empty).toBe(true);
+  });
+
+  it('ANL-11: CSV починається рядком фільтрів', async () => {
+    const csv = await firstValueFrom(api.exportCsv(filter(), 'bookings', 'store'));
+    expect(csv.split('\n')[0]).toContain('Фільтри:');
+    expect(csv.split('\n')[1]).toContain('bookingId');
   });
 });
 
 describe('matchesAnalyticsFilter', () => {
-  const store = { id: 'st-1', city: 'Київ' } as Store;
-  const booking = {
-    storeId: 'st-1',
-    supplierId: 'sup-1',
-    date: '2026-08-15',
-  } as Booking;
+  const db = new MockDb();
+  const fact = db.state.bookings[0];
 
   it('відсікає бронювання поза періодом', () => {
     expect(
-      matchesAnalyticsFilter(booking, store, {
-        ...WIDE,
-        from: '2026-08-01',
-        to: '2026-08-31',
-      }),
-    ).toBe(true);
-    expect(
-      matchesAnalyticsFilter(booking, store, {
-        ...WIDE,
-        from: '2026-08-16',
-        to: '2026-08-31',
-      }),
+      matchesAnalyticsFilter(fact, filter({ from: '2020-01-01', to: '2020-01-02' })),
     ).toBe(false);
   });
 
   it('відсікає за містом і постачальником', () => {
+    expect(matchesAnalyticsFilter(fact, filter({ cities: ['Ніде'] }))).toBe(false);
+    expect(matchesAnalyticsFilter(fact, filter({ supplierIds: ['sup-нема'] }))).toBe(
+      false,
+    );
     expect(
-      matchesAnalyticsFilter(booking, store, { ...WIDE, cities: ['Львів'] }),
-    ).toBe(false);
-    expect(
-      matchesAnalyticsFilter(booking, store, { ...WIDE, supplierIds: ['sup-9'] }),
-    ).toBe(false);
+      matchesAnalyticsFilter(
+        fact,
+        filter({ cities: [fact.city], supplierIds: [fact.supplierId] }),
+      ),
+    ).toBe(true);
   });
 
-  it('невідомий магазин не потрапляє у вибірку', () => {
-    expect(matchesAnalyticsFilter(booking, undefined, WIDE)).toBe(false);
+  it('describeFilter повторює AnalyticsQuery::describe()', () => {
+    expect(describeFilter(filter({ cities: ['Київ', 'Львів'] }))).toContain(
+      'міста: Київ|Львів',
+    );
   });
 });

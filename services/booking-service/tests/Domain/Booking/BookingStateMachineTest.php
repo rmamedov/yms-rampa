@@ -63,7 +63,7 @@ final class BookingStateMachineTest extends TestCase
     public function testStoreOperatorMarksArrived(): void
     {
         $booking = BookingFactory::scheduled();
-        $booking->markArrived(new Actor('su-1', Role::StoreOperator, storeId: Scenario::STORE_ID), Scenario::kyiv('2026-08-28 09:55'));
+        $booking->markArrived(new Actor('su-1', Role::StoreOperator, storeIds: [Scenario::STORE_ID]), Scenario::kyiv('2026-08-28 09:55'));
 
         self::assertSame(BookingStatus::Arrived, $booking->status());
     }
@@ -354,7 +354,7 @@ final class BookingStateMachineTest extends TestCase
 
     private function storeActor(): Actor
     {
-        return new Actor('su-1', Role::StoreManager, storeId: Scenario::STORE_ID);
+        return new Actor('su-1', Role::StoreManager, storeIds: [Scenario::STORE_ID]);
     }
 
     private function unloading(): \App\Domain\Booking\Booking

@@ -108,3 +108,66 @@ export function formatDuration(ms: number): string {
   const seconds = totalSeconds % 60;
   return minutes > 0 ? `${minutes} хв ${seconds} с` : `${seconds} с`;
 }
+
+/** Зсув Europe/Kyiv у хвилинах для конкретного моменту (враховує DST). */
+export function kyivOffsetMinutes(at: Date): number {
+  const name =
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: KYIV_TZ,
+      timeZoneName: 'longOffset',
+    })
+      .formatToParts(at)
+      .find((part) => part.type === 'timeZoneName')?.value ?? 'GMT+00:00';
+  const match = /GMT([+-])(\d{2}):(\d{2})/.exec(name);
+  if (!match) {
+    return 0;
+  }
+  const sign = match[1] === '-' ? -1 : 1;
+  return sign * (Number(match[2]) * 60 + Number(match[3]));
+}
+
+/**
+ * Локальні дата+час магазину → UTC ISO 8601 (ADM-03).
+ * Бекенд приймає межі блокувань саме в UTC.
+ */
+export function kyivDateTimeToIso(date: string, time: string): string {
+  const asUtc = new Date(`${date}T${time}:00Z`);
+  if (Number.isNaN(asUtc.getTime())) {
+    return '';
+  }
+  return new Date(asUtc.getTime() - kyivOffsetMinutes(asUtc) * 60_000).toISOString();
+}
+
+/** UTC ISO → локальна дата магазину (YYYY-MM-DD). */
+export function isoToKyivDate(iso: string | null | undefined): string {
+  if (!iso) {
+    return '';
+  }
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? '' : kyivDate(date);
+}
+
+/** UTC ISO → локальний час магазину «гг:хв». */
+export function formatTime(iso: string | null | undefined): string {
+  if (!iso) {
+    return '—';
+  }
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return '—';
+  }
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: KYIV_TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
+}
+
+/** Секунди тривалості → «хв с» для журналу синхронізації. */
+export function formatSeconds(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined) {
+    return '—';
+  }
+  return formatDuration(Math.round(seconds * 1000));
+}

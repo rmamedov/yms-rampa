@@ -35,6 +35,13 @@ export class LoginComponent {
 
     const email = this.email().trim();
     const password = this.password();
+    if (looksLikePhone(email)) {
+      // DRV-10: бекенд не розкриває причину відмови (AUTH_INVALID_CREDENTIALS),
+      // тому підказку про застосунок водія даємо на клієнті, до запиту.
+      this.driverHint.set(true);
+      this.errorKey.set('login.driverAccount');
+      return;
+    }
     if (validateEmail(email) || !password) {
       // SUP-AUTH-02: єдине неспецифічне повідомлення.
       this.errorKey.set('login.invalid');
@@ -52,17 +59,21 @@ export class LoginComponent {
       error: (error: unknown) => {
         this.pending.set(false);
         const problem = toProblem(error);
-        if (problem.code === ERROR_CODES.tooManyAttempts) {
+        if (problem.code === ERROR_CODES.authAccountLocked) {
           this.errorKey.set('login.locked');
           return;
         }
-        if (problem.code === ERROR_CODES.driverAccount) {
-          this.driverHint.set(true);
-          this.errorKey.set('login.driverAccount');
+        if (problem.code === ERROR_CODES.authAccountDisabled) {
+          this.errorKey.set('login.disabled');
           return;
         }
         this.errorKey.set('login.invalid');
       },
     });
   }
+}
+
+/** Логін водія — телефон; кабінет постачальника приймає лише e-mail. */
+function looksLikePhone(login: string): boolean {
+  return /^\+?3?8?0\d{9}$/.test(login.replace(/[\s()-]/g, ''));
 }

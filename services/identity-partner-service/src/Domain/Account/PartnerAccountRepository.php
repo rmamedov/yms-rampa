@@ -27,6 +27,17 @@ interface PartnerAccountRepository
      */
     public function findBySupplierId(string $supplierId): array;
 
+    /**
+     * Чи активний обліковий запис — «легке» читання для перевірки токена на
+     * кожен запит (`GET /internal/v1/auth/verify`, AUTH-12, AUTH-28).
+     *
+     * Реалізація не має гідратувати весь документ (зокрема passwordHash):
+     * достатньо проєкції поля `active`, покритої індексом `{_id:1, active:1}`.
+     *
+     * @return bool|null null, якщо акаунта не існує
+     */
+    public function isActive(string $id): ?bool;
+
     /** Збереження (upsert) — унікальний індекс по `login` (DATA-35). */
     public function save(PartnerAccount $account): void;
 }

@@ -9,6 +9,7 @@ use App\Domain\Access\Role;
 use App\Domain\Booking\Exception\SlotAlreadyBookedException;
 use App\Domain\Booking\Exception\VehicleTimeConflictException;
 use App\Domain\Booking\Exception\VehicleTooHeavyException;
+use App\Domain\Exception\UpstreamUnavailableException;
 use App\Domain\Slot\DateOutOfHorizonException;
 use App\Domain\Slot\SlotKey;
 use App\Infrastructure\Http\ActorResolver;
@@ -90,6 +91,41 @@ final class ProblemResponseTest extends TestCase
         self::assertTrue($payload['warning']);
         self::assertSame('bk-1', $payload['conflicts'][0]['bookingId']);
         self::assertStringContainsString('confirmConflict=true', $payload['resolution']);
+    }
+
+    /**
+     * Недоступний сусід (store-service, partner-service) — це 503 з кодом і
+     * назвою сервісу, а не 500 «внутрішня помилка»: клієнт має розуміти, що
+     * запит має сенс повторити.
+     */
+    public function testUpstreamUnavailableIsRenderedAsServiceUnavailable(): void
+    {
+        $response = (new ProblemResponseFactory())->fromThrowable(
+            UpstreamUnavailableException::partnerService('таймаут запиту'),
+            'req-6',
+        );
+
+        $payload = $this->decode($response);
+
+        self::assertSame(503, $response->getStatusCode());
+        self::assertSame('UPSTREAM_UNAVAILABLE', $payload['code']);
+        self::assertSame('partner-service', $payload['service']);
+        self::assertSame('req-6', $payload['requestId']);
+    }
+
+    /** Відповідь сусіда не за контрактом — 502: повтор не допоможе. */
+    public function testUpstreamBadResponseIsRenderedAsBadGateway(): void
+    {
+        $response = (new ProblemResponseFactory())->fromThrowable(
+            UpstreamUnavailableException::badResponse('store-service', 'некоректний JSON'),
+            'req-7',
+        );
+
+        $payload = $this->decode($response);
+
+        self::assertSame(502, $response->getStatusCode());
+        self::assertSame('UPSTREAM_BAD_RESPONSE', $payload['code']);
+        self::assertSame('store-service', $payload['service']);
     }
 
     public function testUnexpectedErrorIsRenderedAsInternalWithoutLeakingDetails(): void

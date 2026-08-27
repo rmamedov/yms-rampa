@@ -1,0 +1,20 @@
+# Порядок імпорту в MicroKernelTrait::configureContainer такий:
+#
+#   config/packages/*.yaml → config/packages/prod/*.yaml → config/services.yaml
+#   → config/services_prod.yaml
+#
+# Тобто config/services.yaml завантажується ПІСЛЯ config/packages/prod/ і
+# затирає прод-профіль двічі: глоб `App\` перереєстровує класи src/ на чисте
+# автовайрингове визначення (гублячи явні аргументи — базові URL сусідів), а
+# аліаси портів повертають домен на заглушки (Fixture/InMemory). Тому прод-
+# профіль міжсервісних залежностей (єдине джерело правди —
+# config/packages/prod/upstream.yaml) імпортуємо ще раз, останнім: тепер на
+# HTTP-клієнти вказують саме прод-звʼязування.
+#
+# Сховища (config/packages/prod/storage.yaml) такого повтору не потребують:
+# їхні типові аліаси лежать у config/packages/storage.yaml, тобто РАНІШЕ
+# прод-профілю, і нічого не перекривають.
+#
+# Файл діє лише при APP_ENV=prod, тож dev і тести лишаються на заглушках.
+imports:
+    - { resource: packages/prod/upstream.yaml }

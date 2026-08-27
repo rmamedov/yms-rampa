@@ -1,16 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { NavigatorPreferenceService } from './navigator-preference.service';
 import { LocalStorageService, STORAGE_KEYS } from '../storage/local-storage';
-import type { StoreRef } from '../models/route-sheet.model';
+import type { RouteDestination } from '../util/deep-links';
 
-const store: StoreRef = {
-  storeId: 'st-1',
-  externalId: '1998',
-  name: 'Сільпо №1998',
+const store: RouteDestination = {
   city: 'Київ',
   address: 'просп. Володимира Івасюка, 46',
-  latitude: 50.52022,
-  longitude: 30.51452,
 };
 
 describe('NavigatorPreferenceService (DRV-22, NAV-04)', () => {
@@ -39,7 +34,9 @@ describe('NavigatorPreferenceService (DRV-22, NAV-04)', () => {
       'waze',
     );
     expect(opened).toEqual([
-      'https://waze.com/ul?ll=50.52022,30.51452&navigate=yes',
+      'https://waze.com/ul?q=' +
+        encodeURIComponent('Київ, просп. Володимира Івасюка, 46') +
+        '&navigate=yes',
     ]);
   });
 

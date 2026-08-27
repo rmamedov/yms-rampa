@@ -1,6 +1,5 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
-import { Observable, of, shareReplay, tap, throwError } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { catchError, map, Observable, of, shareReplay, tap, throwError } from 'rxjs';
 import { AuthSession, AuthTokens, Permission, StaffRole } from '../models';
 import { ADMIN_WEB_ROLES, grantFor, SectionId, SECTION_PERMISSION } from '../rbac/permissions';
 import { ApiError } from '../http/problem';
@@ -45,7 +44,22 @@ export class AuthService {
     );
   }
 
+  /**
+   * AUTH-32: сесію гасить бекенд (POST /auth/logout). Локальний стан
+   * очищується незалежно від результату — токен усе одно більше не потрібен.
+   */
   logout(): void {
+    const token = this.refreshToken();
+    if (token) {
+      this.api
+        .logout(token)
+        .pipe(catchError(() => of(undefined)))
+        .subscribe();
+    }
+    this.clearSession();
+  }
+
+  private clearSession(): void {
     this.sessionState.set(null);
     this.refreshInFlight = null;
     this.storage.clear();
@@ -76,8 +90,7 @@ export class AuthService {
         this.refreshInFlight = null;
       }),
       catchError((error: unknown) => {
-        this.refreshInFlight = null;
-        this.logout();
+        this.clearSession();
         return throwError(() => error);
       }),
       shareReplay({ bufferSize: 1, refCount: false }),

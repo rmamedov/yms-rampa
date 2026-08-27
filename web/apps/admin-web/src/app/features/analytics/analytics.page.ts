@@ -8,16 +8,18 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
-  AnalyticsDashboard,
+  ANALYTICS_DIMENSIONS,
+  AnalyticsBreakdown,
+  AnalyticsDimension,
+  AnalyticsExportDataset,
   AnalyticsFilter,
-  AnalyticsWidgetId,
+  AnalyticsKpi,
   StoreListRow,
   Supplier,
 } from '../../core/models';
 import { AnalyticsApi } from '../../core/data/analytics.api';
 import { StoresApi } from '../../core/data/stores.api';
 import { SuppliersApi } from '../../core/data/suppliers.api';
-import { AuditApi } from '../../core/data/audit.api';
 import { AuthService } from '../../core/auth/auth.service';
 import { ToastService } from '../../core/ui/toast.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
@@ -29,9 +31,14 @@ import { EmptyStateComponent } from '../../shared/ui/empty-state.component';
 import { addDays, formatDateTime, kyivDate } from '../../core/utils/time.util';
 import { csvFileName } from '../../core/utils/csv.util';
 import { downloadTextFile } from '../../core/utils/download.util';
-import { buildWidgetCsv, presetRange } from './analytics-export';
+import { AnalyticsPreset, presetRange } from './analytics-export';
 import { DEFAULT_STORE_FILTER } from '../../core/utils/query-state.util';
 
+/**
+ * Дашборд аналітики. Форма даних — рівно та, що віддає analytics-service:
+ * зведення KPI (/analytics/kpi) і розріз (/analytics/breakdown?dimension=…).
+ * Період обовʼязковий — без from/to бекенд відповідає 422.
+ */
 @Component({
   selector: 'app-analytics-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -42,7 +49,6 @@ export class AnalyticsPage {
   private readonly api = inject(AnalyticsApi);
   private readonly storesApi = inject(StoresApi);
   private readonly suppliersApi = inject(SuppliersApi);
-  private readonly auditApi = inject(AuditApi);
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly auth = inject(AuthService);
@@ -52,12 +58,15 @@ export class AnalyticsPage {
   protected readonly cities = signal<readonly string[]>([]);
   protected readonly storeIds = signal<readonly string[]>([]);
   protected readonly supplierIds = signal<readonly string[]>([]);
+  protected readonly dimension = signal<AnalyticsDimension>('store');
 
   protected readonly cityOptions = signal<readonly SelectOption[]>([]);
   protected readonly storeOptions = signal<readonly SelectOption[]>([]);
   protected readonly supplierOptions = signal<readonly SelectOption[]>([]);
+  protected readonly dimensions = ANALYTICS_DIMENSIONS;
 
-  protected readonly dashboard = signal<AnalyticsDashboard | null>(null);
+  protected readonly kpi = signal<AnalyticsKpi | null>(null);
+  protected readonly breakdown = signal<AnalyticsBreakdown | null>(null);
   protected readonly loading = signal(false);
 
   protected readonly formatDateTime = formatDateTime;
@@ -65,36 +74,26 @@ export class AnalyticsPage {
   /** ANL-12: для analyst усе read-only. */
   protected readonly readOnly = computed(() => this.auth.role() === 'analyst');
 
-  protected readonly hasData = computed(() => {
-    const data = this.dashboard();
-    if (!data) {
-      return false;
-    }
-    return (
-      data.utilization.length > 0 ||
-      data.deliveries.length > 0 ||
-      data.noShow.length > 0 ||
-      data.unloading.length > 0 ||
-      data.delays.length > 0
-    );
-  });
+  /** ANL-13: стан «Немає даних за обраний період» визначає бекенд. */
+  protected readonly hasData = computed(() => this.kpi()?.empty === false);
+  protected readonly noDataMessage = computed(() => this.kpi()?.message ?? null);
+  protected readonly recalculatedAt = computed(
+    () => this.kpi()?.recalculatedAt ?? null,
+  );
 
-  protected readonly totalBookings = computed(() =>
-    (this.dashboard()?.deliveries ?? []).reduce(
-      (sum, row) => sum + row.booked + row.completed,
-      0,
-    ),
+  protected readonly counters = computed(() => this.kpi()?.kpi.counters ?? null);
+  protected readonly targets = computed(() => this.kpi()?.kpi.targets ?? null);
+  protected readonly utilization = computed(
+    () => this.kpi()?.kpi.kpi01_rampUtilization ?? null,
   );
-  protected readonly totalNoShow = computed(() =>
-    (this.dashboard()?.deliveries ?? []).reduce((sum, row) => sum + row.noShow, 0),
+  protected readonly onTime = computed(
+    () => this.kpi()?.kpi.kpi02_onTimeDelivery ?? null,
   );
-  protected readonly avgUtilization = computed(() => {
-    const rows = this.dashboard()?.utilization ?? [];
-    if (rows.length === 0) {
-      return 0;
-    }
-    return rows.reduce((sum, r) => sum + r.utilization, 0) / rows.length;
-  });
+  protected readonly waiting = computed(() => this.kpi()?.kpi.kpi03_waitingTime ?? null);
+  protected readonly noShow = computed(() => this.kpi()?.kpi.kpi04_noShowRate ?? null);
+  protected readonly unloading = computed(
+    () => this.kpi()?.kpi.anl04_unloadingTime ?? null,
+  );
 
   constructor() {
     this.storesApi
@@ -102,7 +101,9 @@ export class AnalyticsPage {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (cities) =>
-          this.cityOptions.set(cities.map((c) => ({ value: c, label: c }))),
+          this.cityOptions.set(
+            cities.map((c) => ({ value: c.city, label: c.city })),
+          ),
         error: () => this.cityOptions.set([]),
       });
 
@@ -145,13 +146,14 @@ export class AnalyticsPage {
   }
 
   protected load(): void {
+    const filter = this.filter();
     this.loading.set(true);
     this.api
-      .dashboard(this.filter())
+      .kpi(filter)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (data) => {
-          this.dashboard.set(data);
+          this.kpi.set(data);
           this.loading.set(false);
         },
         error: (error: unknown) => {
@@ -159,42 +161,50 @@ export class AnalyticsPage {
           this.toast.error(error);
         },
       });
+
+    this.api
+      .breakdown(filter, this.dimension())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (data) => this.breakdown.set(data),
+        error: () => this.breakdown.set(null),
+      });
   }
 
-  protected applyPreset(preset: 'today' | '7d' | '30d'): void {
+  protected setDimension(event: Event): void {
+    this.dimension.set(
+      (event.target as HTMLSelectElement).value as AnalyticsDimension,
+    );
+    this.load();
+  }
+
+  protected applyPreset(preset: AnalyticsPreset): void {
     const range = presetRange(preset, kyivDate(), addDays);
     this.from.set(range.from);
     this.to.set(range.to);
     this.load();
   }
 
-  protected percent(value: number): string {
-    return `${(value * 100).toFixed(1)}%`;
+  protected percent(value: number | undefined): string {
+    return value === undefined ? '—' : `${value.toFixed(1)}%`;
   }
 
-  protected barWidth(value: number): string {
-    return `${Math.round(Math.min(1, value) * 100)}%`;
+  protected barWidth(value: number | undefined): string {
+    return `${Math.round(Math.min(100, Math.max(0, value ?? 0)))}%`;
   }
 
-  /** ANL-11: експорт поточної вибірки у CSV з рядком фільтрів. */
-  protected exportCsv(widget: AnalyticsWidgetId): void {
-    const data = this.dashboard();
-    if (!data) {
-      return;
-    }
-    const csv = buildWidgetCsv(widget, data, this.filter());
-    const name = csvFileName(`analytics-${widget}`);
-    downloadTextFile(csv, name);
-    this.toast.success('analytics.export.done', { name });
-    this.auditApi
-      .write({
-        objectType: 'analytics',
-        objectId: widget,
-        objectLabel: widget,
-        action: 'export',
-        changes: [],
-      })
+  /** ANL-11: CSV формує бекенд і віддає разом із рядком фільтрів. */
+  protected exportCsv(dataset: AnalyticsExportDataset): void {
+    this.api
+      .exportCsv(this.filter(), dataset, this.dimension())
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({ error: () => undefined });
+      .subscribe({
+        next: (csv) => {
+          const name = csvFileName(`analytics-${dataset}`);
+          downloadTextFile(csv, name);
+          this.toast.success('analytics.export.done', { name });
+        },
+        error: (error: unknown) => this.toast.error(error),
+      });
   }
 }

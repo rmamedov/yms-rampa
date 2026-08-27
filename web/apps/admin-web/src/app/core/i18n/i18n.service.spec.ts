@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { I18nService } from './i18n.service';
 import { UK_DICTIONARY } from './uk';
+import { KNOWN_ERROR_CODES } from '../http/problem';
 
 describe('I18nService', () => {
   let i18n: I18nService;
@@ -16,8 +17,8 @@ describe('I18nService', () => {
   });
 
   it('підставляє параметри в шаблон', () => {
-    expect(i18n.t('conflicts.unresolved', { n: 3 })).toBe(
-      'Не розвʼязано конфліктів: 3',
+    expect(i18n.t('suppliers.access.whitelist', { n: 3 })).toBe(
+      'Перелік магазинів (3)',
     );
     expect(i18n.t('common.selected', { count: 12 })).toBe('Вибрано: 12');
   });
@@ -28,18 +29,11 @@ describe('I18nService', () => {
   });
 
   it('лишає плейсхолдер, якщо параметр не передано', () => {
-    expect(i18n.t('conflicts.unresolved')).toBe('Не розвʼязано конфліктів: {n}');
+    expect(i18n.t('suppliers.access.whitelist')).toBe('Перелік магазинів ({n})');
   });
 
-  it('має переклади для всіх відомих кодів помилок бекенду', () => {
-    const codes = [
-      'SLOT_ALREADY_BOOKED',
-      'SLOT_HELD',
-      'VEHICLE_TOO_HEAVY',
-      'DATE_OUT_OF_HORIZON',
-      'BOOKING_LIMIT_EXCEEDED',
-    ];
-    for (const code of codes) {
+  it('має переклади для ВСІХ відомих кодів помилок бекенду', () => {
+    for (const code of KNOWN_ERROR_CODES) {
       expect(i18n.has(`error.${code}`)).toBe(true);
     }
   });

@@ -10,7 +10,7 @@ describe('ProblemMessageService (API-02, RFC 7807)', () => {
     service = TestBed.inject(ProblemMessageService);
   });
 
-  it('відомі коди мають власні українські сценарні тексти', () => {
+  it('коди контуру водія мають власні українські сценарні тексти', () => {
     expect(
       service.messageFor(new ApiProblemError(401, { code: 'AUTH_INVALID_CREDENTIALS' })),
     ).toBe('Невірний телефон або пароль');
@@ -18,27 +18,24 @@ describe('ProblemMessageService (API-02, RFC 7807)', () => {
       service.messageFor(new ApiProblemError(403, { code: 'AUTH_ACCOUNT_DISABLED' })),
     ).toBe('Ваш обліковий запис вимкнено. Зверніться до постачальника');
     expect(
-      service.messageFor(new ApiProblemError(409, { code: 'SLOT_ALREADY_BOOKED' })),
-    ).toBe('Цей слот уже заброньовано');
+      service.messageFor(new ApiProblemError(422, { code: 'PARTNER_LOGIN_INVALID' })),
+    ).toBe('Невірний формат телефону');
     expect(
-      service.messageFor(new ApiProblemError(422, { code: 'VEHICLE_TOO_HEAVY' })),
-    ).toBe('Тоннаж авто перевищує обмеження рампи');
+      service.messageFor(new ApiProblemError(401, { code: 'AUTH_TOKEN_EXPIRED' })),
+    ).toBe('Сесія завершилась. Увійдіть повторно.');
     expect(
-      service.messageFor(new ApiProblemError(422, { code: 'DATE_OUT_OF_HORIZON' })),
-    ).toBe('Дата поза горизонтом бронювання');
+      service.messageFor(new ApiProblemError(403, { code: 'ACCESS_DENIED' })),
+    ).toBe('Доступ до цих даних закрито');
     expect(
-      service.messageFor(new ApiProblemError(409, { code: 'BOOKING_LIMIT_EXCEEDED' })),
-    ).toBe('Перевищено ліміт бронювань');
-    expect(service.messageFor(new ApiProblemError(409, { code: 'SLOT_HELD' }))).toBe(
-      'Слот тимчасово утримується іншим користувачем',
-    );
+      service.messageFor(new ApiProblemError(404, { code: 'ROUTE_NOT_FOUND' })),
+    ).toBe('Дані не знайдено');
   });
 
   it('код у snake_case з бекенду нормалізується', () => {
-    const error = new ApiProblemError(409, { code: 'slot_already_booked' });
-    expect(error.code).toBe('SLOT_ALREADY_BOOKED');
-    expect(error.is('SLOT_ALREADY_BOOKED')).toBe(true);
-    expect(service.codeOf(error)).toBe('SLOT_ALREADY_BOOKED');
+    const error = new ApiProblemError(403, { code: 'access_denied' });
+    expect(error.code).toBe('ACCESS_DENIED');
+    expect(error.is('ACCESS_DENIED')).toBe(true);
+    expect(service.codeOf(error)).toBe('ACCESS_DENIED');
   });
 
   it('невідомий код показує detail із бекенду', () => {
@@ -49,15 +46,17 @@ describe('ProblemMessageService (API-02, RFC 7807)', () => {
     ).toBe('Щось пішло не так');
   });
 
-  it('без detail показує повідомлення першої violation', () => {
+  it('422 VALIDATION_FAILED без detail показує першу violation', () => {
     expect(
       service.messageFor(
         new ApiProblemError(422, {
-          code: 'VALIDATION_ERROR',
-          violations: [{ field: 'orderId', code: 'length', message: 'Від 1 до 64' }],
+          code: 'VALIDATION_FAILED',
+          violations: [
+            { field: 'date', code: 'format', message: 'Формат YYYY-MM-DD' },
+          ],
         }),
       ),
-    ).toBe('Від 1 до 64');
+    ).toBe('Формат YYYY-MM-DD');
   });
 
   it('довільна помилка отримує загальний текст', () => {
@@ -72,16 +71,16 @@ describe('ProblemMessageService (API-02, RFC 7807)', () => {
   });
 
   it('toProblem розбирає тіло problem+json і ігнорує сміття', () => {
-    const parsed = toProblem(409, {
-      type: 'https://yms/errors/slot',
-      title: 'Конфлікт',
-      status: 409,
-      detail: 'Слот зайнято',
-      code: 'SLOT_ALREADY_BOOKED',
+    const parsed = toProblem(422, {
+      type: 'about:blank',
+      title: 'Не пройдено валідацію',
+      status: 422,
+      detail: 'Параметр «date» має бути у форматі YYYY-MM-DD',
+      code: 'VALIDATION_FAILED',
       requestId: 'req-1',
     });
-    expect(parsed.code).toBe('SLOT_ALREADY_BOOKED');
-    expect(parsed.detail).toBe('Слот зайнято');
+    expect(parsed.code).toBe('VALIDATION_FAILED');
+    expect(parsed.detail).toBe('Параметр «date» має бути у форматі YYYY-MM-DD');
 
     expect(toProblem(500, 'plain text')).toEqual({ status: 500 });
   });

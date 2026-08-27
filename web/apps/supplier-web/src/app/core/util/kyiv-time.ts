@@ -42,6 +42,14 @@ function kyivParts(instant: Date): KyivParts {
   };
 }
 
+/**
+ * UTC ISO 8601 у тому ж вигляді, у якому його віддає бекенд:
+ * `Y-m-d\TH:i:s\Z`, без мілісекунд (DATA-01).
+ */
+export function utcIso(instant: Date): string {
+  return `${instant.toISOString().slice(0, 19)}Z`;
+}
+
 /** Зсув Києва відносно UTC у хвилинах на конкретний момент (враховує DST). */
 export function kyivOffsetMinutes(instant: Date): number {
   const p = kyivParts(instant);

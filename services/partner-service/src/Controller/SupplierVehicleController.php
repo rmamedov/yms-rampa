@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Domain\Access\Permission;
 use App\Domain\Service\VehicleService;
 use App\Domain\Vehicle\Vehicle;
+use App\Infrastructure\Http\ActorResolver;
 use App\Infrastructure\Http\JsonBody;
-use App\Infrastructure\Http\SupplierContext;
 use App\Infrastructure\Http\View;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -17,22 +18,26 @@ use Symfony\Component\Routing\Attribute\Route;
 /**
  * Довідник машин постачальника «Мої авто» (SUP-VEH-01…SUP-VEH-04).
  *
- * Контур partner: усі операції обмежені постачальником з контексту запиту,
- * тому чуже авто недосяжне ні на читання, ні на зміну.
+ * Право за матрицею 4.4 — `vehicle.manage`, надане зі скоупом (S) ролям
+ * supplier_admin і supplier_operator.
+ *
+ * Контур partner: усі операції обмежені постачальником з ідентичності запиту
+ * (X-Supplier-Id), тому чуже авто недосяжне ні на читання, ні на зміну;
+ * порожній заголовок — 403, а не доступ до всіх постачальників.
  */
 #[Route('/api/supplier/v1/vehicles')]
 final class SupplierVehicleController
 {
     public function __construct(
         private readonly VehicleService $vehicles,
-        private readonly SupplierContext $context,
+        private readonly ActorResolver $actors,
     ) {
     }
 
     #[Route('', name: 'supplier_vehicles_list', methods: ['GET'])]
     public function list(Request $request): JsonResponse
     {
-        $supplierId = $this->context->supplierId($request);
+        $supplierId = $this->supplierId($request);
         $includeInactive = $request->query->getBoolean('includeInactive');
 
         $items = $this->vehicles->list($supplierId, $includeInactive);
@@ -51,7 +56,7 @@ final class SupplierVehicleController
     #[Route('', name: 'supplier_vehicles_create', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
-        $supplierId = $this->context->supplierId($request);
+        $supplierId = $this->supplierId($request);
         $body = JsonBody::fromRequest($request);
 
         $vehicle = $this->vehicles->create(
@@ -68,14 +73,14 @@ final class SupplierVehicleController
     public function get(string $id, Request $request): JsonResponse
     {
         return new JsonResponse(View::vehicle(
-            $this->vehicles->get($this->context->supplierId($request), $id),
+            $this->vehicles->get($this->supplierId($request), $id),
         ));
     }
 
     #[Route('/{id}', name: 'supplier_vehicles_update', methods: ['PATCH', 'PUT'])]
     public function update(string $id, Request $request): JsonResponse
     {
-        $supplierId = $this->context->supplierId($request);
+        $supplierId = $this->supplierId($request);
         $body = JsonBody::fromRequest($request);
         $vehicle = $this->vehicles->get($supplierId, $id);
 
@@ -98,7 +103,7 @@ final class SupplierVehicleController
     public function deactivate(string $id, Request $request): JsonResponse
     {
         return new JsonResponse(View::vehicle(
-            $this->vehicles->deactivate($this->context->supplierId($request), $id),
+            $this->vehicles->deactivate($this->supplierId($request), $id),
         ));
     }
 
@@ -106,7 +111,7 @@ final class SupplierVehicleController
     public function activate(string $id, Request $request): JsonResponse
     {
         return new JsonResponse(View::vehicle(
-            $this->vehicles->activate($this->context->supplierId($request), $id),
+            $this->vehicles->activate($this->supplierId($request), $id),
         ));
     }
 
@@ -117,8 +122,16 @@ final class SupplierVehicleController
     #[Route('/{id}', name: 'supplier_vehicles_delete', methods: ['DELETE'])]
     public function delete(string $id, Request $request): Response
     {
-        $this->vehicles->delete($this->context->supplierId($request), $id);
+        $this->vehicles->delete($this->supplierId($request), $id);
 
         return new Response(null, Response::HTTP_NO_CONTENT);
+    }
+
+    /**
+     * Постачальник запиту: ідентичність + право `vehicle.manage` у скоупі.
+     */
+    private function supplierId(Request $request): string
+    {
+        return $this->actors->ownSupplierId($request, Permission::VehicleManage);
     }
 }

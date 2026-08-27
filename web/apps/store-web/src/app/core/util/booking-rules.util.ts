@@ -2,20 +2,27 @@ import {
   Booking,
   BookingStatus,
   PartialUnloadReason,
+  REASON_OTHER,
   RejectReason,
 } from '../models/booking.model';
 import { StaffRole } from '../models/auth.model';
 import { TranslateParams } from '../i18n/i18n.service';
 import { toKyivDateKey } from './date.util';
 
-/** Дії магазину над бронюванням (розділ 9.4, 9.5, 9.13). */
+/**
+ * Дії магазину над бронюванням. Перелік точно відповідає маршрутам
+ * /api/store/v1/bookings/{bookingId}/... booking-service.
+ *
+ * Зняття прапорця затримки (`clearDelay`) прибрано: у бекенді метод
+ * `Booking::clearDelay()` існує, але HTTP-маршруту для нього немає.
+ */
 export type BookingActionId =
+  | 'arrived'
   | 'startUnloading'
   | 'complete'
   | 'noShow'
   | 'reject'
   | 'delay'
-  | 'clearDelay'
   | 'reassign'
   | 'log';
 
@@ -50,11 +57,15 @@ export function isTerminal(status: BookingStatus): boolean {
   return TERMINAL_STATUSES.includes(status);
 }
 
-/** Дозволені статусні переходи магазину (діаграма розділу 9.4). */
+/**
+ * Дозволені статусні переходи магазину. Дзеркало
+ * `Booking::ALLOWED_TRANSITIONS` мінус `cancelled` (скасування магазину
+ * маршруту в контурі /api/store/v1 не має).
+ */
 export const STORE_TRANSITIONS: Readonly<
   Record<BookingStatus, readonly BookingStatus[]>
 > = {
-  booked: ['no_show'],
+  booked: ['arrived', 'no_show'],
   arrived: ['unloading', 'rejected'],
   unloading: ['completed'],
   completed: [],
@@ -103,6 +114,18 @@ export function evaluateAction(
   const nowMs = new Date(ctx.now).getTime();
 
   switch (action) {
+    case 'arrived': {
+      if (booking.status !== 'booked') {
+        return deny('arrived', 'action.disabled.wrongStatus', {
+          status: 'status.booked',
+        });
+      }
+      if (readOnly) {
+        return deny('arrived', 'action.disabled.pastDate');
+      }
+      return allow('arrived');
+    }
+
     case 'startUnloading': {
       if (booking.status !== 'arrived') {
         return deny('startUnloading', 'action.disabled.wrongStatus', {
@@ -162,16 +185,6 @@ export function evaluateAction(
       return allow('delay');
     }
 
-    case 'clearDelay': {
-      if (!booking.delayed.flag) {
-        return deny('clearDelay', 'action.disabled.terminal');
-      }
-      if (readOnly) {
-        return deny('clearDelay', 'action.disabled.pastDate');
-      }
-      return allow('clearDelay');
-    }
-
     case 'reassign': {
       if (booking.status !== 'booked' && booking.status !== 'arrived') {
         return deny('reassign', 'action.disabled.terminal');
@@ -188,12 +201,12 @@ export function evaluateAction(
 }
 
 export const ALL_ACTIONS: readonly BookingActionId[] = [
+  'arrived',
   'startUnloading',
   'complete',
   'noShow',
   'reject',
   'delay',
-  'clearDelay',
   'reassign',
   'log',
 ];
@@ -218,6 +231,7 @@ export function nextSwipeAction(
   ctx: ActionContext,
 ): BookingActionId | null {
   const order: BookingActionId[] = [
+    'arrived',
     'startUnloading',
     'complete',
     'noShow',
@@ -290,7 +304,7 @@ export function validateCompleteForm(
   }
   if (
     normalized.partialUnload &&
-    normalized.reason === 'other' &&
+    normalized.reason === REASON_OTHER &&
     normalized.comment.trim().length === 0
   ) {
     errors.push('complete.commentRequired');
@@ -307,7 +321,7 @@ export function validateRejectForm(value: RejectFormValue): ValidationResult {
   if (!value.reason) {
     return fail('reject.reasonRequired');
   }
-  if (value.reason === 'other' && value.comment.trim().length === 0) {
+  if (value.reason === REASON_OTHER && value.comment.trim().length === 0) {
     return fail('reject.commentRequired');
   }
   return ok;
@@ -322,7 +336,8 @@ export interface DelayFormValue {
 
 /**
  * STW-18: причина обовʼязкова, коментар ≤ 500, ETA обовʼязковий, пізніший за
- * slotStart і в межах поточної київської доби.
+ * slotStart і в межах поточної київської доби. Для причини «інше» бекенд
+ * вимагає коментар (`DelayReason::requiresComment()`).
  */
 export function validateDelayForm(
   value: DelayFormValue,
@@ -331,6 +346,9 @@ export function validateDelayForm(
   const errors: string[] = [];
   if (!value.reason) {
     errors.push('delay.reasonRequired');
+  }
+  if (value.reason === REASON_OTHER && value.comment.trim().length === 0) {
+    errors.push('delay.commentRequired');
   }
   if (value.comment.length > 500) {
     errors.push('delay.commentTooLong');

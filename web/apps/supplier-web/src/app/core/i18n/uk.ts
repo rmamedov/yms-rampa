@@ -11,6 +11,9 @@ export const UK_DICTIONARY: Record<string, string> = {
   'nav.drivers': 'Водії',
   'nav.logout': 'Вийти',
 
+  'role.supplier_admin': 'Адміністратор постачальника',
+  'role.supplier_operator': 'Оператор постачальника',
+
   'common.search': 'Пошук',
   'common.cancel': 'Скасувати',
   'common.close': 'Закрити',
@@ -41,6 +44,7 @@ export const UK_DICTIONARY: Record<string, string> = {
   'login.driverAccount':
     'Скористайтесь застосунком водія — цей кабінет призначений для постачальників.',
   'login.driverLink': 'Перейти до застосунку водія',
+  'login.disabled': 'Обліковий запис деактивовано. Зверніться до адміністратора',
   'login.demoHint': 'Демо-режим: {email} / {password}',
 
   'home.title': 'Мої найближчі поставки',
@@ -68,8 +72,7 @@ export const UK_DICTIONARY: Record<string, string> = {
   'branch.empty': 'Філій не знайдено',
   'branch.externalId': 'Філія № {externalId}',
   'branch.maxWeight': 'До {tons} т',
-  'branch.hasSlots': 'Є вільні слоти',
-  'branch.noSlots': 'Немає вільних слотів',
+  'branch.slotSize': 'Слот {minutes} хв',
 
   'slots.title': 'Філія № {externalId}',
   'slots.maxWeight': 'Приймаємо авто до {tons} т',
@@ -88,7 +91,6 @@ export const UK_DICTIONARY: Record<string, string> = {
   'slots.state.availableMine': 'Ваш резерв',
   'slots.state.held': 'Оформлюється',
   'slots.state.booked': 'Зайнято',
-  'slots.state.bookedMine': 'Ваше бронювання',
   'slots.state.reserved': 'Недоступно',
   'slots.state.blocked': 'Заблоковано',
   'slots.state.past': 'Минув',
@@ -138,26 +140,48 @@ export const UK_DICTIONARY: Record<string, string> = {
   'validation.emailRequired': 'Вкажіть e-mail',
   'validation.passwordRequired': 'Вкажіть пароль',
 
+  // Коди помилок — рівно ті, що їх повертає бекенд у полі `code`
+  // problem-документа (RFC 7807); плейсхолдери — імена його розширень.
   'error.SLOT_ALREADY_BOOKED': 'Цей слот щойно забронював інший постачальник',
   'error.SLOT_HELD':
     'Слот зараз оформлює інший користувач. Спробуйте за кілька хвилин',
   'error.SLOT_RESERVED': 'Слот зарезервовано за іншим постачальником',
-  'error.VEHICLE_TOO_HEAVY': 'Ця філія приймає авто до {tons} т',
+  'error.SLOT_NOT_AVAILABLE': 'Цей слот уже недоступний для бронювання',
+  'error.HOLD_EXPIRED': 'Час на оформлення вийшов. Оберіть слот ще раз',
+  'error.HOLD_NOT_OWNED': 'Слот оформлює інший користувач. Оберіть слот ще раз',
+  'error.VEHICLE_TOO_HEAVY': 'Ця філія приймає авто до {maxVehicleWeightTons} т',
+  'error.VEHICLE_TIME_CONFLICT':
+    'Це авто вже має бронювання, що перетинається в часі. Продовжити?',
   'error.DATE_OUT_OF_HORIZON':
-    'Бронювання доступне не далі ніж на {days} днів вперед',
+    'Бронювання доступне не далі ніж на {horizonDays} днів вперед',
   'error.BOOKING_LIMIT_EXCEEDED':
     'Досягнуто ліміт активних бронювань ({limit}). Скасуйте неактуальні бронювання або зверніться до адміністратора мережі',
   'error.PALLETS_OUT_OF_RANGE': 'Вкажіть від 1 до 33 палет',
-  'error.SLOT_IN_PAST': 'Цей слот уже недоступний для бронювання',
-  'error.HOLD_EXPIRED': 'Час на оформлення вийшов. Оберіть слот ще раз',
-  'error.VEHICLE_TIME_CONFLICT':
-    'Це авто вже має бронювання, що перетинається в часі. Продовжити?',
-  'error.DUPLICATE_PLATE': 'Авто з таким номером уже є у вашому довіднику',
-  'error.DRIVER_PHONE_TAKEN': 'Водій з таким телефоном уже зареєстрований',
-  'error.VEHICLE_IN_USE':
-    'Авто привʼязане до активних бронювань — доступна лише деактивація',
+  'error.INVALID_PLATE_NUMBER': 'Некоректний держномер',
+  'error.BOOKING_NOT_FOUND': 'Бронювання не знайдено',
+  'error.TRANSITION_NOT_ALLOWED': 'Дія недоступна для поточного статусу',
+  'error.EDIT_DEADLINE_PASSED': 'Редагування вже недоступне',
+  'error.STORE_NOT_FOUND': 'Ця філія недоступна вашому підприємству',
+  'error.STORE_NOT_CONFIGURED': 'Філія ще не налаштована для бронювання',
   'error.SUPPLIER_NOT_ALLOWED': 'Ця філія недоступна вашому підприємству',
-  'error.UNAUTHORIZED': 'Сесія завершилась. Увійдіть ще раз',
+  'error.VEHICLE_PLATE_DUPLICATE':
+    'Авто з таким номером уже є у вашому довіднику',
+  'error.VEHICLE_HAS_ACTIVE_BOOKINGS':
+    'Авто привʼязане до активних бронювань — доступна лише деактивація',
+  'error.VEHICLE_NOT_FOUND': 'Авто не знайдено у вашому довіднику',
+  'error.DRIVER_PHONE_DUPLICATE': 'Водій з таким телефоном уже зареєстрований',
+  'error.DRIVER_NOT_FOUND': 'Водія не знайдено',
+  'error.AUTH_INVALID_CREDENTIALS': 'Невірний логін або пароль',
+  'error.AUTH_ACCOUNT_LOCKED': 'Забагато спроб. Спробуйте пізніше',
+  'error.AUTH_ACCOUNT_DISABLED': 'Обліковий запис деактивовано',
+  'error.AUTH_TOKEN_EXPIRED': 'Сесія завершилась. Увійдіть ще раз',
+  'error.AUTH_TOKEN_INVALID': 'Сесія завершилась. Увійдіть ще раз',
+  'error.AUTH_REFRESH_REUSED': 'Сесія завершилась. Увійдіть ще раз',
+  'error.ACCESS_DENIED': 'Недостатньо прав для цієї дії',
+  'error.VALIDATION_FAILED': 'Перевірте заповнені дані',
+  'error.NOT_FOUND': 'Обʼєкт не знайдено',
+  'error.INTERNAL_ERROR': 'Внутрішня помилка сервісу. Спробуйте ще раз',
+  'error.UPSTREAM_UNAVAILABLE': 'Сервіс тимчасово недоступний. Спробуйте ще раз',
   'error.NETWORK_ERROR': 'Немає звʼязку з сервером. Спробуйте ще раз',
   'error.UNKNOWN': 'Сталася помилка. Спробуйте ще раз',
 
@@ -194,6 +218,8 @@ export const UK_DICTIONARY: Record<string, string> = {
   'rs.detailTitle': 'Маршрутний лист на {date}',
   'rs.assignDriver': 'Призначити водія',
   'rs.assignDriverSheet': 'Призначити водія на весь лист',
+  'rs.assignDriverSheetHint':
+    'Зняти водія з усього листа не можна — приберіть його в окремих точках',
   'rs.driverAssigned': 'Водія призначено',
   'rs.vehicleChanged': 'Авто замінено',
   'rs.transfer': 'Перенести',
@@ -215,7 +241,7 @@ export const UK_DICTIONARY: Record<string, string> = {
 
   'print.title': 'Маршрутний лист',
   'print.supplier': 'Постачальник',
-  'print.taxCode': 'ЄДРПОУ',
+  'print.sheetNo': 'Версія листа № {number}',
   'print.date': 'Дата',
   'print.driver': 'Водій',
   'print.phone': 'Телефон',
@@ -253,7 +279,7 @@ export const UK_DICTIONARY: Record<string, string> = {
   'drivers.vehicleOptional': 'Авто з довідника',
   'drivers.passwordTitle': 'Пароль водія',
   'drivers.passwordOnce': 'Запишіть пароль — повторно він не показується',
-  'drivers.smsSent': 'SMS з паролем надіслано',
+  'drivers.loginLabel': 'Логін',
   'drivers.created': 'Водія створено',
   'drivers.deactivated': 'Водія деактивовано',
   'drivers.activated': 'Водія активовано',

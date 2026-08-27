@@ -46,12 +46,6 @@ export const appRoutes: Route[] = [
           ),
       },
       {
-        path: 'staff-users',
-        canActivate: [sectionGuard('staff')],
-        loadComponent: () =>
-          import('./features/staff/staff-users.page').then((m) => m.StaffUsersPage),
-      },
-      {
         path: 'mcp-sync',
         canActivate: [sectionGuard('sync')],
         loadComponent: () =>
@@ -62,12 +56,6 @@ export const appRoutes: Route[] = [
         canActivate: [sectionGuard('analytics')],
         loadComponent: () =>
           import('./features/analytics/analytics.page').then((m) => m.AnalyticsPage),
-      },
-      {
-        path: 'audit',
-        canActivate: [sectionGuard('audit')],
-        loadComponent: () =>
-          import('./features/audit/audit.page').then((m) => m.AuditPage),
       },
     ],
   },

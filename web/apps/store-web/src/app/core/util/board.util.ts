@@ -51,10 +51,7 @@ export function applyFilters(
     if (filters.onlyWalkIn && b.type !== 'walk_in') {
       return false;
     }
-    if (
-      query &&
-      !b.supplierNameSnapshot.toLocaleLowerCase('uk-UA').includes(query)
-    ) {
+    if (query && !b.supplierName.toLocaleLowerCase('uk-UA').includes(query)) {
       return false;
     }
     return true;

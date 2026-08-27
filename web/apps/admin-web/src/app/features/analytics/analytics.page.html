@@ -1,9 +1,9 @@
 <div class="page-header">
   <h1>{{ 'analytics.title' | t }}</h1>
   <span class="spacer"></span>
-  @if (dashboard(); as data) {
+  @if (recalculatedAt(); as at) {
     <span class="badge badge-info">{{
-      'analytics.recalculatedAt' | t: { at: formatDateTime(data.recalculatedAt) }
+      'analytics.recalculatedAt' | t: { at: formatDateTime(at) }
     }}</span>
   }
 </div>
@@ -70,209 +70,110 @@
 @if (loading()) {
   <p class="muted">{{ 'common.loading' | t }}</p>
 } @else if (!hasData()) {
-  <app-empty-state [message]="'analytics.noData' | t" />
-} @else if (dashboard(); as data) {
+  <app-empty-state [message]="noDataMessage() ?? ('analytics.noData' | t)" />
+} @else {
   <div class="kpi-grid">
     <div class="kpi">
-      <div class="kpi-value">{{ percent(avgUtilization()) }}</div>
-      <div class="kpi-label">{{ 'analytics.widget.utilization' | t }}</div>
+      <div class="kpi-value">
+        {{ percent(utilization()?.utilizationPercent) }}
+      </div>
+      <div class="kpi-label">{{ 'analytics.kpi01' | t }}</div>
+      <div class="muted">
+        {{ 'analytics.target' | t: { value: targets()?.utilizationPercent ?? 0 } }}
+      </div>
     </div>
     <div class="kpi">
-      <div class="kpi-value">{{ totalBookings() }}</div>
-      <div class="kpi-label">{{ 'analytics.widget.deliveries' | t }}</div>
+      <div class="kpi-value">{{ percent(onTime()?.onTimePercent) }}</div>
+      <div class="kpi-label">{{ 'analytics.kpi02' | t }}</div>
+      <div class="muted">
+        {{ 'analytics.target' | t: { value: targets()?.onTimePercent ?? 0 } }}
+      </div>
     </div>
     <div class="kpi">
-      <div class="kpi-value">{{ totalNoShow() }}</div>
-      <div class="kpi-label">{{ 'analytics.widget.noShow' | t }}</div>
+      <div class="kpi-value">{{ waiting()?.medianMinutes ?? 0 }}</div>
+      <div class="kpi-label">{{ 'analytics.kpi03' | t }}</div>
+      <div class="muted">
+        {{ 'analytics.target' | t: { value: targets()?.medianWaitingMinutes ?? 0 } }}
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-value">{{ percent(noShow()?.noShowPercent) }}</div>
+      <div class="kpi-label">{{ 'analytics.kpi04' | t }}</div>
+      <div class="muted">
+        {{ 'analytics.target' | t: { value: targets()?.noShowPercent ?? 0 } }}
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-value">{{ unloading()?.medianMinutes ?? 0 }}</div>
+      <div class="kpi-label">{{ 'analytics.anl04' | t }}</div>
+      <div class="muted">
+        {{ 'analytics.slotAvg' | t: { value: unloading()?.averageSlotMinutes ?? 0 } }}
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-value">{{ counters()?.total ?? 0 }}</div>
+      <div class="kpi-label">{{ 'analytics.counters.total' | t }}</div>
+      <div class="muted">
+        {{ 'analytics.counters.delayed' | t: { value: counters()?.delayedCount ?? 0 } }}
+      </div>
     </div>
   </div>
 
   <div class="card">
     <div class="card-title">
-      {{ 'analytics.widget.utilization' | t }}
+      {{ 'analytics.breakdown.title' | t }}
       <span class="spacer"></span>
-      <button type="button" class="btn btn-sm" (click)="exportCsv('utilization')">
-        {{ 'common.export.csv' | t }}
+      <select
+        id="dimension"
+        [value]="dimension()"
+        (change)="setDimension($event)"
+        [attr.aria-label]="'analytics.breakdown.dimension' | t"
+      >
+        @for (d of dimensions; track d) {
+          <option [value]="d">{{ 'analytics.dimension.' + d | t }}</option>
+        }
+      </select>
+      <button type="button" class="btn btn-sm" (click)="exportCsv('breakdown')">
+        {{ 'analytics.export' | t }}
+      </button>
+      <button type="button" class="btn btn-sm" (click)="exportCsv('bookings')">
+        {{ 'analytics.export.bookings' | t }}
       </button>
     </div>
+
     <div class="table-wrap">
       <table class="data">
         <thead>
           <tr>
-            <th>{{ 'analytics.col.store' | t }}</th>
-            <th>{{ 'common.city' | t }}</th>
-            <th>{{ 'analytics.col.bookedMinutes' | t }}</th>
-            <th>{{ 'analytics.col.availableMinutes' | t }}</th>
-            <th style="width: 220px">{{ 'analytics.col.utilization' | t }}</th>
+            <th>{{ breakdown()?.dimensionLabel ?? '' }}</th>
+            <th>{{ 'analytics.counters.total' | t }}</th>
+            <th>{{ 'analytics.kpi01' | t }}</th>
+            <th>{{ 'analytics.kpi02' | t }}</th>
+            <th>{{ 'analytics.kpi03' | t }}</th>
+            <th>{{ 'analytics.kpi04' | t }}</th>
           </tr>
         </thead>
         <tbody>
-          @for (row of data.utilization; track row.storeId) {
+          @for (row of breakdown()?.rows ?? []; track row.key) {
             <tr>
-              <td>{{ row.storeName }}</td>
-              <td>{{ row.city }}</td>
-              <td>{{ row.bookedSlotMinutes }}</td>
-              <td>{{ row.availableSlotMinutes }}</td>
+              <td class="mono">{{ row.key }}</td>
+              <td>{{ row.kpi.counters.total }}</td>
               <td>
-                <div class="row">
-                  <div class="bar-track">
-                    <div class="bar-fill" [style.width]="barWidth(row.utilization)"></div>
-                  </div>
-                  <span class="mono">{{ percent(row.utilization) }}</span>
+                <div class="bar">
+                  <span
+                    class="bar-fill"
+                    [style.width]="barWidth(row.kpi.kpi01_rampUtilization.utilizationPercent)"
+                  ></span>
                 </div>
+                {{ percent(row.kpi.kpi01_rampUtilization.utilizationPercent) }}
               </td>
+              <td>{{ percent(row.kpi.kpi02_onTimeDelivery.onTimePercent) }}</td>
+              <td>{{ row.kpi.kpi03_waitingTime.medianMinutes }}</td>
+              <td>{{ percent(row.kpi.kpi04_noShowRate.noShowPercent) }}</td>
             </tr>
           } @empty {
             <tr>
-              <td colspan="5" class="muted">{{ 'analytics.noData' | t }}</td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">
-      {{ 'analytics.widget.deliveries' | t }}
-      <span class="spacer"></span>
-      <button type="button" class="btn btn-sm" (click)="exportCsv('deliveries')">
-        {{ 'common.export.csv' | t }}
-      </button>
-    </div>
-    <div class="table-wrap">
-      <table class="data">
-        <thead>
-          <tr>
-            <th>{{ 'analytics.col.supplier' | t }}</th>
-            <th>{{ 'analytics.col.booked' | t }}</th>
-            <th>{{ 'analytics.col.completed' | t }}</th>
-            <th>{{ 'analytics.col.cancelled' | t }}</th>
-            <th>{{ 'analytics.col.noShow' | t }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (row of data.deliveries; track row.supplierId) {
-            <tr>
-              <td>{{ row.supplierName }}</td>
-              <td>{{ row.booked }}</td>
-              <td>{{ row.completed }}</td>
-              <td>{{ row.cancelled }}</td>
-              <td>{{ row.noShow }}</td>
-            </tr>
-          } @empty {
-            <tr>
-              <td colspan="5" class="muted">{{ 'analytics.noData' | t }}</td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="grid-2">
-    <div class="card">
-      <div class="card-title">
-        {{ 'analytics.widget.noShow' | t }}
-        <span class="spacer"></span>
-        <button type="button" class="btn btn-sm" (click)="exportCsv('noShow')">
-          {{ 'common.export.csv' | t }}
-        </button>
-      </div>
-      <div class="table-wrap">
-        <table class="data">
-          <thead>
-            <tr>
-              <th>{{ 'analytics.col.supplier' | t }}</th>
-              <th>{{ 'analytics.col.store' | t }}</th>
-              <th>{{ 'analytics.col.noShow' | t }}</th>
-              <th>{{ 'analytics.col.share' | t }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (row of data.noShow; track row.supplierId + row.storeName) {
-              <tr>
-                <td>{{ row.supplierName }}</td>
-                <td>{{ row.storeName }}</td>
-                <td>{{ row.noShow }} / {{ row.total }}</td>
-                <td class="mono">{{ percent(row.share) }}</td>
-              </tr>
-            } @empty {
-              <tr>
-                <td colspan="4" class="muted">{{ 'analytics.noData' | t }}</td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">
-        {{ 'analytics.widget.unloading' | t }}
-        <span class="spacer"></span>
-        <button type="button" class="btn btn-sm" (click)="exportCsv('unloading')">
-          {{ 'common.export.csv' | t }}
-        </button>
-      </div>
-      <div class="table-wrap">
-        <table class="data">
-          <thead>
-            <tr>
-              <th>{{ 'analytics.col.store' | t }}</th>
-              <th>{{ 'analytics.col.avg' | t }}</th>
-              <th>{{ 'analytics.col.median' | t }}</th>
-              <th>{{ 'analytics.col.slotSize' | t }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (row of data.unloading; track row.storeId) {
-              <tr>
-                <td>{{ row.storeName }}</td>
-                <td>{{ row.avgMinutes }}</td>
-                <td>{{ row.medianMinutes }}</td>
-                <td>{{ row.slotSizeMinutes }}</td>
-              </tr>
-            } @empty {
-              <tr>
-                <td colspan="4" class="muted">{{ 'analytics.noData' | t }}</td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">
-      {{ 'analytics.widget.delays' | t }}
-      <span class="spacer"></span>
-      <button type="button" class="btn btn-sm" (click)="exportCsv('delays')">
-        {{ 'common.export.csv' | t }}
-      </button>
-    </div>
-    <div class="table-wrap">
-      <table class="data">
-        <thead>
-          <tr>
-            <th>{{ 'analytics.col.store' | t }}</th>
-            <th>{{ 'analytics.col.supplier' | t }}</th>
-            <th>{{ 'analytics.col.delayed' | t }}</th>
-            <th>{{ 'analytics.col.reason' | t }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (row of data.delays; track row.storeName + row.supplierName) {
-            <tr>
-              <td>{{ row.storeName }}</td>
-              <td>{{ row.supplierName }}</td>
-              <td>{{ row.delayed }}</td>
-              <td>{{ row.reason }}</td>
-            </tr>
-          } @empty {
-            <tr>
-              <td colspan="4" class="muted">{{ 'analytics.noData' | t }}</td>
+              <td colspan="6" class="muted">{{ 'analytics.noData' | t }}</td>
             </tr>
           }
         </tbody>

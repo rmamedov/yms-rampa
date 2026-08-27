@@ -12,21 +12,20 @@ import {
 } from '../api/contracts';
 import type {
   AuthSession,
-  AuthTokens,
   Booking,
+  BookingReassign,
   BranchDetail,
   BranchItem,
   CityItem,
   CreateBookingRequest,
   Driver,
-  DriverCreated,
+  DriverCredentials,
   DriverInput,
   HoldSession,
-  RouteSheetDetail,
-  RouteSheetSummary,
+  RouteSheet,
+  RouteSheetAssignment,
   SlotGrid,
   SlotKey,
-  SupplierProfile,
   Vehicle,
   VehicleInput,
 } from '../models/models';
@@ -55,16 +54,12 @@ export class MockAuthApi extends AuthApi {
     return respond(() => this.backend.login(login, password));
   }
 
-  override refresh(refreshToken: string): Observable<AuthTokens> {
+  override refresh(refreshToken: string): Observable<AuthSession> {
     return respond(() => this.backend.refresh(refreshToken));
   }
 
-  override logout(): Observable<void> {
-    return respond(() => undefined);
-  }
-
-  override profile(): Observable<SupplierProfile> {
-    return respond(() => this.backend.profile);
+  override logout(refreshToken: string): Observable<void> {
+    return respond(() => this.backend.logout(refreshToken));
   }
 }
 
@@ -97,38 +92,41 @@ export class MockBookingApi extends BookingApi {
     return respond(() => this.backend.hold(key));
   }
 
-  override heartbeat(holdToken: string): Observable<HoldSession> {
-    return respond(() => this.backend.heartbeat(holdToken));
+  override extendHold(
+    key: SlotKey,
+    holdToken: string,
+  ): Observable<HoldSession> {
+    return respond(() => this.backend.extendHold(key, holdToken));
   }
 
-  override release(holdToken: string): Observable<void> {
-    return respond(() => this.backend.release(holdToken));
+  override releaseHold(key: SlotKey, holdToken: string): Observable<void> {
+    return respond(() => this.backend.releaseHold(key, holdToken));
   }
 
   override create(request: CreateBookingRequest): Observable<Booking> {
     return respond(() => this.backend.createBooking(request));
   }
 
-  override upcoming(limit: number): Observable<Booking[]> {
-    return respond(() => this.backend.upcoming(limit));
+  override get(bookingId: string): Observable<Booking> {
+    return respond(() => this.backend.booking(bookingId));
+  }
+
+  override reschedule(
+    bookingId: string,
+    request: CreateBookingRequest,
+  ): Observable<Booking> {
+    return respond(() => this.backend.reschedule(bookingId, request));
+  }
+
+  override reassign(
+    bookingId: string,
+    patch: BookingReassign,
+  ): Observable<Booking> {
+    return respond(() => this.backend.reassignBooking(bookingId, patch));
   }
 
   override cancel(bookingId: string, reason?: string): Observable<Booking> {
     return respond(() => this.backend.cancelBooking(bookingId, reason));
-  }
-
-  override assignDriver(
-    bookingId: string,
-    driverId: string | null,
-  ): Observable<Booking> {
-    return respond(() => this.backend.assignDriverToBooking(bookingId, driverId));
-  }
-
-  override changeVehicle(
-    bookingId: string,
-    vehicleId: string,
-  ): Observable<Booking> {
-    return respond(() => this.backend.changeBookingVehicle(bookingId, vehicleId));
   }
 }
 
@@ -136,19 +134,24 @@ export class MockBookingApi extends BookingApi {
 export class MockRouteSheetApi extends RouteSheetApi {
   private readonly backend = inject(MOCK_BACKEND);
 
-  override list(): Observable<RouteSheetSummary[]> {
-    return respond(() => this.backend.routeSheets());
-  }
-
-  override detail(date: string): Observable<RouteSheetDetail> {
+  override detail(date: string): Observable<RouteSheet> {
     return respond(() => this.backend.routeSheet(date));
   }
 
-  override assignDriver(
+  override assignDriverToSheet(
     date: string,
-    driverId: string | null,
-  ): Observable<RouteSheetDetail> {
+    driverId: string,
+  ): Observable<RouteSheetAssignment> {
     return respond(() => this.backend.assignDriverToSheet(date, driverId));
+  }
+
+  override assignDriverToBooking(
+    bookingId: string,
+    driverId: string | null,
+  ): Observable<RouteSheetAssignment> {
+    return respond(() =>
+      this.backend.assignDriverToBooking(bookingId, driverId),
+    );
   }
 }
 
@@ -156,8 +159,8 @@ export class MockRouteSheetApi extends RouteSheetApi {
 export class MockVehicleApi extends VehicleApi {
   private readonly backend = inject(MOCK_BACKEND);
 
-  override list(): Observable<Vehicle[]> {
-    return respond(() => this.backend.listVehicles());
+  override list(includeInactive = true): Observable<Vehicle[]> {
+    return respond(() => this.backend.listVehicles(includeInactive));
   }
 
   override create(input: VehicleInput): Observable<Vehicle> {
@@ -185,11 +188,11 @@ export class MockDriverApi extends DriverApi {
     return respond(() => this.backend.listDrivers());
   }
 
-  override create(input: DriverInput): Observable<DriverCreated> {
+  override create(input: DriverInput): Observable<DriverCredentials> {
     return respond(() => this.backend.createDriver(input));
   }
 
-  override regeneratePassword(id: string): Observable<DriverCreated> {
+  override regeneratePassword(id: string): Observable<DriverCredentials> {
     return respond(() => this.backend.regenerateDriverPassword(id));
   }
 

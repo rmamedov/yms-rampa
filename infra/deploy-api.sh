@@ -45,10 +45,15 @@ write_env store-service \
     "MONGODB_URL=mongodb://127.0.0.1:27017" "MONGODB_DB=yms_stores" \
     "BRANCH_FIXTURE_PATH=/var/www/yms/fixtures/silpo-branches.json"
 
+# Базові URL сусідів — внутрішній шлюз nginx (infra/nginx-yms-internal.conf,
+# слухає лише 127.0.0.1:8081). Це НЕ адмінський /api/: службові маршрути
+# booking-service ходить за префіксом /internal/v1/, а шлюз сам розкладає їх
+# по сервісах за префіксом шляху. Обидва URL однакові саме тому.
 write_env booking-service \
     "MONGODB_URI=mongodb://127.0.0.1:27017" "MONGODB_DATABASE=yms_bookings" \
     "REDIS_URL=redis://127.0.0.1:6379" \
-    "STORE_SERVICE_BASE_URL=http://127.0.0.1/api/admin/v1"
+    "STORE_SERVICE_BASE_URL=http://127.0.0.1:8081" \
+    "PARTNER_SERVICE_BASE_URL=http://127.0.0.1:8081"
 
 write_env partner-service \
     "MONGO_DSN=mongodb://127.0.0.1:27017" "MONGO_DB=yms_partners"

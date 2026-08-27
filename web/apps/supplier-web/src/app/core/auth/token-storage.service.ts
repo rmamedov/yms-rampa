@@ -1,35 +1,26 @@
 import { Injectable } from '@angular/core';
-import type { AuthSession, AuthTokens, SupplierUser } from '../models/models';
+import type { AuthSession } from '../models/models';
 
-const TOKENS_KEY = 'yms.supplier.tokens';
-const USER_KEY = 'yms.supplier.user';
+const SESSION_KEY = 'yms.supplier.session';
 
-/** Зберігання токенів у localStorage; безпечне до відсутності storage. */
+/** Зберігання сесії у localStorage; безпечне до відсутності storage. */
 @Injectable({ providedIn: 'root' })
 export class TokenStorage {
   read(): AuthSession | null {
-    const tokens = this.readJson<AuthTokens>(TOKENS_KEY);
-    const user = this.readJson<SupplierUser>(USER_KEY);
-    if (!tokens || !user) {
+    const session = this.readJson<AuthSession>(SESSION_KEY);
+    if (!session?.accessToken || !session.profile) {
       return null;
     }
-    return { ...tokens, user };
+    return session;
   }
 
   write(session: AuthSession): void {
-    const { user, ...tokens } = session;
-    this.writeJson(TOKENS_KEY, tokens);
-    this.writeJson(USER_KEY, user);
-  }
-
-  updateTokens(tokens: AuthTokens): void {
-    this.writeJson(TOKENS_KEY, tokens);
+    this.writeJson(SESSION_KEY, session);
   }
 
   clear(): void {
     try {
-      localStorage.removeItem(TOKENS_KEY);
-      localStorage.removeItem(USER_KEY);
+      localStorage.removeItem(SESSION_KEY);
     } catch {
       /* storage недоступний — ігноруємо */
     }

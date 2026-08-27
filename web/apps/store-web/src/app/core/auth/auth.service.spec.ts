@@ -3,47 +3,58 @@ import { Observable, of, throwError } from 'rxjs';
 import { AuthService } from './auth.service';
 import { TokenStorageService } from './token-storage.service';
 import { AuthGateway } from '../data/gateways';
-import {
-  AuthTokens,
-  LoginRequest,
-  LoginResponse,
-  StaffProfile,
-} from '../models/auth.model';
+import { toLoginResponse } from '../api/wire.mapper';
+import { WireAuthTokenResponse, WireStaffUser } from '../api/wire.model';
+import { LoginRequest, LoginResponse } from '../models/auth.model';
 import { AppError } from '../models/problem.model';
 
-const OPERATOR: StaffProfile = {
-  userId: 'u-1',
-  fullName: 'Оксана Литвин',
-  email: 'operator@silpo.ua',
-  role: 'store_operator',
-  stores: [
-    {
-      storeId: 's-1',
-      externalId: '1998',
-      displayName: 'Сільпо №1998',
-      city: 'Київ',
-      address: 'просп. Володимира Івасюка, 46',
-    },
-    {
-      storeId: 's-2',
-      externalId: '2025',
-      displayName: 'Сільпо №2025',
-      city: 'Київ',
-      address: 'вул. Бережанська, 22',
-    },
-  ],
-};
+/** Профіль рівно у формі `LoginResult::profile()`. */
+function user(
+  overrides: Partial<WireStaffUser> = {},
+): WireStaffUser {
+  return {
+    id: 'u-1',
+    email: 'operator@silpo.ua',
+    fullName: 'Оксана Литвин',
+    role: 'store_operator',
+    roleLabel: 'Приймальник магазину',
+    scope: { storeIds: ['s-1', 's-2'], networkWide: false },
+    twoFactorEnabled: false,
+    permissions: ['booking.read.all'],
+    ...overrides,
+  };
+}
 
-const ADMIN: StaffProfile = {
-  userId: 'u-2',
-  fullName: 'Тарас Гнатюк',
+/** Відповідь рівно у формі `AuthController::tokenResponse()` — плоска. */
+function tokenResponse(
+  profile: WireStaffUser,
+  accessToken = 'a1',
+  refreshToken = 'r1',
+): WireAuthTokenResponse {
+  return {
+    tokenType: 'Bearer',
+    accessToken,
+    expiresIn: 900,
+    accessExpiresAt: new Date(Date.now() + 900_000).toISOString(),
+    refreshToken,
+    refreshExpiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+    sessionId: 'sess-1',
+    user: profile,
+  };
+}
+
+const OPERATOR = user();
+const NETWORK_MANAGER = user({
+  id: 'u-2',
   email: 'admin@silpo.ua',
-  role: 'admin',
-  stores: [],
-};
+  fullName: 'Тарас Гнатюк',
+  role: 'network_manager',
+  roleLabel: 'Менеджер мережі',
+  scope: { storeIds: [], networkWide: true },
+});
 
 class FakeAuthGateway extends AuthGateway {
-  profile: StaffProfile = OPERATOR;
+  profile: WireStaffUser = OPERATOR;
   failLogin = false;
 
   override login(request: LoginRequest): Observable<LoginResponse> {
@@ -57,22 +68,11 @@ class FakeAuthGateway extends AuthGateway {
           ),
       );
     }
-    return of({
-      tokens: {
-        accessToken: 'a1',
-        refreshToken: 'r1',
-        expiresAt: Date.now() + 60_000,
-      },
-      profile: this.profile,
-    });
+    return of(toLoginResponse(tokenResponse(this.profile)));
   }
 
-  override refresh(): Observable<AuthTokens> {
-    return of({
-      accessToken: 'a2',
-      refreshToken: 'r2',
-      expiresAt: Date.now() + 60_000,
-    });
+  override refresh(): Observable<LoginResponse> {
+    return of(toLoginResponse(tokenResponse(this.profile, 'a2', 'r2')));
   }
 
   override logout(): Observable<void> {
@@ -100,11 +100,12 @@ describe('AuthService', () => {
     auth.login({ email: 'operator@silpo.ua', password: 'x' }).subscribe();
     expect(auth.isAuthenticated()).toBe(true);
     expect(auth.hasStoreAccess()).toBe(true);
+    expect(auth.profile()?.roleLabel).toBe('Приймальник магазину');
     expect(localStorage.getItem('yms.store.tokens')).toContain('a1');
   });
 
   it('роль поза контуром магазину не отримує доступу (STW-01)', () => {
-    gateway.profile = ADMIN;
+    gateway.profile = NETWORK_MANAGER;
     auth.login({ email: 'admin@silpo.ua', password: 'x' }).subscribe();
     expect(auth.isAuthenticated()).toBe(true);
     expect(auth.hasStoreAccess()).toBe(false);
@@ -115,11 +116,16 @@ describe('AuthService', () => {
     expect(auth.showStoreSwitcher()).toBe(true);
     expect(auth.selectedStore()?.storeId).toBe('s-1');
 
-    gateway.profile = { ...OPERATOR, stores: [OPERATOR.stores[0]] };
+    gateway.profile = user({ scope: { storeIds: ['s-1'], networkWide: false } });
     auth.logout();
     auth.login({ email: 'operator@silpo.ua', password: 'x' }).subscribe();
     expect(auth.showStoreSwitcher()).toBe(false);
     expect(auth.selectedStore()?.storeId).toBe('s-1');
+  });
+
+  it('без конфігурації магазину підписом лишається його ідентифікатор', () => {
+    auth.login({ email: 'operator@silpo.ua', password: 'x' }).subscribe();
+    expect(auth.selectedStore()?.displayName).toBe('s-1');
   });
 
   it('вибір магазину зберігається між сесіями', () => {
@@ -146,6 +152,13 @@ describe('AuthService', () => {
         done();
       },
     });
+  });
+
+  it('refresh зберігає нову пару токенів і оновлений профіль', () => {
+    auth.login({ email: 'operator@silpo.ua', password: 'x' }).subscribe();
+    auth.refresh().subscribe();
+    expect(localStorage.getItem('yms.store.tokens')).toContain('a2');
+    expect(localStorage.getItem('yms.store.tokens')).toContain('r2');
   });
 
   it('logout очищає сесію', () => {

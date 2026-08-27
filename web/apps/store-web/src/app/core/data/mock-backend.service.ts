@@ -1,23 +1,20 @@
 import { Injectable } from '@angular/core';
+import { messageKeyForCode } from '../api/problem.util';
 import {
-  AuditEntry,
-  Booking,
-  BookingStatus,
-  CompleteUnloadingPayload,
-  DelayPayload,
-  ReassignPayload,
-  RejectPayload,
-  WalkInPayload,
-} from '../models/booking.model';
-import {
-  AuthTokens,
-  LoginRequest,
-  LoginResponse,
-  StaffProfile,
-} from '../models/auth.model';
+  WireAuthTokenResponse,
+  WireBooking,
+  WireCompleteRequest,
+  WireDelayRequest,
+  WireLoginRequest,
+  WireReassignRequest,
+  WireRejectRequest,
+  WireStaffUser,
+  WireStatusChange,
+  WireWalkInRequest,
+} from '../api/wire.model';
+import { REASON_OTHER } from '../models/booking.model';
 import { AppError, ProblemDetails } from '../models/problem.model';
 import { Slot, StoreConfig, SupplierRef } from '../models/store.model';
-import { messageKeyForCode } from '../api/problem.util';
 import {
   addDaysToDateKey,
   kyivToUtcIso,
@@ -25,17 +22,44 @@ import {
 } from '../util/date.util';
 import {
   MOCK_USERS,
+  MockStore,
   SUPPLIERS,
   buildStoreConfig,
+  findMockStore,
   generateDay,
   slotStartsForDate,
 } from '../fixtures/mock-data';
-import { canStoreTransition } from '../util/booking-rules.util';
 
-interface DayState {
-  bookings: Booking[];
-  audit: AuditEntry[];
-}
+/** Машина станів бекенду (`Booking::ALLOWED_TRANSITIONS`). */
+const ALLOWED_TRANSITIONS: Readonly<Record<string, readonly string[]>> = {
+  booked: ['arrived', 'cancelled', 'no_show'],
+  arrived: ['unloading', 'rejected'],
+  unloading: ['completed'],
+  completed: [],
+  cancelled: [],
+  no_show: [],
+  rejected: [],
+};
+
+const REJECT_REASONS = new Set([
+  'перевищення тоннажу',
+  'невідповідність вантажу',
+  'відсутні документи',
+  REASON_OTHER,
+]);
+const PARTIAL_REASONS = new Set([
+  'немає місця',
+  'бій/брак',
+  'розбіжність із замовленням',
+  'відмова частини вантажу',
+  REASON_OTHER,
+]);
+const DELAY_REASONS = new Set([
+  'затори',
+  'поломка',
+  'затримка на попередній точці',
+  REASON_OTHER,
+]);
 
 function problem(
   status: number,
@@ -55,54 +79,73 @@ function problem(
 }
 
 /**
- * In-memory реалізація бекенду store-web: дозволяє працювати з повноцінними
- * екранами без booking-service. Уся доменна логіка переходів продубльована
- * тут рівно так, як описано у розділі 9 SRS.
+ * In-memory реалізація контуру магазину: дозволяє працювати з повноцінними
+ * екранами без booking-service.
+ *
+ * Мок дзеркалить РЕАЛЬНИЙ бекенд: віддає ті самі JSON-структури
+ * (`api/wire.model.ts`), застосовує ті самі правила переходів
+ * (`Booking::ALLOWED_TRANSITIONS`), приймає ті самі значення довідників
+ * (україномовні backed-enum'и) і кидає ті самі коди помилок.
+ *
+ * Читальні методи (`getStoreConfig`, `getBoard`, `getSlots`, `getWeek`,
+ * `getSuppliers`) реального аналога НЕ мають — це заявка на бекенд, див.
+ * коментар у `gateways.ts`.
  */
 @Injectable({ providedIn: 'root' })
 export class MockBackend {
   /** Замінний годинник — потрібен для детермінованих тестів. */
   clock: () => string = () => new Date().toISOString();
 
-  private readonly days = new Map<string, DayState>();
+  private readonly days = new Map<string, WireBooking[]>();
   private readonly configs = new Map<string, StoreConfig>();
-  private currentUser: StaffProfile = MOCK_USERS[0];
+  private currentUser: WireStaffUser = MOCK_USERS[0];
   private pollCount = 0;
 
   // --- Автентифікація ---------------------------------------------------
 
-  login(request: LoginRequest): LoginResponse {
-    const email = request.email.trim().toLocaleLowerCase();
+  login(request: WireLoginRequest): WireAuthTokenResponse {
+    const email = (request.email ?? '').trim().toLocaleLowerCase();
     if (!email || !request.password) {
-      throw problem(401, 'AUTH_INVALID_CREDENTIALS', 'Невірний e-mail або пароль');
+      throw problem(401, 'AUTH_INVALID_CREDENTIALS', 'Невірний логін або пароль.');
     }
     const known = MOCK_USERS.find((u) => u.email === email);
-    const profile: StaffProfile = known ?? {
+    const user: WireStaffUser = known ?? {
       ...MOCK_USERS[0],
-      userId: `u-${email}`,
+      id: `u-${email}`,
       email,
       fullName: 'Демо Користувач',
     };
-    this.currentUser = profile;
-    return { tokens: this.issueTokens(profile.userId), profile };
+    this.currentUser = user;
+    return this.tokenResponse(user);
   }
 
-  refresh(refreshToken: string): AuthTokens {
+  refresh(refreshToken: string): WireAuthTokenResponse {
     if (!refreshToken.startsWith('mock-refresh.')) {
-      throw problem(401, 'AUTH_TOKEN_INVALID', 'Сесія завершилась');
+      throw problem(401, 'AUTH_TOKEN_INVALID', 'Помилка автентифікації. Увійдіть повторно.');
     }
-    return this.issueTokens(refreshToken.slice('mock-refresh.'.length));
+    const userId = refreshToken.slice('mock-refresh.'.length);
+    const user = MOCK_USERS.find((u) => u.id === userId) ?? this.currentUser;
+    this.currentUser = user;
+    return this.tokenResponse(user);
   }
 
-  setCurrentUser(profile: StaffProfile): void {
-    this.currentUser = profile;
+  setCurrentUser(user: WireStaffUser): void {
+    this.currentUser = user;
   }
 
-  private issueTokens(userId: string): AuthTokens {
+  private tokenResponse(user: WireStaffUser): WireAuthTokenResponse {
+    const now = new Date(this.clock()).getTime();
+    const accessExpiresAt = new Date(now + 15 * 60_000);
+    const refreshExpiresAt = new Date(now + 30 * 24 * 3600_000);
     return {
-      accessToken: `mock-access.${userId}.${Date.now()}`,
-      refreshToken: `mock-refresh.${userId}`,
-      expiresAt: Date.now() + 15 * 60_000,
+      tokenType: 'Bearer',
+      accessToken: `mock-access.${user.id}.${now}`,
+      expiresIn: 900,
+      accessExpiresAt: accessExpiresAt.toISOString(),
+      refreshToken: `mock-refresh.${user.id}`,
+      refreshExpiresAt: refreshExpiresAt.toISOString(),
+      sessionId: `mock-session.${user.id}`,
+      user,
     };
   }
 
@@ -111,13 +154,7 @@ export class MockBackend {
   getStoreConfig(storeId: string): StoreConfig {
     const cached = this.configs.get(storeId);
     if (cached) return cached;
-    const scope =
-      MOCK_USERS.flatMap((u) => u.stores).find((s) => s.storeId === storeId) ??
-      null;
-    if (!scope) {
-      throw problem(403, 'STORE_FORBIDDEN', 'Немає доступу до цього магазину');
-    }
-    const config = buildStoreConfig(scope);
+    const config = buildStoreConfig(this.requireStore(storeId));
     this.configs.set(storeId, config);
     return config;
   }
@@ -129,21 +166,11 @@ export class MockBackend {
   // --- Дошка ------------------------------------------------------------
 
   getBoard(storeId: string, dateKey: string): {
-    bookings: readonly Booking[];
+    bookings: readonly WireBooking[];
     now: string;
   } {
     this.simulateRealtime(storeId, dateKey);
-    return { bookings: [...this.day(storeId, dateKey).bookings], now: this.clock() };
-  }
-
-  getAuditLog(bookingId: string): readonly AuditEntry[] {
-    for (const state of this.days.values()) {
-      const entries = state.audit.filter((a) => a.bookingId === bookingId);
-      if (entries.length) {
-        return [...entries].sort((a, b) => a.at.localeCompare(b.at));
-      }
-    }
-    return [];
+    return { bookings: [...this.day(storeId, dateKey)], now: this.clock() };
   }
 
   /**
@@ -152,7 +179,7 @@ export class MockBackend {
    */
   getSlots(storeId: string, dateKey: string): Slot[] {
     const config = this.getStoreConfig(storeId);
-    const { bookings } = this.day(storeId, dateKey);
+    const bookings = this.day(storeId, dateKey);
     const nowMs = new Date(this.clock()).getTime();
     const starts = slotStartsForDate(config, dateKey);
     const slots: Slot[] = [];
@@ -208,10 +235,10 @@ export class MockBackend {
   }
 
   /** Рампи, у яких слот бронювання вільний (STW-41/42). */
-  freeRampsForSlot(booking: Booking): string[] {
+  freeRampsForSlot(booking: WireBooking): string[] {
     const config = this.getStoreConfig(booking.storeId);
     const dateKey = toKyivDateKey(booking.slotStart);
-    const { bookings } = this.day(booking.storeId, dateKey);
+    const bookings = this.day(booking.storeId, dateKey);
     return config.ramps
       .filter((ramp) => ramp.rampId !== booking.rampId && ramp.active)
       .filter(
@@ -228,114 +255,117 @@ export class MockBackend {
       .map((ramp) => ramp.rampId);
   }
 
-  // --- Дії --------------------------------------------------------------
+  // --- Дії (ST-01..ST-07, DLY-01, EDIT-06) ------------------------------
 
-  startUnloading(bookingId: string, version: number): Booking {
+  /** ST-01: booked → arrived. */
+  markArrived(bookingId: string): WireBooking {
     const booking = this.requireBooking(bookingId);
-    this.assertVersion(booking, version);
-    this.assertTransition(booking, 'unloading');
     const at = this.clock();
     return this.commit(
-      { ...booking, status: 'unloading', unloadingStartedAt: at },
+      { ...booking, status: 'arrived', arrivedAt: at },
+      booking.status,
+      'arrived',
       at,
-      'status_changed',
+    );
+  }
+
+  /** ST-02: arrived → unloading; перехід знімає прапорець затримки. */
+  startUnloading(bookingId: string): WireBooking {
+    const booking = this.requireBooking(bookingId);
+    const at = this.clock();
+    return this.commit(
+      {
+        ...booking,
+        status: 'unloading',
+        unloadingStartedAt: at,
+        delayed: { flag: false, reason: null, eta: null },
+      },
       booking.status,
       'unloading',
-    );
-  }
-
-  completeUnloading(
-    bookingId: string,
-    version: number,
-    payload: CompleteUnloadingPayload,
-  ): Booking {
-    const booking = this.requireBooking(bookingId);
-    this.assertVersion(booking, version);
-    this.assertTransition(booking, 'completed');
-
-    if (
-      payload.unloadedPalletsCount < 0 ||
-      payload.unloadedPalletsCount > booking.palletsCount
-    ) {
-      throw problem(
-        422,
-        'VALIDATION_FAILED',
-        'Кількість палет має бути від 0 до заявленої',
-      );
-    }
-    const partial =
-      payload.partialUnload || payload.unloadedPalletsCount < booking.palletsCount;
-    if (partial && !payload.partialUnloadReason) {
-      throw problem(
-        422,
-        'VALIDATION_FAILED',
-        'Оберіть причину часткового розвантаження',
-      );
-    }
-
-    const at = this.clock();
-    const updated: Booking = {
-      ...booking,
-      status: 'completed',
-      completedAt: at,
-      unloadedPalletsCount: payload.unloadedPalletsCount,
-      partialUnload: partial
-        ? {
-            flag: true,
-            reason: payload.partialUnloadReason ?? 'other',
-            comment: payload.partialUnloadComment,
-          }
-        : null,
-    };
-    const result = this.commit(updated, at, 'status_changed', booking.status, 'completed');
-    this.pushAudit(
-      result,
       at,
-      'unload_recorded',
-      String(booking.palletsCount),
-      String(payload.unloadedPalletsCount),
-      payload.partialUnloadComment,
     );
-    return result;
   }
 
-  markNoShow(bookingId: string, version: number): Booking {
+  /** ST-03: unloading → completed. */
+  completeUnloading(bookingId: string, payload: WireCompleteRequest): WireBooking {
     const booking = this.requireBooking(bookingId);
-    this.assertVersion(booking, version);
-    this.assertTransition(booking, 'no_show');
-    const nowMs = new Date(this.clock()).getTime();
-    if (nowMs <= new Date(booking.slotEnd).getTime()) {
+    const unloaded = payload.unloadedPalletsCount ?? booking.palletsCount;
+
+    if (unloaded < 0 || unloaded > booking.palletsCount) {
       throw problem(
         422,
-        'NO_SHOW_TOO_EARLY',
-        'Позначити «Не приїхав» можна лише після закінчення слоту',
+        'VALIDATION_FAILED',
+        `Розвантажено палет має бути в діапазоні 0..${booking.palletsCount} (заявлено ${booking.palletsCount})`,
       );
     }
+    if (unloaded < booking.palletsCount && !payload.partialUnload) {
+      throw problem(
+        422,
+        'VALIDATION_FAILED',
+        'Часткове розвантаження потребує причини з довідника',
+      );
+    }
+    if (payload.partialUnload) {
+      this.assertEnum(PARTIAL_REASONS, payload.partialUnload.reason);
+      if (
+        payload.partialUnload.reason === REASON_OTHER &&
+        !payload.partialUnload.comment
+      ) {
+        throw problem(422, 'VALIDATION_FAILED', 'Для причини «інше» потрібен коментар');
+      }
+    }
+
     const at = this.clock();
     return this.commit(
-      { ...booking, status: 'no_show' },
-      at,
-      'status_changed',
+      {
+        ...booking,
+        status: 'completed',
+        completedAt: at,
+        unloadedPalletsCount: unloaded,
+        partialUnload:
+          unloaded < booking.palletsCount && payload.partialUnload
+            ? {
+                flag: true,
+                reason: payload.partialUnload.reason,
+                comment: payload.partialUnload.comment ?? null,
+              }
+            : null,
+      },
       booking.status,
-      'no_show',
+      'completed',
+      at,
+      { unloadedPalletsCount: unloaded },
     );
   }
 
-  reject(bookingId: string, version: number, payload: RejectPayload): Booking {
+  /** NOSH-02: ручний no_show лише після slotEnd. */
+  markNoShow(bookingId: string): WireBooking {
     const booking = this.requireBooking(bookingId);
-    this.assertVersion(booking, version);
-    this.assertTransition(booking, 'rejected');
-    if (!payload.reason) {
+    const at = this.clock();
+    if (new Date(at).getTime() < new Date(booking.slotEnd).getTime()) {
       throw problem(
         422,
-        'REJECT_REASON_REQUIRED',
-        'Вкажіть причину відмови з довідника',
+        'VALIDATION_FAILED',
+        'Ручна позначка «не приїхав» можлива лише після завершення слоту',
       );
     }
-    if (payload.reason === 'other' && !payload.comment?.trim()) {
+    return this.commit(
+      { ...booking, status: 'no_show' },
+      booking.status,
+      'no_show',
+      at,
+      { auto: false },
+    );
+  }
+
+  /** ST-07: arrived → rejected. */
+  reject(bookingId: string, payload: WireRejectRequest): WireBooking {
+    const booking = this.requireBooking(bookingId);
+    this.assertEnum(REJECT_REASONS, payload.reason);
+    if (payload.reason === REASON_OTHER && !payload.comment?.trim()) {
       throw problem(
         422,
-        'REJECT_REASON_REQUIRED',
+        'VALIDATION_FAILED',
         'Для причини «інше» коментар обовʼязковий',
       );
     }
@@ -346,111 +376,76 @@ export class MockBackend {
         status: 'rejected',
         rejectedAt: {
           at,
-          by: this.currentUser.userId,
+          by: this.currentUser.id,
           reason: payload.reason,
-          comment: payload.comment,
+          comment: payload.comment ?? null,
         },
       },
-      at,
-      'rejected',
       booking.status,
       'rejected',
-      payload.comment,
+      at,
+      { reason: payload.reason },
     );
   }
 
-  setDelay(bookingId: string, version: number, payload: DelayPayload): Booking {
+  /** DLY-01: прапорець затримки; статус не змінюється. */
+  setDelay(bookingId: string, payload: WireDelayRequest): WireBooking {
     const booking = this.requireBooking(bookingId);
-    this.assertVersion(booking, version);
+    this.assertEnum(DELAY_REASONS, payload.reason);
     if (booking.status !== 'booked' && booking.status !== 'arrived') {
-      throw problem(
-        409,
-        'BOOKING_STATUS_CONFLICT',
-        'Статус уже змінено іншим користувачем',
-        { currentStatus: booking.status },
-      );
-    }
-    if (new Date(payload.eta).getTime() <= new Date(booking.slotStart).getTime()) {
       throw problem(
         422,
-        'ETA_BEFORE_SLOT_START',
-        'Новий очікуваний час має бути пізнішим за початок слоту',
+        'VALIDATION_FAILED',
+        'Затримку можна позначити лише для бронювання у статусі «booked» або «arrived»',
       );
     }
     const at = this.clock();
-    const wasDelayed = booking.delayed.flag;
-    return this.commit(
-      {
-        ...booking,
-        delayed: {
-          flag: true,
-          reason: payload.reason,
-          eta: payload.eta,
-          comment: payload.comment,
-        },
-      },
-      at,
-      wasDelayed ? 'delay_updated' : 'delay_set',
-      booking.delayed.eta,
-      payload.eta,
-      payload.comment,
-    );
-  }
-
-  clearDelay(bookingId: string, version: number): Booking {
-    const booking = this.requireBooking(bookingId);
-    this.assertVersion(booking, version);
-    const at = this.clock();
-    return this.commit(
-      {
-        ...booking,
-        delayed: { flag: false, reason: null, eta: null, comment: null },
-      },
-      at,
-      'delay_cleared',
-      booking.delayed.eta,
-      null,
-    );
-  }
-
-  reassignRamp(
-    bookingId: string,
-    version: number,
-    payload: ReassignPayload,
-  ): Booking {
-    const booking = this.requireBooking(bookingId);
-    this.assertVersion(booking, version);
-    if (booking.status !== 'booked' && booking.status !== 'arrived') {
+    if (new Date(payload.eta).getTime() <= new Date(at).getTime()) {
+      throw problem(422, 'VALIDATION_FAILED', 'ETA має бути в майбутньому');
+    }
+    if (payload.reason === REASON_OTHER && !payload.comment?.trim()) {
       throw problem(
-        409,
-        'BOOKING_STATUS_CONFLICT',
-        'Статус уже змінено іншим користувачем',
-        { currentStatus: booking.status },
+        422,
+        'VALIDATION_FAILED',
+        'Для причини «інше» коментар обовʼязковий',
       );
     }
+
+    // Бекенд склеює причину з коментарем для «інше» — окремого поля немає.
+    const reason =
+      payload.reason === REASON_OTHER
+        ? `${payload.reason}: ${(payload.comment ?? '').trim()}`
+        : payload.reason;
+
+    return this.replace(
+      {
+        ...booking,
+        delayed: { flag: true, reason, eta: payload.eta },
+        updatedAt: at,
+      },
+    );
+  }
+
+  /** EDIT-06: переведення на іншу вільну рампу того самого слота. */
+  reassignRamp(bookingId: string, payload: WireReassignRequest): WireBooking {
+    const booking = this.requireBooking(bookingId);
     if (!this.freeRampsForSlot(booking).includes(payload.rampId)) {
       throw problem(
-        422,
-        'RAMP_SLOT_TAKEN',
-        'На обраній рампі немає вільного слота в цей час',
+        409,
+        'SLOT_ALREADY_BOOKED',
+        'Слот уже зайнятий — оберіть інший вільний слот або рампу',
       );
     }
     const at = this.clock();
-    const config = this.getStoreConfig(booking.storeId);
-    const name = (id: string) =>
-      config.ramps.find((r) => r.rampId === id)?.name ?? id;
-    return this.commit(
-      { ...booking, rampId: payload.rampId },
-      at,
-      'ramp_reassigned',
-      name(booking.rampId),
-      name(payload.rampId),
-    );
+    return this.replace({ ...booking, rampId: payload.rampId, updatedAt: at });
   }
 
-  createWalkIn(storeId: string, payload: WalkInPayload): Booking {
-    const config = this.getStoreConfig(storeId);
-    if (payload.weightTons > config.maxVehicleWeightTons) {
+  /** WALK-01/WALK-04: бронювання створюється одразу у статусі arrived. */
+  createWalkIn(payload: WireWalkInRequest): WireBooking {
+    const store = this.requireStore(payload.storeId);
+    const config = this.getStoreConfig(payload.storeId);
+
+    if (payload.vehicle.weightTons > config.maxVehicleWeightTons) {
       throw problem(
         422,
         'VEHICLE_TOO_HEAVY',
@@ -459,9 +454,9 @@ export class MockBackend {
       );
     }
     if (payload.palletsCount < 1 || payload.palletsCount > 33) {
-      throw problem(422, 'VALIDATION_FAILED', 'Кількість палет — від 1 до 33');
+      throw problem(422, 'PALLETS_OUT_OF_RANGE', 'Кількість палет — від 1 до 33');
     }
-    if (!payload.supplierId && !payload.externalSupplierName?.trim()) {
+    if (!payload.supplierId && !payload.supplierName?.trim()) {
       throw problem(
         422,
         'VALIDATION_FAILED',
@@ -470,8 +465,8 @@ export class MockBackend {
     }
 
     const dateKey = toKyivDateKey(payload.slotStart);
-    const state = this.day(storeId, dateKey);
-    const taken = state.bookings.some(
+    const bookings = this.day(payload.storeId, dateKey);
+    const taken = bookings.some(
       (b) =>
         b.rampId === payload.rampId &&
         b.slotStart === payload.slotStart &&
@@ -491,138 +486,149 @@ export class MockBackend {
     const supplierName = payload.supplierId
       ? (SUPPLIERS.find((s) => s.supplierId === payload.supplierId)?.name ??
         'Постачальник')
-      : (payload.externalSupplierName ?? '').trim();
+      : (payload.supplierName ?? '').trim();
     const slotEnd = new Date(
       new Date(payload.slotStart).getTime() + config.slotSizeMinutes * 60_000,
     ).toISOString();
 
-    const booking: Booking = {
-      id: `wi-${storeId.slice(0, 6)}-${Date.now()}`,
+    const booking: WireBooking = {
+      id: `wi-${store.externalId}-${Date.now()}`,
       type: 'walk_in',
-      storeId,
+      status: 'arrived',
+      storeId: store.storeId,
+      store: {
+        externalId: store.externalId,
+        displayName: store.displayName,
+        city: store.city,
+        address: store.address,
+      },
       rampId: payload.rampId,
       slotStart: payload.slotStart,
       slotEnd,
+      localDate: dateKey,
+      localTime: new Intl.DateTimeFormat('uk-UA', {
+        timeZone: 'Europe/Kyiv',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(new Date(payload.slotStart)),
       supplierId: payload.supplierId,
-      supplierNameSnapshot: supplierName,
+      supplierName,
       vehicle: {
-        plateNumber: payload.plateNumber.trim().toUpperCase(),
-        weightTons: payload.weightTons,
-        brand: null,
+        plateNumber: payload.vehicle.plateNumber.trim().toUpperCase(),
+        weightTons: payload.vehicle.weightTons,
+        brand: payload.vehicle.brand ?? null,
       },
-      driver: null,
+      driverId: null,
       orderId: payload.orderId?.trim() ? payload.orderId.trim() : null,
       palletsCount: payload.palletsCount,
-      status: 'arrived',
-      delayed: { flag: false, reason: null, eta: null, comment: null },
+      delayed: { flag: false, reason: null, eta: null },
       arrivedAt: at,
       unloadingStartedAt: null,
       completedAt: null,
       cancelledAt: null,
+      cancellation: null,
       rejectedAt: null,
       unloadedPalletsCount: null,
       partialUnload: null,
-      version: 1,
+      rescheduleOf: null,
+      routeSheetId: null,
+      createdBy: this.currentUser.id,
+      createdAt: at,
       updatedAt: at,
+      statusHistory: [
+        {
+          from: null,
+          to: 'arrived',
+          at,
+          by: this.currentUser.id,
+          meta: { walkIn: true },
+        },
+      ],
     };
-    state.bookings.push(booking);
-    this.pushAudit(booking, at, 'created', null, 'arrived', null);
+    bookings.push(booking);
     return booking;
   }
 
   // --- Внутрішнє --------------------------------------------------------
 
-  private day(storeId: string, dateKey: string): DayState {
-    const key = `${storeId}:${dateKey}`;
-    let state = this.days.get(key);
-    if (!state) {
-      const config = this.getStoreConfig(storeId);
-      const generated = generateDay(config, dateKey, this.clock());
-      state = { bookings: generated.bookings, audit: generated.audit };
-      this.days.set(key, state);
+  private requireStore(storeId: string): MockStore {
+    const store = findMockStore(storeId);
+    if (!store) {
+      throw problem(403, 'ACCESS_DENIED', 'Немає доступу до цього магазину');
     }
-    return state;
+    return store;
   }
 
-  private requireBooking(bookingId: string): Booking {
-    for (const state of this.days.values()) {
-      const booking = state.bookings.find((b) => b.id === bookingId);
+  private day(storeId: string, dateKey: string): WireBooking[] {
+    const key = `${storeId}:${dateKey}`;
+    let bookings = this.days.get(key);
+    if (!bookings) {
+      const store = this.requireStore(storeId);
+      bookings = generateDay(
+        store,
+        this.getStoreConfig(storeId),
+        dateKey,
+        this.clock(),
+      );
+      this.days.set(key, bookings);
+    }
+    return bookings;
+  }
+
+  private requireBooking(bookingId: string): WireBooking {
+    for (const bookings of this.days.values()) {
+      const booking = bookings.find((b) => b.id === bookingId);
       if (booking) return booking;
     }
-    throw problem(404, 'NOT_FOUND', 'Бронювання не знайдено');
+    throw problem(404, 'BOOKING_NOT_FOUND', 'Бронювання не знайдено');
   }
 
-  private locate(bookingId: string): { state: DayState; index: number } {
-    for (const state of this.days.values()) {
-      const index = state.bookings.findIndex((b) => b.id === bookingId);
-      if (index >= 0) return { state, index };
-    }
-    throw problem(404, 'NOT_FOUND', 'Бронювання не знайдено');
-  }
-
-  /** STW-17: захист від гонок двох операторів. */
-  private assertVersion(booking: Booking, version: number): void {
-    if (booking.version !== version) {
+  private assertEnum(allowed: ReadonlySet<string>, value: string): void {
+    if (!allowed.has(value)) {
       throw problem(
-        409,
-        'BOOKING_STATUS_CONFLICT',
-        'Статус уже змінено іншим користувачем',
-        { currentStatus: booking.status, currentVersion: booking.version },
+        422,
+        'VALIDATION_FAILED',
+        `Значення «${value}» відсутнє в довіднику. Допустимі: ${[...allowed].join(', ')}`,
       );
     }
   }
 
-  private assertTransition(booking: Booking, to: BookingStatus): void {
-    if (!canStoreTransition(booking.status, to)) {
-      throw problem(
-        409,
-        'BOOKING_STATUS_CONFLICT',
-        'Статус уже змінено іншим користувачем',
-        { currentStatus: booking.status },
-      );
+  /** Записує оновлене бронювання назад у сховище дня. */
+  private replace(updated: WireBooking): WireBooking {
+    for (const bookings of this.days.values()) {
+      const index = bookings.findIndex((b) => b.id === updated.id);
+      if (index >= 0) {
+        bookings[index] = updated;
+        return updated;
+      }
     }
+    throw problem(404, 'BOOKING_NOT_FOUND', 'Бронювання не знайдено');
   }
 
+  /** Перехід статусу з перевіркою машини станів і записом у statusHistory. */
   private commit(
-    updated: Booking,
+    updated: WireBooking,
+    from: string,
+    to: string,
     at: string,
-    action: AuditEntry['action'],
-    fromValue: string | null,
-    toValue: string | null,
-    comment: string | null = null,
-  ): Booking {
-    const { state, index } = this.locate(updated.id);
-    const next: Booking = {
+    meta?: Record<string, unknown>,
+  ): WireBooking {
+    if (!ALLOWED_TRANSITIONS[from].includes(to)) {
+      throw problem(
+        409,
+        'INVALID_STATUS_TRANSITION',
+        `Перехід зі статусу «${from}» у «${to}» неможливий`,
+        { from, to },
+      );
+    }
+    const entry: WireStatusChange = meta
+      ? { from, to, at, by: this.currentUser.id, meta }
+      : { from, to, at, by: this.currentUser.id };
+    return this.replace({
       ...updated,
-      version: updated.version + 1,
       updatedAt: at,
-    };
-    state.bookings[index] = next;
-    this.pushAudit(next, at, action, fromValue, toValue, comment);
-    return next;
-  }
-
-  private pushAudit(
-    booking: Booking,
-    at: string,
-    action: AuditEntry['action'],
-    fromValue: string | null,
-    toValue: string | null,
-    comment: string | null = null,
-  ): void {
-    const dateKey = toKyivDateKey(booking.slotStart);
-    const state = this.day(booking.storeId, dateKey);
-    state.audit.push({
-      id: `au-${booking.id}-${state.audit.length}`,
-      bookingId: booking.id,
-      at,
-      actorKind: 'staff',
-      actorName: this.currentUser.fullName,
-      actorRole: this.currentUser.role,
-      action,
-      fromValue,
-      toValue,
-      comment,
+      statusHistory: [...updated.statusHistory, entry],
     });
   }
 
@@ -635,9 +641,9 @@ export class MockBackend {
     if (this.pollCount !== 3) return;
     if (dateKey !== toKyivDateKey(this.clock())) return;
 
-    const state = this.day(storeId, dateKey);
+    const bookings = this.day(storeId, dateKey);
     const nowMs = new Date(this.clock()).getTime();
-    const index = state.bookings.findIndex(
+    const index = bookings.findIndex(
       (b) =>
         b.status === 'booked' &&
         new Date(b.slotStart).getTime() > nowMs &&
@@ -645,25 +651,21 @@ export class MockBackend {
     );
     if (index < 0) return;
     const at = this.clock();
-    const booking = state.bookings[index];
-    state.bookings[index] = {
+    const booking = bookings[index];
+    bookings[index] = {
       ...booking,
       status: 'arrived',
       arrivedAt: at,
-      version: booking.version + 1,
       updatedAt: at,
+      statusHistory: [
+        ...booking.statusHistory,
+        {
+          from: 'booked',
+          to: 'arrived',
+          at,
+          by: booking.driverId ?? 'driver',
+        },
+      ],
     };
-    state.audit.push({
-      id: `au-${booking.id}-rt`,
-      bookingId: booking.id,
-      at,
-      actorKind: 'driver',
-      actorName: booking.driver?.fullName ?? 'Водій',
-      actorRole: null,
-      action: 'status_changed',
-      fromValue: 'booked',
-      toValue: 'arrived',
-      comment: null,
-    });
   }
 }

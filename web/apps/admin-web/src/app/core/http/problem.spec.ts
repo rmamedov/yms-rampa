@@ -16,24 +16,26 @@ describe('RFC 7807 — розбір application/problem+json', () => {
           title: 'Перевищено ліміт',
           status: 422,
           detail: 'Маса авто перевищує ліміт магазину',
-          code: 'VEHICLE_TOO_HEAVY',
+          code: 'CONFIG_VALIDATION_FAILED',
           requestId: 'req-1',
         },
       }),
     );
     expect(error).toBeInstanceOf(ApiError);
     expect(error.status).toBe(422);
-    expect(error.code).toBe('VEHICLE_TOO_HEAVY');
+    expect(error.code).toBe('CONFIG_VALIDATION_FAILED');
     expect(error.problem.requestId).toBe('req-1');
   });
 
   it('відомі коди мапляться на ключі словника', () => {
     for (const code of [
-      'SLOT_ALREADY_BOOKED',
-      'SLOT_HELD',
-      'VEHICLE_TOO_HEAVY',
-      'DATE_OUT_OF_HORIZON',
-      'BOOKING_LIMIT_EXCEEDED',
+      'STORE_NOT_FOUND',
+      'STORE_NOT_CONFIGURED',
+      'CONFIG_VALIDATION_FAILED',
+      'RESERVED_RULE_OVERLAP',
+      'SYNC_ALREADY_RUNNING',
+      'SUPPLIER_HAS_BOOKINGS',
+      'ANALYTICS_INVALID_PERIOD',
     ]) {
       expect(isKnownErrorCode(code)).toBe(true);
       const error = new ApiError(422, { code, detail: 'raw detail' });

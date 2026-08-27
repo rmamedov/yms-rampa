@@ -3,9 +3,7 @@ import {
   DayOfWeek,
   Ramp,
   ReceivingWindow,
-  ReservedSlotRule,
   SlotSizeMinutes,
-  StoreConfig,
   TimeInterval,
 } from '../models';
 import {
@@ -19,39 +17,38 @@ import {
   minutesToTime,
   timeToMinutes,
 } from './time.util';
-import { validateMaxWeight, validateReason } from './validators.util';
+import { validateReason } from './validators.util';
+
+/**
+ * Стан форми конфігурації магазину до відправки.
+ * Поля можуть бути порожні, доки користувач не заповнив вкладки; при збереженні
+ * бекенд вимагає slotSizeMinutes і maxVehicleWeightTons (requireInt/requireFloat).
+ */
+export interface ConfigFormState {
+  readonly slotSizeMinutes: SlotSizeMinutes | null;
+  readonly ramps: readonly Ramp[];
+  readonly maxVehicleWeightTons: number | null;
+  readonly leadTimeMinutes: number;
+  readonly bookingHorizonDays: number;
+  readonly noShowGraceMinutes: number;
+  readonly holdMaxMinutes: number;
+  readonly receivingWindows: readonly ReceivingWindow[];
+  readonly calendarExceptions: readonly CalendarException[];
+}
+
+/** StoreConfiguration::LEAD_TIME_DEFAULT та інші типові значення бекенду. */
+export const CONFIG_DEFAULTS = {
+  leadTimeMinutes: 60,
+  bookingHorizonDays: 14,
+  noShowGraceMinutes: 30,
+  holdMaxMinutes: 15,
+} as const;
 
 export interface IntervalError {
   readonly dayOfWeek: DayOfWeek;
   readonly index: number;
   readonly messageKey: string;
   readonly params?: Record<string, string | number>;
-}
-
-/**
- * STL-04: магазин «налаштований» ⟺ задані одночасно щонайменше одне вікно прийому,
- * розмір слоту, щонайменше одна активна рампа та maxVehicleWeightTons.
- */
-export function missingConfigParts(config: StoreConfig): string[] {
-  const missing: string[] = [];
-  const hasWindow = config.receivingWindows.some((w) => w.intervals.length > 0);
-  if (!hasWindow) {
-    missing.push('store.missing.windows');
-  }
-  if (config.slotSizeMinutes === null) {
-    missing.push('store.missing.slotSize');
-  }
-  if (!config.ramps.some((r) => r.enabled)) {
-    missing.push('store.missing.ramp');
-  }
-  if (validateMaxWeight(config.maxVehicleWeightTons) !== null) {
-    missing.push('store.missing.weight');
-  }
-  return missing;
-}
-
-export function isStoreConfigured(config: StoreConfig): boolean {
-  return missingConfigParts(config).length === 0;
 }
 
 /**
@@ -136,9 +133,7 @@ export function validateException(
   if (validateReason(exception.reason, 'receiving.error.reason') !== null) {
     errors.push('receiving.error.reason');
   }
-  if (
-    existing.some((e) => e.id !== exception.id && e.date === exception.date)
-  ) {
+  if (existing.some((e) => e.id !== exception.id && e.date === exception.date)) {
     errors.push('receiving.error.duplicateDate');
   }
   if (exception.type === 'custom') {
@@ -176,11 +171,6 @@ export function validateRamps(ramps: readonly Ramp[]): string[] {
   return [...new Set(errors)];
 }
 
-/** STC-22: рампу з історією бронювань видалити не можна — лише вимкнути. */
-export function canDeleteRamp(ramp: Ramp): boolean {
-  return !ramp.hasBookings;
-}
-
 /**
  * STC-23: слоти = вікна прийому × розмір слоту × активні рампи.
  * Неповний «хвіст» вікна, коротший за слот, не генерується.
@@ -213,15 +203,16 @@ export function countDailySlots(
 
 /** Інтервали прийому, чинні на конкретну дату (виняток має пріоритет, STC-12). */
 export function effectiveIntervals(
-  config: StoreConfig,
+  windows: readonly ReceivingWindow[],
+  exceptions: readonly CalendarException[],
   date: string,
 ): readonly TimeInterval[] {
-  const exception = config.exceptions.find((e) => e.date === date);
+  const exception = exceptions.find((e) => e.date === date);
   if (exception) {
     return exception.type === 'closed' ? [] : exception.intervals;
   }
   const day = dayOfWeek(date) as DayOfWeek;
-  return config.receivingWindows.find((w) => w.dayOfWeek === day)?.intervals ?? [];
+  return windows.find((w) => w.dayOfWeek === day)?.intervals ?? [];
 }
 
 /** Чи потрапляє час у якесь вікно прийому цього дня тижня. */
@@ -242,11 +233,31 @@ export function isWithinWeeklyWindow(
   );
 }
 
-/** STC-42: резерв лише у вікні прийому, на увімкнену рампу, без перетину правил. */
+/** Кандидат у правило резерву — форма вкладки «Резерви» до відправки. */
+export interface ReservedRuleCandidate {
+  readonly id?: string;
+  readonly supplierId: string;
+  readonly rampId: string;
+  readonly slotStartTime: string;
+  readonly dayOfWeek: DayOfWeek | null;
+  readonly date: string | null;
+  readonly validFrom: string;
+  readonly validTo: string | null;
+}
+
+/**
+ * STC-42: резерв лише у вікні прийому, на увімкнену рампу, без перетину правил.
+ * Ті самі перевірки робить ReservedSlotRuleService — тут це попередній фільтр,
+ * щоб не ходити на бекенд за очевидною помилкою.
+ */
 export function validateReservedRule(
-  rule: ReservedSlotRule,
-  config: StoreConfig,
-  existing: readonly ReservedSlotRule[],
+  rule: ReservedRuleCandidate,
+  context: {
+    readonly ramps: readonly Ramp[];
+    readonly receivingWindows: readonly ReceivingWindow[];
+    readonly slotSizeMinutes: SlotSizeMinutes | null;
+  },
+  existing: ReadonlyArray<ReservedRuleCandidate & { active: boolean }>,
 ): string[] {
   const errors: string[] = [];
   if (!rule.supplierId) {
@@ -257,10 +268,8 @@ export function validateReservedRule(
   if (hasDay === hasDate) {
     errors.push('reserves.error.mode');
   }
-  const ramp = config.ramps.find((r) => r.id === rule.rampId);
-  if (!ramp) {
-    errors.push('reserves.error.rampDisabled');
-  } else if (!ramp.enabled) {
+  const ramp = context.ramps.find((r) => r.id === rule.rampId);
+  if (!ramp || !ramp.enabled) {
     errors.push('reserves.error.rampDisabled');
   }
   const day = hasDay
@@ -271,10 +280,10 @@ export function validateReservedRule(
   if (
     day !== null &&
     !isWithinWeeklyWindow(
-      config.receivingWindows,
+      context.receivingWindows,
       day,
       rule.slotStartTime,
-      config.slotSizeMinutes,
+      context.slotSizeMinutes,
     )
   ) {
     errors.push('reserves.error.outsideWindow');
@@ -301,16 +310,25 @@ export function validateReservedRule(
   return [...new Set(errors)];
 }
 
-/** STC-60: зміни сітки слотів набирають чинності не раніше завтра. */
-export function minimumEffectiveDate(today: string = kyivDate()): string {
-  return addDays(today, 1);
+/**
+ * STC-60: зміни сітки слотів набирають чинності не раніше завтра.
+ * Виняток — ПЕРША версія конфігурації: доти сітки не існувало, тож бекенд
+ * дозволяє сьогоднішню дату (StoreConfigurationService::assertEffectiveFrom).
+ */
+export function minimumEffectiveDate(
+  isFirstVersion = false,
+  today: string = kyivDate(),
+): string {
+  return isFirstVersion ? today : addDays(today, 1);
 }
 
 export function validateEffectiveDate(
   date: string,
+  isFirstVersion = false,
   today: string = kyivDate(),
 ): string | null {
-  if (!isValidDate(date) || diffDays(today, date) < 1) {
+  const minimum = isFirstVersion ? 0 : 1;
+  if (!isValidDate(date) || diffDays(today, date) < minimum) {
     return 'conflicts.error.effectiveFrom';
   }
   return null;

@@ -5,10 +5,10 @@
 # See also https://symfony.com/doc/current/service_container/import.html
 
 parameters:
-    # Підключення до інфраструктури; реальні значення приходять з .env.
-    # MONGODB_URI / MONGODB_DATABASE / REDIS_URL читає безпосередньо
-    # config/packages/prod/storage.yaml — там же лежать їхні дефолти.
-    yms.store_service_base_url: '%env(default::STORE_SERVICE_BASE_URL)%'
+    # Підключення до інфраструктури тут не оголошуються: env-змінні читають
+    # прод-профілі, там же лежать їхні дефолти.
+    #   MONGODB_URI / MONGODB_DATABASE / REDIS_URL  — config/packages/prod/storage.yaml
+    #   STORE_SERVICE_BASE_URL / PARTNER_SERVICE_BASE_URL — config/packages/prod/upstream.yaml
 
 services:
     _defaults:
@@ -39,20 +39,18 @@ services:
     # config/packages/{env}/*.yaml ПЕРЕД config/services.yaml, тож тутешній
     # аліас мовчки перезаписав би прод-звʼязування.
     #
-    # Нижче — порти, для яких Mongo/Redis-адаптерів немає: час, генерація id
-    # і довідники, що в усіх оточеннях (включно з прод) працюють у памʼяті.
+    # Час і генерація id однакові в усіх оточеннях.
     App\Domain\Shared\Clock: '@App\Infrastructure\Clock\SystemClock'
     App\Domain\Shared\IdGenerator: '@App\Infrastructure\Shared\RandomIdGenerator'
+
+    # --- Міжсервісні залежності: заглушки для dev і тестів -------------------
+    #
+    # Аліаси нижче — ТИПОВІ, тобто для оточень без піднятих сусідів. У проді
+    # ті самі порти вказують на HTTP-клієнти до store-service і partner-service
+    # (config/packages/prod/upstream.yaml), який через порядок завантаження
+    # конфігів імпортується ще раз останнім — з config/services_prod.yaml.
+    # Тримати прод-звʼязування в цьому файлі не можна: він читається ПІСЛЯ
+    # config/packages/prod/ і затирає його.
     App\Domain\Slot\SlotOverlayProvider: '@App\Infrastructure\InMemory\InMemorySlotOverlayProvider'
     App\Domain\Supplier\SupplierDirectory: '@App\Infrastructure\InMemory\InMemorySupplierDirectory'
     App\Domain\Store\StoreConfigProvider: '@App\Infrastructure\Store\FixtureStoreConfigProvider'
-
-    # --- Конфігурація магазинів по HTTP -------------------------------------
-    #
-    # Ще не ввімкнено: потребує піднятого store-service за
-    # %yms.store_service_base_url%. Вмикати разом із переприв'язкою
-    # App\Domain\Store\StoreConfigProvider на HttpStoreConfigProvider.
-    #
-    # App\Infrastructure\Store\CurlStoreServiceClient:
-    #     arguments: ['%yms.store_service_base_url%']
-    # App\Infrastructure\Store\HttpStoreConfigProvider: ~

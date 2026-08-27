@@ -10,21 +10,19 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import {
   CalendarException,
-  ConfigConflict,
-  ConflictDecision,
   Ramp,
   ReceivingWindow,
-  ReservedSlotRule,
-  SlotBlock,
   SlotSizeMinutes,
   Store,
-  StoreConfig,
   StoreGeneralPatch,
   Supplier,
 } from '../../core/models';
-import { StoresApi } from '../../core/data/stores.api';
+import {
+  ReservedSlotRuleDraft,
+  SlotBlockDraft,
+  StoresApi,
+} from '../../core/data/stores.api';
 import { SuppliersApi } from '../../core/data/suppliers.api';
-import { AuditApi } from '../../core/data/audit.api';
 import { AuthService } from '../../core/auth/auth.service';
 import { ToastService } from '../../core/ui/toast.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
@@ -43,8 +41,10 @@ import { SlotsChange, StoreSlotsTabComponent } from './tabs/slots-tab.component'
 import { LimitsChange, StoreLimitsTabComponent } from './tabs/limits-tab.component';
 import { StoreReservesTabComponent } from './tabs/reserves-tab.component';
 import { StoreBlocksTabComponent } from './tabs/blocks-tab.component';
-import { ConflictsDialogComponent } from './conflicts-dialog.component';
 import {
+  CONFIG_DEFAULTS,
+  ConfigFormState,
+  emptyReceivingWindows,
   minimumEffectiveDate,
   validateEffectiveDate,
 } from '../../core/utils/store-config.util';
@@ -66,6 +66,12 @@ const TABS: readonly StoreTabId[] = [
   'blocks',
 ];
 
+/**
+ * Картка магазину. Вкладки «Прийом», «Слоти», «Обмеження» редагують ЧЕРНЕТКУ
+ * конфігурації і зберігаються однією новою версією
+ * (POST /stores/{id}/configurations, DATA-09).
+ * «Резерви» і «Блокування» — окремі ресурси зі своїм CRUD, зберігаються одразу.
+ */
 @Component({
   selector: 'app-store-detail-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -79,14 +85,12 @@ const TABS: readonly StoreTabId[] = [
     StoreLimitsTabComponent,
     StoreReservesTabComponent,
     StoreBlocksTabComponent,
-    ConflictsDialogComponent,
   ],
   templateUrl: './store-detail.page.html',
 })
 export class StoreDetailPage {
   private readonly api = inject(StoresApi);
   private readonly suppliersApi = inject(SuppliersApi);
-  private readonly auditApi = inject(AuditApi);
   private readonly route = inject(ActivatedRoute);
   private readonly toast = inject(ToastService);
   private readonly i18n = inject(I18nService);
@@ -97,24 +101,37 @@ export class StoreDetailPage {
   protected readonly store = signal<Store | null>(null);
   protected readonly suppliers = signal<readonly Supplier[]>([]);
   protected readonly activeTab = signal<StoreTabId>('general');
-  protected readonly draft = signal<StoreConfig | null>(null);
+  protected readonly draft = signal<ConfigFormState | null>(null);
   protected readonly dirty = signal(false);
   protected readonly saving = signal(false);
-
-  protected readonly effectiveFrom = signal(minimumEffectiveDate());
-  protected readonly conflicts = signal<readonly ConfigConflict[] | null>(null);
   protected readonly pendingTab = signal<StoreTabId | null>(null);
+
+  /** STC-60: перша версія може набрати чинності вже сьогодні. */
+  protected readonly isFirstVersion = computed(
+    () => this.store()?.configuration === null,
+  );
+  protected readonly effectiveFrom = signal(minimumEffectiveDate());
 
   /** ADM-05: конфігурацію редагують лише super_admin і network_manager. */
   protected readonly canConfigure = computed(() => this.auth.canConfigureStores());
-  /** store_manager може редагувати лише разові блокування свого магазину (5.3.6). */
+  /** store_manager може редагувати лише разові блокування свого магазину. */
   protected readonly canBlock = computed(() =>
     this.auth.canBlockSlots(this.store()?.id ?? null),
   );
 
   protected readonly effectiveDateError = computed(() =>
-    validateEffectiveDate(this.effectiveFrom()),
+    validateEffectiveDate(this.effectiveFrom(), this.isFirstVersion()),
   );
+
+  /** Бекенд вимагає ці два поля обовʼязково (requireInt/requireFloat). */
+  protected readonly configIncomplete = computed(() => {
+    const draft = this.draft();
+    return (
+      draft === null ||
+      draft.slotSizeMinutes === null ||
+      draft.maxVehicleWeightTons === null
+    );
+  });
 
   protected readonly crumbs = computed<readonly Crumb[]>(() => {
     const store = this.store();
@@ -156,13 +173,16 @@ export class StoreDetailPage {
       .get(id)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (store) => {
-          this.store.set(store);
-          this.draft.set(toConfig(store));
-          this.dirty.set(false);
-        },
+        next: (store) => this.applyStore(store),
         error: (error: unknown) => this.toast.error(error),
       });
+  }
+
+  private applyStore(store: Store): void {
+    this.store.set(store);
+    this.draft.set(toFormState(store));
+    this.dirty.set(false);
+    this.effectiveFrom.set(minimumEffectiveDate(store.configuration === null));
   }
 
   /** UI-05: незбережені зміни при спробі покинути вкладку. */
@@ -181,7 +201,7 @@ export class StoreDetailPage {
     const tab = this.pendingTab();
     const store = this.store();
     if (store) {
-      this.draft.set(toConfig(store));
+      this.draft.set(toFormState(store));
     }
     this.dirty.set(false);
     this.pendingTab.set(null);
@@ -197,7 +217,7 @@ export class StoreDetailPage {
   protected onReceivingChange(change: ReceivingChange): void {
     this.patchDraft({
       receivingWindows: change.receivingWindows as ReceivingWindow[],
-      exceptions: change.exceptions as CalendarException[],
+      calendarExceptions: change.exceptions as CalendarException[],
     });
   }
 
@@ -212,15 +232,7 @@ export class StoreDetailPage {
     this.patchDraft(change);
   }
 
-  protected onReservesChange(rules: readonly ReservedSlotRule[]): void {
-    this.patchDraft({ reservedRules: rules });
-  }
-
-  protected onBlocksChange(blocks: readonly SlotBlock[]): void {
-    this.patchDraft({ slotBlocks: blocks });
-  }
-
-  private patchDraft(patch: Partial<StoreConfig>): void {
+  private patchDraft(patch: Partial<ConfigFormState>): void {
     const current = this.draft();
     if (!current) {
       return;
@@ -234,11 +246,11 @@ export class StoreDetailPage {
   }
 
   protected minEffectiveDate(): string {
-    return minimumEffectiveDate();
+    return minimumEffectiveDate(this.isFirstVersion());
   }
 
-  /** STC-62: перед збереженням — перевірка конфліктів. */
-  protected requestSave(): void {
+  /** DATA-09: збереження створює НОВУ версію конфігурації. */
+  protected save(): void {
     const store = this.store();
     const draft = this.draft();
     if (!store || !draft || this.saving()) {
@@ -248,63 +260,30 @@ export class StoreDetailPage {
       this.toast.errorKey('conflicts.error.effectiveFrom');
       return;
     }
-    this.saving.set(true);
-    this.api
-      .checkConflicts(store.id, draft, this.effectiveFrom())
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (conflicts) => {
-          this.saving.set(false);
-          if (conflicts.length === 0) {
-            this.persist([]);
-          } else {
-            this.conflicts.set(conflicts);
-          }
-        },
-        error: (error: unknown) => {
-          this.saving.set(false);
-          this.toast.error(error);
-        },
-      });
-  }
-
-  protected onConflictsConfirmed(decisions: readonly ConflictDecision[]): void {
-    this.conflicts.set(null);
-    this.persist(decisions);
-  }
-
-  protected closeConflicts(): void {
-    this.conflicts.set(null);
-  }
-
-  private persist(decisions: readonly ConflictDecision[]): void {
-    const store = this.store();
-    const draft = this.draft();
-    if (!store || !draft) {
+    if (draft.slotSizeMinutes === null || draft.maxVehicleWeightTons === null) {
+      this.toast.errorKey('store.error.configIncomplete');
       return;
     }
     this.saving.set(true);
     this.api
-      .saveConfig({
-        storeId: store.id,
+      .createConfiguration(store.id, {
         effectiveFrom: this.effectiveFrom(),
-        config: draft,
-        decisions,
+        slotSizeMinutes: draft.slotSizeMinutes,
+        maxVehicleWeightTons: draft.maxVehicleWeightTons,
+        receivingWindows: draft.receivingWindows,
+        ramps: draft.ramps,
+        calendarExceptions: draft.calendarExceptions,
+        leadTimeMinutes: draft.leadTimeMinutes,
+        bookingHorizonDays: draft.bookingHorizonDays,
+        noShowGraceMinutes: draft.noShowGraceMinutes,
+        holdMaxMinutes: draft.holdMaxMinutes,
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (updated) => {
+        next: () => {
           this.saving.set(false);
-          this.store.set(updated);
-          this.draft.set(toConfig(updated));
-          this.dirty.set(false);
           this.toast.success('conflicts.saved');
-          this.writeAudit(updated, 'update');
-          for (const decision of decisions) {
-            if (decision.resolution === 'cancel_notify') {
-              this.writeAudit(updated, 'conflict_resolve');
-            }
-          }
+          this.reload();
         },
         error: (error: unknown) => {
           this.saving.set(false);
@@ -325,16 +304,8 @@ export class StoreDetailPage {
       .subscribe({
         next: (updated) => {
           this.saving.set(false);
-          this.store.set(updated);
-          this.dirty.set(false);
+          this.applyStore(updated);
           this.toast.success('conflicts.saved');
-          this.writeAudit(updated, 'status_change', [
-            {
-              field: 'ymsStatus',
-              oldValue: store.ymsStatus,
-              newValue: updated.ymsStatus,
-            },
-          ]);
         },
         error: (error: unknown) => {
           this.saving.set(false);
@@ -343,37 +314,122 @@ export class StoreDetailPage {
       });
   }
 
-  private writeAudit(
-    store: Store,
-    action: 'update' | 'status_change' | 'conflict_resolve',
-    changes: { field: string; oldValue: string | null; newValue: string | null }[] = [],
-  ): void {
-    this.auditApi
-      .write({
-        objectType: 'store',
-        objectId: store.id,
-        objectLabel: `${store.externalId} — ${store.city}`,
-        action,
-        changes,
-      })
+  // --- Резерви (окремий ресурс) ------------------------------------------
+
+  protected createReserve(draft: ReservedSlotRuleDraft): void {
+    const store = this.store();
+    if (!store) {
+      return;
+    }
+    this.api
+      .createReservedRule(store.id, draft)
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({ error: () => undefined });
+      .subscribe({
+        next: () => {
+          this.toast.success('conflicts.saved');
+          this.reload();
+        },
+        error: (error: unknown) => this.toast.error(error),
+      });
+  }
+
+  protected toggleReserve(event: { id: string; active: boolean }): void {
+    const store = this.store();
+    if (!store) {
+      return;
+    }
+    this.api
+      .updateReservedRule(store.id, event.id, { active: event.active })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.reload(),
+        error: (error: unknown) => this.toast.error(error),
+      });
+  }
+
+  protected removeReserve(id: string): void {
+    const store = this.store();
+    if (!store) {
+      return;
+    }
+    this.api
+      .deleteReservedRule(store.id, id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.reload(),
+        error: (error: unknown) => this.toast.error(error),
+      });
+  }
+
+  // --- Блокування слотів (окремий ресурс) --------------------------------
+
+  protected createBlock(draft: SlotBlockDraft): void {
+    const store = this.store();
+    if (!store) {
+      return;
+    }
+    this.api
+      .createSlotBlock(store.id, draft)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.toast.success('conflicts.saved');
+          this.reload();
+        },
+        error: (error: unknown) => this.toast.error(error),
+      });
+  }
+
+  /** STC-52: дострокове зняття блокування. */
+  protected releaseBlock(id: string): void {
+    const store = this.store();
+    if (!store) {
+      return;
+    }
+    this.api
+      .releaseSlotBlock(store.id, id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.reload(),
+        error: (error: unknown) => this.toast.error(error),
+      });
+  }
+
+  private reload(): void {
+    const store = this.store();
+    if (store) {
+      this.loadStore(store.id);
+    }
   }
 }
 
-function toConfig(store: Store): StoreConfig {
+export function toFormState(store: Store): ConfigFormState {
+  const config = store.configuration;
+  if (!config) {
+    return {
+      slotSizeMinutes: null,
+      ramps: [],
+      maxVehicleWeightTons: null,
+      leadTimeMinutes: CONFIG_DEFAULTS.leadTimeMinutes,
+      bookingHorizonDays: CONFIG_DEFAULTS.bookingHorizonDays,
+      noShowGraceMinutes: CONFIG_DEFAULTS.noShowGraceMinutes,
+      holdMaxMinutes: CONFIG_DEFAULTS.holdMaxMinutes,
+      receivingWindows: emptyReceivingWindows(),
+      calendarExceptions: [],
+    };
+  }
   return {
-    slotSizeMinutes: store.slotSizeMinutes,
-    ramps: store.ramps.map((r) => ({ ...r })),
-    maxVehicleWeightTons: store.maxVehicleWeightTons,
-    leadTimeHours: store.leadTimeHours,
-    bookingHorizonDays: store.bookingHorizonDays,
-    receivingWindows: store.receivingWindows.map((w) => ({
+    slotSizeMinutes: config.slotSizeMinutes,
+    ramps: config.ramps.map((r) => ({ ...r })),
+    maxVehicleWeightTons: config.maxVehicleWeightTons,
+    leadTimeMinutes: config.leadTimeMinutes,
+    bookingHorizonDays: config.bookingHorizonDays,
+    noShowGraceMinutes: config.noShowGraceMinutes,
+    holdMaxMinutes: config.holdMaxMinutes,
+    receivingWindows: config.receivingWindows.map((w) => ({
       dayOfWeek: w.dayOfWeek,
       intervals: w.intervals.map((i) => ({ ...i })),
     })),
-    exceptions: store.exceptions.map((e) => ({ ...e })),
-    reservedRules: store.reservedRules.map((r) => ({ ...r })),
-    slotBlocks: store.slotBlocks.map((b) => ({ ...b })),
+    calendarExceptions: config.calendarExceptions.map((e) => ({ ...e })),
   };
 }

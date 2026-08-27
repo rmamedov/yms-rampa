@@ -159,9 +159,14 @@ final class Scenario
         return new Actor('pu-'.$supplierId, $role, supplierId: $supplierId);
     }
 
-    public function storeStaff(Role $role = Role::StoreManager, string $storeId = self::STORE_ID): Actor
+    /**
+     * Співробітник магазину зі скоупом магазинів (заголовок X-Store-Ids).
+     *
+     * @param list<string> $storeIds порожній перелік = нуль доступу (RBAC-13)
+     */
+    public function storeStaff(Role $role = Role::StoreManager, array $storeIds = [self::STORE_ID]): Actor
     {
-        return new Actor('su-1', $role, storeId: $storeId);
+        return new Actor('su-1', $role, storeIds: $storeIds);
     }
 
     public function driver(string $driverId = 'du-1'): Actor

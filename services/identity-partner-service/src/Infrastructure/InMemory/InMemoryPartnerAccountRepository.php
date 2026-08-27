@@ -44,6 +44,11 @@ final class InMemoryPartnerAccountRepository implements PartnerAccountRepository
         ));
     }
 
+    public function isActive(string $id): ?bool
+    {
+        return ($this->accounts[$id] ?? null)?->isActive();
+    }
+
     public function save(PartnerAccount $account): void
     {
         $existing = $this->findByLogin($account->login());

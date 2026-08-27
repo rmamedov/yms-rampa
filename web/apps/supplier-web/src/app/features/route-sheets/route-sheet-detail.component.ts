@@ -11,14 +11,13 @@ import { Router, RouterLink } from '@angular/router';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import {
   BookingApi,
-  DriverApi,
   RouteSheetApi,
+  VehicleApi,
 } from '../../core/api/contracts';
-import { VehicleApi } from '../../core/api/contracts';
 import type {
-  Booking,
   Driver,
-  RouteSheetDetail,
+  RouteSheet,
+  RouteSheetPoint,
   Vehicle,
 } from '../../core/models/models';
 import {
@@ -29,9 +28,15 @@ import {
 import { ToastService } from '../../shared/ui/toast.service';
 import { StatusBadgeComponent } from '../../shared/ui/status-badge.component';
 import { ModalComponent } from '../../shared/ui/modal.component';
-import { KyivDayPipe, KyivTimePipe } from '../../shared/ui/datetime.pipes';
+import { KyivDayPipe } from '../../shared/ui/datetime.pipes';
 import { TransferService } from '../../core/services/transfer.service';
 import { BookingDraftService } from '../../core/services/booking-draft.service';
+import {
+  DriverDirectoryService,
+  driverLabel,
+} from '../../core/services/driver-directory.service';
+import { summaryOf } from '../../core/services/route-sheets.service';
+import { kyivDateIso } from '../../core/util/kyiv-time';
 
 @Component({
   selector: 'app-route-sheet-detail',
@@ -42,7 +47,6 @@ import { BookingDraftService } from '../../core/services/booking-draft.service';
     StatusBadgeComponent,
     ModalComponent,
     KyivDayPipe,
-    KyivTimePipe,
   ],
   templateUrl: './route-sheet-detail.component.html',
   styleUrl: './route-sheet-detail.component.scss',
@@ -50,7 +54,7 @@ import { BookingDraftService } from '../../core/services/booking-draft.service';
 export class RouteSheetDetailComponent implements OnInit {
   private readonly api = inject(RouteSheetApi);
   private readonly bookings = inject(BookingApi);
-  private readonly driversApi = inject(DriverApi);
+  private readonly directory = inject(DriverDirectoryService);
   private readonly vehiclesApi = inject(VehicleApi);
   private readonly toasts = inject(ToastService);
   private readonly i18n = inject(I18nService);
@@ -60,13 +64,12 @@ export class RouteSheetDetailComponent implements OnInit {
 
   readonly date = input.required<string>();
 
-  protected readonly sheet = signal<RouteSheetDetail | null>(null);
+  protected readonly sheet = signal<RouteSheet | null>(null);
   protected readonly drivers = signal<readonly Driver[]>([]);
-  protected readonly loading = signal(true);
-  protected readonly cancelling = signal<Booking | null>(null);
-  protected readonly cancelReason = signal('');
-
   protected readonly vehicles = signal<readonly Vehicle[]>([]);
+  protected readonly loading = signal(true);
+  protected readonly cancelling = signal<RouteSheetPoint | null>(null);
+  protected readonly cancelReason = signal('');
 
   protected readonly activeDrivers = computed(() =>
     this.drivers().filter((driver) => driver.active),
@@ -76,9 +79,15 @@ export class RouteSheetDetailComponent implements OnInit {
     this.vehicles().filter((vehicle) => vehicle.active),
   );
 
+  /** Зведення листа (кількість точок, спільний водій) рахує клієнт. */
+  protected readonly summary = computed(() => {
+    const sheet = this.sheet();
+    return sheet ? summaryOf(sheet, kyivDateIso(new Date())) : null;
+  });
+
   ngOnInit(): void {
     this.load();
-    this.driversApi.list().subscribe({
+    this.directory.list().subscribe({
       next: (list) => this.drivers.set(list),
       error: (error: unknown) => this.toasts.problem(error),
     });
@@ -106,42 +115,62 @@ export class RouteSheetDetailComponent implements OnInit {
     return this.i18n.pointsCount(count);
   }
 
-  protected canTransfer(booking: Booking): boolean {
-    return canTransfer(booking.status);
+  protected driverName(driverId: string | null): string | null {
+    return driverLabel(this.drivers(), driverId);
   }
 
-  protected canCancel(booking: Booking): boolean {
-    return canCancel(booking.status);
+  /** Держномер із точки листа — id авто в довіднику шукаємо за ним. */
+  protected vehicleIdFor(point: RouteSheetPoint): string | null {
+    return (
+      this.vehicles().find((v) => v.plateNumber === point.plateNumber)?.id ??
+      null
+    );
   }
 
-  protected canChangeDriver(booking: Booking): boolean {
-    return canChangeDriverOrVehicle(booking.status);
+  protected canTransfer(point: RouteSheetPoint): boolean {
+    return canTransfer(point.status);
   }
 
-  protected lockedHint(booking: Booking): string {
+  protected canCancel(point: RouteSheetPoint): boolean {
+    return canCancel(point.status);
+  }
+
+  protected canChangeDriver(point: RouteSheetPoint): boolean {
+    return canChangeDriverOrVehicle(point.status);
+  }
+
+  protected lockedHint(point: RouteSheetPoint): string {
     return this.i18n.t('rs.lockedHint', {
-      status: this.i18n.t(`status.${booking.status}`),
+      status: this.i18n.t(`status.${point.status}`),
     });
   }
 
-  /** SUP-RS-03: перенесення відкриває флоу вибору слота з предзаповненням. */
-  protected startTransfer(booking: Booking): void {
-    this.transfer.start(booking);
-    this.drafts.save({
-      vehicleId: booking.vehicle.vehicleId ?? null,
-      newVehicle: null,
-      orderId: booking.orderId ?? '',
-      palletsCount: booking.palletsCount,
+  /**
+   * SUP-RS-03: перенесення відкриває флоу вибору слота з предзаповненням.
+   * Точка листа не містить storeId, тому бронювання дочитуємо цілком.
+   */
+  protected startTransfer(point: RouteSheetPoint): void {
+    this.bookings.get(point.bookingId).subscribe({
+      next: (booking) => {
+        this.transfer.start(booking);
+        this.drafts.save({
+          vehicleId: this.vehicleIdFor(point),
+          newVehicle: null,
+          orderId: booking.orderId ?? '',
+          palletsCount: booking.palletsCount,
+        });
+        void this.router.navigate(['/booking/stores', booking.storeId]);
+      },
+      error: (error: unknown) => this.toasts.problem(error),
     });
-    void this.router.navigate(['/booking/stores', booking.storeId]);
   }
 
   protected confirmCancel(): void {
-    const booking = this.cancelling();
-    if (!booking) {
+    const point = this.cancelling();
+    if (!point) {
       return;
     }
-    this.bookings.cancel(booking.id, this.cancelReason()).subscribe({
+    this.bookings.cancel(point.bookingId, this.cancelReason()).subscribe({
       next: () => {
         this.cancelling.set(null);
         this.cancelReason.set('');
@@ -155,8 +184,9 @@ export class RouteSheetDetailComponent implements OnInit {
     });
   }
 
-  protected assignPointDriver(booking: Booking, driverId: string): void {
-    this.bookings.assignDriver(booking.id, driverId || null).subscribe({
+  /** RSHT-02: водій на окрему точку перекриває призначення листа. */
+  protected assignPointDriver(point: RouteSheetPoint, driverId: string): void {
+    this.api.assignDriverToBooking(point.bookingId, driverId || null).subscribe({
       next: () => {
         this.toasts.success(this.i18n.t('rs.driverAssigned'));
         this.load();
@@ -166,27 +196,43 @@ export class RouteSheetDetailComponent implements OnInit {
   }
 
   /** SUP-RS-07: заміна авто з повторною перевіркою тоннажу на сервері. */
-  protected changeVehicle(booking: Booking, vehicleId: string): void {
-    if (!vehicleId || vehicleId === booking.vehicle.vehicleId) {
+  protected changeVehicle(point: RouteSheetPoint, vehicleId: string): void {
+    const vehicle = this.vehicles().find((v) => v.id === vehicleId);
+    if (!vehicle || vehicle.plateNumber === point.plateNumber) {
       return;
     }
-    this.bookings.changeVehicle(booking.id, vehicleId).subscribe({
-      next: () => {
-        this.toasts.success(this.i18n.t('rs.vehicleChanged'));
-        this.load();
-      },
-      error: (error: unknown) => {
-        this.toasts.problem(error);
-        this.load();
-      },
-    });
+    this.bookings
+      .reassign(point.bookingId, {
+        vehicle: {
+          plateNumber: vehicle.plateNumber,
+          weightTons: vehicle.weightTons,
+          brand: vehicle.brand ?? undefined,
+        },
+      })
+      .subscribe({
+        next: () => {
+          this.toasts.success(this.i18n.t('rs.vehicleChanged'));
+          this.load();
+        },
+        error: (error: unknown) => {
+          this.toasts.problem(error);
+          this.load();
+        },
+      });
   }
 
+  /**
+   * RSHT-02: бекенд вимагає driverId для листа цілком — зняти водія
+   * з усього листа одним запитом не можна (див. problems).
+   */
   protected assignSheetDriver(driverId: string): void {
-    this.api.assignDriver(this.date(), driverId || null).subscribe({
-      next: (sheet) => {
-        this.sheet.set(sheet);
+    if (!driverId) {
+      return;
+    }
+    this.api.assignDriverToSheet(this.date(), driverId).subscribe({
+      next: () => {
         this.toasts.success(this.i18n.t('rs.driverAssigned'));
+        this.load();
       },
       error: (error: unknown) => this.toasts.problem(error),
     });

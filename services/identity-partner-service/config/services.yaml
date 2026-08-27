@@ -41,6 +41,9 @@ services:
             # Mongo-реалізації вимагають живого сервера і ext-mongodb, тому
             # не реєструються в контейнері автоматично (див. нижче).
             - '../src/Infrastructure/Mongo/'
+            # Так само Redis-реалізації: ext-redis може бути відсутнє, а
+            # підключення описує лише прод-профіль.
+            - '../src/Infrastructure/Redis/'
 
     # --- Час -----------------------------------------------------------------
     App\Domain\Clock\Clock: '@App\Infrastructure\Clock\SystemClock'
@@ -61,6 +64,11 @@ services:
     App\Domain\Account\PartnerAccountRepository: '@App\Infrastructure\InMemory\InMemoryPartnerAccountRepository'
     App\Domain\Session\RefreshTokenRepository: '@App\Infrastructure\InMemory\InMemoryRefreshTokenRepository'
     App\Domain\Session\LoginAttemptRepository: '@App\Infrastructure\InMemory\InMemoryLoginAttemptRepository'
+
+    # --- Denylist access-токенів (AUTH-28, AUTH-32) --------------------------
+    # Перевіряється шлюзом на кожен запит (GET /internal/v1/auth/verify).
+    # У проді — Redis (config/packages/prod/storage.yaml).
+    App\Domain\Auth\AccessTokenDenylist: '@App\Infrastructure\InMemory\InMemoryAccessTokenDenylist'
 
     # --- Блокування логінів (AUTH-50) ---------------------------------------
     App\Domain\Session\LoginThrottle:

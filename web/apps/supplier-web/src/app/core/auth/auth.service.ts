@@ -3,7 +3,7 @@ import { Router } from '@angular/router';
 import { Observable, finalize, shareReplay, tap, throwError } from 'rxjs';
 import { AuthApi } from '../api/contracts';
 import { ERROR_CODES, problemError } from '../api/problem';
-import type { AuthSession, AuthTokens, SupplierUser } from '../models/models';
+import type { AuthSession, SupplierAccount } from '../models/models';
 import { TokenStorage } from './token-storage.service';
 
 @Injectable({ providedIn: 'root' })
@@ -13,10 +13,11 @@ export class AuthService {
   private readonly router = inject(Router);
 
   private readonly session = signal<AuthSession | null>(this.storage.read());
-  private refreshInFlight: Observable<AuthTokens> | null = null;
+  private refreshInFlight: Observable<AuthSession> | null = null;
 
-  readonly user = computed<SupplierUser | null>(
-    () => this.session()?.user ?? null,
+  /** Профіль облікового запису з відповіді логіну (AUTH-11). */
+  readonly account = computed<SupplierAccount | null>(
+    () => this.session()?.profile ?? null,
   );
   readonly isAuthenticated = computed(() => this.session() !== null);
   /** URL, на який слід повернути користувача після повторного входу. */
@@ -36,21 +37,20 @@ export class AuthService {
   }
 
   /** Спільний refresh: паралельні 401 очікують один запит. */
-  refreshTokens(): Observable<AuthTokens> {
+  refreshTokens(): Observable<AuthSession> {
     if (this.refreshInFlight) {
       return this.refreshInFlight;
     }
     const current = this.session();
     if (!current) {
       return throwError(() =>
-        problemError(401, ERROR_CODES.unauthorized, 'Сесія завершилась'),
+        problemError(401, ERROR_CODES.authTokenInvalid, 'Сесія завершилась'),
       );
     }
     this.refreshInFlight = this.api.refresh(current.refreshToken).pipe(
-      tap((tokens) => {
-        const updated: AuthSession = { ...tokens, user: current.user };
-        this.session.set(updated);
-        this.storage.updateTokens(tokens);
+      tap((session) => {
+        this.session.set(session);
+        this.storage.write(session);
       }),
       finalize(() => {
         this.refreshInFlight = null;
@@ -60,8 +60,12 @@ export class AuthService {
     return this.refreshInFlight;
   }
 
+  /** Бекенд відкликає саме refresh-токен, тому передаємо його в тілі. */
   logout(): void {
-    this.api.logout().subscribe({ error: () => undefined });
+    const refreshToken = this.session()?.refreshToken;
+    if (refreshToken) {
+      this.api.logout(refreshToken).subscribe({ error: () => undefined });
+    }
     this.clearSession();
     void this.router.navigate(['/login']);
   }

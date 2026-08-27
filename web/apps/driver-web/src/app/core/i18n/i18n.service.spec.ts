@@ -10,14 +10,12 @@ describe('I18nService', () => {
   });
 
   it('повертає українські рядки за ключем', () => {
-    expect(i18n.t('point.arrive')).toBe('На місці');
+    expect(i18n.t('point.route')).toBe('Побудувати маршрут');
     expect(i18n.t('status.booked')).toBe('Очікує виїзду');
   });
 
   it('підставляє параметри у шаблон', () => {
-    expect(i18n.t('arrive.confirmTitle', { store: 'Сільпо №1998' })).toBe(
-      'Ви на місці біля магазину Сільпо №1998?',
-    );
+    expect(i18n.t('sheet.updatedAt', { time: '10:15' })).toBe('Оновлено 10:15');
     expect(i18n.t('offline.banner', { time: '10:15' })).toBe(
       'Немає звʼязку. Показано збережений маршрут на 10:15',
     );
@@ -26,7 +24,7 @@ describe('I18nService', () => {
   it('невідомий ключ повертається як є і не ламає екран', () => {
     expect(i18n.t('no.such.key')).toBe('no.such.key');
     expect(i18n.has('no.such.key')).toBe(false);
-    expect(i18n.has('point.arrive')).toBe(true);
+    expect(i18n.has('point.route')).toBe(true);
   });
 
   it('усі відображувані статуси мають переклад (8.7)', () => {
@@ -37,6 +35,7 @@ describe('I18nService', () => {
       'completed',
       'cancelled',
       'no_show',
+      'rejected',
     ]) {
       expect(i18n.has(`status.${status}`)).toBe(true);
     }

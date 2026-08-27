@@ -1,5 +1,5 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
-import { Observable, tap, throwError } from 'rxjs';
+import { map, Observable, tap, throwError } from 'rxjs';
 import {
   AuthTokens,
   LoginRequest,
@@ -8,12 +8,17 @@ import {
   StoreScope,
 } from '../models/auth.model';
 import { AppError } from '../models/problem.model';
+import { StoreConfig } from '../models/store.model';
 import { AuthGateway } from '../data/gateways';
 import { TokenStorageService } from './token-storage.service';
 
 /**
  * Сесія staff-контуру: логін, refresh, RBAC-перевірка ролі (STW-01)
  * та вибір поточного магазину (STW-03).
+ *
+ * Бекенд у профілі віддає лише `scope.storeIds` — описових назв філій у
+ * контурі магазину немає. Тому назви беруться з конфігурації магазину, коли
+ * та завантажена, а до того показується ідентифікатор.
  */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -26,6 +31,7 @@ export class AuthService {
   private readonly selectedStoreIdSignal = signal<string | null>(
     this.storage.getSelectedStoreId(),
   );
+  private readonly labelsSignal = signal<Readonly<Record<string, StoreScope>>>({});
 
   readonly profile = this.profileSignal.asReadonly();
 
@@ -37,9 +43,19 @@ export class AuthService {
     return profile !== null && STORE_ROLES.includes(profile.role);
   });
 
-  readonly stores = computed<readonly StoreScope[]>(
-    () => this.profileSignal()?.stores ?? [],
-  );
+  readonly stores = computed<readonly StoreScope[]>(() => {
+    const labels = this.labelsSignal();
+    return (this.profileSignal()?.storeIds ?? []).map(
+      (storeId) =>
+        labels[storeId] ?? {
+          storeId,
+          displayName: storeId,
+          externalId: null,
+          city: null,
+          address: null,
+        },
+    );
+  });
 
   /** Перемикач магазину показуємо лише за наявності 2+ магазинів (STW-03). */
   readonly showStoreSwitcher = computed(() => this.stores().length > 1);
@@ -56,22 +72,18 @@ export class AuthService {
   );
 
   login(request: LoginRequest): Observable<StaffProfile> {
-    return new Observable<StaffProfile>((subscriber) => {
-      const sub = this.gateway.login(request).subscribe({
-        next: (response) => {
-          this.storage.setTokens(response.tokens);
-          this.storage.setProfile(response.profile);
-          this.profileSignal.set(response.profile);
-          this.restoreStoreSelection(response.profile);
-          subscriber.next(response.profile);
-          subscriber.complete();
-        },
-        error: (error: unknown) => subscriber.error(error),
-      });
-      return () => sub.unsubscribe();
-    });
+    return this.gateway.login(request).pipe(
+      map((response) => {
+        this.storage.setTokens(response.tokens);
+        this.storage.setProfile(response.profile);
+        this.profileSignal.set(response.profile);
+        this.restoreStoreSelection(response.profile);
+        return response.profile;
+      }),
+    );
   }
 
+  /** AUTH-31: refresh повертає нову пару токенів разом із профілем. */
   refresh(): Observable<AuthTokens> {
     const refreshToken = this.storage.getTokens()?.refreshToken ?? null;
     if (!refreshToken) {
@@ -83,9 +95,14 @@ export class AuthService {
           ),
       );
     }
-    return this.gateway
-      .refresh(refreshToken)
-      .pipe(tap((tokens) => this.storage.setTokens(tokens)));
+    return this.gateway.refresh(refreshToken).pipe(
+      tap((response) => {
+        this.storage.setTokens(response.tokens);
+        this.storage.setProfile(response.profile);
+        this.profileSignal.set(response.profile);
+      }),
+      map((response) => response.tokens),
+    );
   }
 
   logout(): void {
@@ -94,6 +111,7 @@ export class AuthService {
     this.storage.clearSession();
     this.profileSignal.set(null);
     this.selectedStoreIdSignal.set(null);
+    this.labelsSignal.set({});
   }
 
   /** STW-03: вибір магазину зберігається між сесіями. */
@@ -103,12 +121,26 @@ export class AuthService {
     this.storage.setSelectedStoreId(storeId);
   }
 
+  /** Уточнює підпис магазину після завантаження його конфігурації. */
+  describeStore(config: StoreConfig): void {
+    this.labelsSignal.update((labels) => ({
+      ...labels,
+      [config.storeId]: {
+        storeId: config.storeId,
+        displayName: config.displayName,
+        externalId: config.externalId,
+        city: config.city,
+        address: config.address,
+      },
+    }));
+  }
+
   private restoreStoreSelection(profile: StaffProfile): void {
     const saved = this.storage.getSelectedStoreId();
     const valid =
-      saved && profile.stores.some((s) => s.storeId === saved)
+      saved && profile.storeIds.includes(saved)
         ? saved
-        : (profile.stores[0]?.storeId ?? null);
+        : (profile.storeIds[0] ?? null);
     this.selectedStoreIdSignal.set(valid);
     if (valid) {
       this.storage.setSelectedStoreId(valid);

@@ -27,56 +27,47 @@
     </div>
   } @else {
     <div class="grid-cards">
-      @for (booking of items(); track booking.id) {
+      @for (point of items(); track point.bookingId) {
         <article class="card delivery">
           <header class="delivery__head">
             <div>
-              <div class="delivery__time">{{ booking.slotStart | kyivTime }}</div>
-              <div class="muted small">{{ booking.slotStart | kyivDate }}</div>
+              <div class="delivery__time">{{ point.localTime }}</div>
+              <div class="muted small">{{ point.date | kyivDay }}</div>
             </div>
-            <app-status-badge [status]="booking.status" />
+            <app-status-badge [status]="point.status" />
           </header>
 
           <div class="delivery__store">
-            <strong>{{ booking.city }}, {{ booking.address }}</strong>
-            <div class="muted small">
-              {{ 'branch.externalId' | t: { externalId: booking.storeExternalId } }}
-              · {{ 'home.ramp' | t: { ramp: booking.rampName } }}
-            </div>
+            <strong>{{ point.city }}, {{ point.address }}</strong>
+            <div class="muted small">{{ point.storeName }}</div>
           </div>
 
           <dl class="delivery__meta">
             <div>
               <dt>{{ 'rs.col.vehicle' | t }}</dt>
-              <dd>{{ booking.vehicle.plateNumber }}</dd>
+              <dd>{{ point.plateNumber }}</dd>
             </div>
             <div>
               <dt>{{ 'rs.col.pallets' | t }}</dt>
-              <dd>{{ 'home.pallets' | t: { count: booking.palletsCount } }}</dd>
+              <dd>{{ 'home.pallets' | t: { count: point.palletsCount } }}</dd>
             </div>
-            @if (booking.orderId) {
+            @if (point.orderId) {
               <div>
                 <dt>{{ 'rs.col.order' | t }}</dt>
-                <dd>{{ booking.orderId }}</dd>
+                <dd>{{ point.orderId }}</dd>
               </div>
             }
-            @if (booking.driverName) {
+            @if (driverName(point.driverId); as name) {
               <div>
                 <dt>{{ 'rs.driver' | t }}</dt>
-                <dd>{{ booking.driverName }}</dd>
+                <dd>{{ name }}</dd>
               </div>
             }
           </dl>
 
-          @if (booking.delayed) {
-            <p class="delivery__delay">
-              {{ 'home.delayed' | t: { reason: booking.delayReason ?? '' } }}
-            </p>
-          }
-
           <a
             class="btn btn--ghost btn--sm"
-            [routerLink]="['/route-sheets', sheetDate(booking)]"
+            [routerLink]="['/route-sheets', point.date]"
           >
             {{ 'home.openSheet' | t }}
           </a>

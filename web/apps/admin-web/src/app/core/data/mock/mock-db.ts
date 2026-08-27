@@ -1,31 +1,73 @@
 import { Injectable } from '@angular/core';
 import {
-  AuditEntry,
-  Booking,
-  BookingStatus,
+  AuthUser,
   CalendarException,
   Ramp,
   ReceivingWindow,
   ReservedSlotRule,
   SlotBlock,
   SlotSizeMinutes,
-  StaffUser,
   Store,
+  StoreConfiguration,
   Supplier,
-  SupplierDriver,
-  SupplierUser,
-  SyncRun,
-  Vehicle,
+  SyncLogEntry,
+  SyncStatus,
+  SyncTrigger,
   YmsStatus,
 } from '../../models';
 import { MCP_BRANCHES } from '../../fixtures/mcp.fixture';
 import { addDays, kyivDate } from '../../utils/time.util';
-import {
-  emptyReceivingWindows,
-  isStoreConfigured,
-} from '../../utils/store-config.util';
+import { emptyReceivingWindows } from '../../utils/store-config.util';
 
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
+
+/** Картка магазину без агрегованих ресурсів — вони лежать поруч, як у бекенді. */
+export type StoreCard = Omit<
+  Store,
+  'configuration' | 'reservedRules' | 'slotBlocks'
+>;
+
+/** Магазин + його версії конфігурації, резерви й блокування. */
+export interface MockStore {
+  card: StoreCard;
+  configurations: StoreConfiguration[];
+  reservedRules: ReservedSlotRule[];
+  slotBlocks: SlotBlock[];
+}
+
+/** Мінімальний факт бронювання — джерело для KPI мок-аналітики. */
+export interface MockBookingFact {
+  readonly bookingId: string;
+  readonly storeId: string;
+  readonly city: string;
+  readonly supplierId: string;
+  readonly rampId: string;
+  /** UTC ISO 8601 */
+  readonly slotStart: string;
+  readonly slotEnd: string;
+  readonly type: 'scheduled' | 'walk_in';
+  readonly status:
+    | 'booked'
+    | 'arrived'
+    | 'unloading'
+    | 'completed'
+    | 'cancelled'
+    | 'no_show'
+    | 'rejected';
+  readonly waitingMinutes: number | null;
+  readonly unloadingMinutes: number | null;
+  readonly slotMinutes: number;
+  readonly delayed: boolean;
+  readonly delayReason: string | null;
+  readonly rejectedReason: string | null;
+  readonly palletsCount: number;
+  readonly unloadedPalletsCount: number;
+  readonly onTime: boolean | null;
+}
+
+export interface MockAccount extends AuthUser {
+  readonly active: boolean;
+}
 
 /** Детермінований генератор — дані моків стабільні між запусками і в тестах. */
 export function createRandom(seed: number): () => number {
@@ -56,12 +98,23 @@ const SUPPLIER_SEED: ReadonlyArray<{
   { name: 'ТОВ «Побутхім Дистрибуція»', edrpou: '31229988', person: 'Юлія Романенко', status: 'active' },
 ];
 
-const STAFF_SEED: ReadonlyArray<Omit<StaffUser, 'storeIds'> & { storeIndexes: number[] }> = [
+const ROLE_LABELS: Readonly<Record<string, string>> = {
+  super_admin: 'Суперадміністратор',
+  network_manager: 'Менеджер мережі',
+  store_manager: 'Менеджер магазину',
+  store_operator: 'Оператор магазину',
+  analyst: 'Аналітик',
+};
+
+const ACCOUNT_SEED: ReadonlyArray<
+  Omit<MockAccount, 'storeIds' | 'roleLabel' | 'networkWide'> & {
+    storeIndexes: number[];
+  }
+> = [
   {
     id: 'su-1',
     fullName: 'Руслан Мамедов',
     email: 'super.admin@silpo.ua',
-    phone: '+380671110001',
     role: 'super_admin',
     active: true,
     storeIndexes: [],
@@ -70,7 +123,6 @@ const STAFF_SEED: ReadonlyArray<Omit<StaffUser, 'storeIds'> & { storeIndexes: nu
     id: 'su-2',
     fullName: 'Оксана Лисенко',
     email: 'network.manager@silpo.ua',
-    phone: '+380671110002',
     role: 'network_manager',
     active: true,
     storeIndexes: [],
@@ -79,7 +131,6 @@ const STAFF_SEED: ReadonlyArray<Omit<StaffUser, 'storeIds'> & { storeIndexes: nu
     id: 'su-3',
     fullName: 'Павло Гончар',
     email: 'store.manager@silpo.ua',
-    phone: '+380671110003',
     role: 'store_manager',
     active: true,
     storeIndexes: [0, 1, 2],
@@ -88,7 +139,6 @@ const STAFF_SEED: ReadonlyArray<Omit<StaffUser, 'storeIds'> & { storeIndexes: nu
     id: 'su-4',
     fullName: 'Вікторія Шевчук',
     email: 'analyst@silpo.ua',
-    phone: '+380671110004',
     role: 'analyst',
     active: true,
     storeIndexes: [],
@@ -97,7 +147,6 @@ const STAFF_SEED: ReadonlyArray<Omit<StaffUser, 'storeIds'> & { storeIndexes: nu
     id: 'su-5',
     fullName: 'Микола Дяченко',
     email: 'store.operator@silpo.ua',
-    phone: '+380671110005',
     role: 'store_operator',
     active: true,
     storeIndexes: [3, 4],
@@ -106,7 +155,6 @@ const STAFF_SEED: ReadonlyArray<Omit<StaffUser, 'storeIds'> & { storeIndexes: nu
     id: 'su-6',
     fullName: 'Аліна Терещенко',
     email: 'alina.tereshchenko@silpo.ua',
-    phone: '+380671110006',
     role: 'store_manager',
     active: false,
     storeIndexes: [5],
@@ -125,6 +173,44 @@ const BLOCK_REASONS = [
   'Ремонт рампи',
   'Планове відключення електроенергії',
 ];
+
+/** Формулювання відсутніх параметрів — дослівно з ConfigurationReadiness. */
+export const MISSING_WINDOWS = 'вікна прийому';
+export const MISSING_RAMPS = 'активні рампи';
+export const MISSING_ABSENT: readonly string[] = [
+  'вікна прийому',
+  'розмір слоту',
+  'активні рампи',
+  'максимальна маса авто',
+];
+
+export function readinessOf(config: StoreConfiguration | null): {
+  configured: boolean;
+  missing: readonly string[];
+} {
+  if (!config) {
+    return { configured: false, missing: MISSING_ABSENT };
+  }
+  const missing: string[] = [];
+  const totalMinutes = config.receivingWindows.reduce(
+    (sum, w) =>
+      sum +
+      w.intervals.reduce((acc, i) => acc + minutesOf(i.to) - minutesOf(i.from), 0),
+    0,
+  );
+  if (totalMinutes === 0) {
+    missing.push(MISSING_WINDOWS);
+  }
+  if (!config.ramps.some((r) => r.enabled)) {
+    missing.push(MISSING_RAMPS);
+  }
+  return { configured: missing.length === 0, missing };
+}
+
+function minutesOf(time: string): number {
+  const [h, m] = time.split(':');
+  return Number(h) * 60 + Number(m);
+}
 
 function standardWindows(): ReceivingWindow[] {
   return emptyReceivingWindows().map((w) =>
@@ -150,33 +236,55 @@ function splitWindows(): ReceivingWindow[] {
   );
 }
 
-function makeRamps(count: number, storeId: string, withBookings: number): Ramp[] {
+function makeRamps(count: number, storeId: string): Ramp[] {
   return Array.from({ length: count }, (_, i) => ({
     id: `${storeId}-ramp-${i + 1}`,
     number: i + 1,
     name: i === 0 ? 'Основна' : `Рампа ${i + 1}`,
     enabled: true,
-    disabledFrom: null,
-    hasBookings: i < withBookings,
   }));
 }
 
+export const YMS_STATUS_LABELS: Readonly<Record<YmsStatus, string>> = {
+  not_configured: 'Не налаштований',
+  active: 'Активний',
+  paused: 'Призупинений',
+  archived: 'Архівний',
+};
+
+/** STC-03: дозволені переходи статусу (Branch::allowedTransitions). */
+export const ALLOWED_TRANSITIONS: Readonly<Record<YmsStatus, readonly YmsStatus[]>> = {
+  not_configured: ['active', 'archived'],
+  active: ['paused', 'archived'],
+  paused: ['active', 'archived'],
+  archived: ['not_configured'],
+};
+
+export const SYNC_STATUS_LABELS: Readonly<Record<SyncStatus, string>> = {
+  running: 'Виконується',
+  success: 'Успіх',
+  partial: 'Успіх із конфліктами',
+  failed: 'Помилка',
+};
+
+export const SYNC_TRIGGER_LABELS: Readonly<Record<SyncTrigger, string>> = {
+  cron: 'Автоматичний (cron)',
+  manual: 'Ручний',
+  import: 'Первинний імпорт',
+};
+
 export interface MockState {
-  stores: Store[];
+  stores: MockStore[];
   suppliers: Supplier[];
-  supplierUsers: SupplierUser[];
-  vehicles: Vehicle[];
-  drivers: SupplierDriver[];
-  staff: StaffUser[];
-  syncRuns: SyncRun[];
-  bookings: Booking[];
-  audit: AuditEntry[];
+  accounts: MockAccount[];
+  syncLog: SyncLogEntry[];
+  bookings: MockBookingFact[];
   syncRunning: boolean;
 }
 
 /**
  * InMemory-джерело даних для роботи без бекенду (environment.useMocks).
- * Дані філій і міст походять з fixtures/silpo-branches.json та cities.json.
+ * Дані філій і міст походять з fixtures/silpo-branches.json.
  */
 @Injectable({ providedIn: 'root' })
 export class MockDb {
@@ -186,14 +294,14 @@ export class MockDb {
     const fresh = seed();
     this.state.stores = fresh.stores;
     this.state.suppliers = fresh.suppliers;
-    this.state.supplierUsers = fresh.supplierUsers;
-    this.state.vehicles = fresh.vehicles;
-    this.state.drivers = fresh.drivers;
-    this.state.staff = fresh.staff;
-    this.state.syncRuns = fresh.syncRuns;
+    this.state.accounts = fresh.accounts;
+    this.state.syncLog = fresh.syncLog;
     this.state.bookings = fresh.bookings;
-    this.state.audit = fresh.audit;
     this.state.syncRunning = false;
+  }
+
+  store(id: string): MockStore | undefined {
+    return this.state.stores.find((s) => s.card.id === id);
   }
 
   nextId(prefix: string): string {
@@ -209,16 +317,24 @@ export function seed(): MockState {
     id: `sup-${i + 1}`,
     name: s.name,
     edrpou: s.edrpou,
-    contactPerson: s.person,
-    contactPhone: `+38067${String(2000000 + i * 13457).slice(0, 7)}`,
-    contactEmail: `contact${i + 1}@postachalnyk.ua`,
     status: s.status,
-    storeAccessMode: i % 3 === 0 ? 'whitelist' : 'all',
-    allowedStoreIds: [],
-    bookingsCount: 0,
+    statusLabel: s.status === 'active' ? 'Активний' : 'Призупинений',
+    storeAccess: { allStores: i % 3 !== 0, storeIds: [] },
+    contacts: [
+      {
+        name: s.person,
+        phone: `+38067${String(2000000 + i * 13457).slice(0, 7)}`,
+        email: `contact${i + 1}@postachalnyk.ua`,
+      },
+    ],
+    suspendedAt:
+      s.status === 'suspended' ? new Date(Date.now() - 86_400_000).toISOString() : null,
+    suspendReason: s.status === 'suspended' ? 'Прострочена заборгованість' : null,
+    createdAt: new Date(Date.now() - 90 * 86_400_000).toISOString(),
+    updatedAt: new Date(Date.now() - 3 * 86_400_000).toISOString(),
   }));
 
-  const stores: Store[] = MCP_BRANCHES.map((branch, index) => {
+  const stores: MockStore[] = MCP_BRANCHES.map((branch, index) => {
     const id = `st-${branch.externalId}`;
     const bucket = index % 10;
     let status: YmsStatus;
@@ -228,48 +344,69 @@ export function seed(): MockState {
     else status = 'not_configured';
 
     const configured = status === 'active' || status === 'paused';
-    const rampCount = configured ? 1 + (index % 4) : 0;
-    const ramps = makeRamps(rampCount, id, configured ? 1 : 0);
-    const slotSize: SlotSizeMinutes | null = configured
-      ? ([30, 60, 20, 15] as SlotSizeMinutes[])[index % 4]
-      : null;
+    const ramps = makeRamps(configured ? 1 + (index % 4) : 0, id);
+    const slotSize = ([30, 60, 20, 15] as SlotSizeMinutes[])[index % 4];
     const windows = configured
       ? index % 3 === 0
         ? splitWindows()
         : standardWindows()
       : emptyReceivingWindows();
-    const maxWeight = configured ? 5 + Math.round(rnd() * 60) / 2 : null;
 
-    const exceptions: CalendarException[] = configured && index % 7 === 0
-      ? [
-          {
-            id: `${id}-exc-1`,
-            date: addDays(today, 14),
-            type: 'closed',
-            intervals: [],
-            reason: 'Інвентаризація',
-          },
-          {
-            id: `${id}-exc-2`,
-            date: addDays(today, 21),
-            type: 'custom',
-            intervals: [{ from: '09:00', to: '13:00' }],
-            reason: 'Скорочений день перед святом',
-          },
-        ]
-      : [];
+    const calendarExceptions: CalendarException[] =
+      configured && index % 7 === 0
+        ? [
+            {
+              id: `exc-${addDays(today, 14)}`,
+              date: addDays(today, 14),
+              type: 'closed',
+              intervals: [],
+              reason: 'Інвентаризація',
+            },
+            {
+              id: `exc-${addDays(today, 21)}`,
+              date: addDays(today, 21),
+              type: 'custom',
+              intervals: [{ from: '09:00', to: '13:00' }],
+              reason: 'Скорочений день перед святом',
+            },
+          ]
+        : [];
+
+    const configuration: StoreConfiguration | null = configured
+      ? {
+          id: `${id}-cfg-1`,
+          storeId: id,
+          version: 1,
+          effectiveFrom: `${addDays(today, -30)}T00:00:00+00:00`,
+          receivingWindows: windows,
+          slotSizeMinutes: slotSize,
+          ramps,
+          maxVehicleWeightTons: clampWeight(5 + Math.round(rnd() * 60) / 2),
+          leadTimeMinutes: [120, 240, 720, 1440][index % 4],
+          bookingHorizonDays: [14, 21, 30][index % 3],
+          noShowGraceMinutes: 30,
+          holdMaxMinutes: 15,
+          calendarExceptions,
+          configured: true,
+          missingSettings: [],
+          createdBy: 'su-2',
+          createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(),
+          schemaVersion: 1,
+        }
+      : null;
 
     const reservedRules: ReservedSlotRule[] =
-      configured && index % 5 === 0 && ramps.length > 0
+      configuration && index % 5 === 0 && ramps.length > 0
         ? [
             {
               id: `${id}-res-1`,
+              storeId: id,
               supplierId: suppliers[index % suppliers.length].id,
+              rampId: ramps[0].id,
+              slotStartTime: '08:00',
               dayOfWeek: 2,
               date: null,
-              slotStartTime: '08:00',
-              rampId: ramps[0].id,
-              validFrom: addDays(today, -30),
+              validFrom: `${addDays(today, -30)}T00:00:00+00:00`,
               validTo: null,
               active: true,
             },
@@ -277,123 +414,94 @@ export function seed(): MockState {
         : [];
 
     const slotBlocks: SlotBlock[] =
-      configured && index % 11 === 0 && ramps.length > 0
+      configuration && index % 11 === 0 && ramps.length > 0
         ? [
             {
               id: `${id}-blk-1`,
-              date: addDays(today, 3),
-              from: '12:00',
-              to: '15:00',
+              storeId: id,
               rampIds: [ramps[0].id],
+              coversAllRamps: false,
+              blockFrom: `${addDays(today, 3)}T09:00:00+00:00`,
+              blockTo: `${addDays(today, 3)}T12:00:00+00:00`,
               reason: BLOCK_REASONS[index % BLOCK_REASONS.length],
-              active: true,
+              releasedAt: null,
               createdAt: new Date().toISOString(),
             },
           ]
         : [];
 
-    const store: Store = {
+    const readiness = readinessOf(configuration);
+    const displayName = `Сільпо ${branch.externalId}`;
+    const addressOverride =
+      index % 13 === 0 ? `${branch.address} (вʼїзд з двору)` : null;
+
+    const card: StoreCard = {
       ...branch,
       id,
-      displayName: `Сільпо ${branch.externalId} — ${branch.address}`,
-      phone: index % 4 === 0 ? null : `+38044${String(3000000 + index * 719).slice(0, 7)}`,
-      addressOverride: index % 13 === 0 ? `${branch.address} (вʼїзд з двору)` : null,
+      displayName,
+      effectiveDisplayName: displayName,
+      phone:
+        index % 4 === 0 ? null : `+38044${String(3000000 + index * 719).slice(0, 7)}`,
+      addressOverride,
+      effectiveAddress: addressOverride ?? branch.address,
       ymsStatus: status,
+      ymsStatusLabel: YMS_STATUS_LABELS[status],
+      allowedTransitions: ALLOWED_TRANSITIONS[status],
       visibleToSuppliers: status === 'active',
-      slotSizeMinutes: slotSize,
-      ramps,
-      maxVehicleWeightTons: maxWeight === null ? null : clampWeight(maxWeight),
-      leadTimeHours: configured ? [2, 4, 12, 24][index % 4] : 4,
-      bookingHorizonDays: configured ? [14, 21, 30][index % 3] : 14,
-      receivingWindows: windows,
-      exceptions,
+      isConfigured: readiness.configured,
+      missingSettings: readiness.missing,
+      eligible: status === 'active' && readiness.configured && branch.open,
+      ineligibilityReasons: branch.open
+        ? []
+        : [{ code: 'branch_closed', message: 'Філія закрита в MCP' }],
+      missingSyncCount: 0,
+      lastSyncedAt: new Date(Date.now() - (index % 12) * 3_600_000).toISOString(),
+      createdAt: new Date(Date.now() - 120 * 86_400_000).toISOString(),
+      updatedAt: new Date(Date.now() - 2 * 86_400_000).toISOString(),
+      archivedAt: status === 'archived' ? new Date().toISOString() : null,
+      activeConfigurationVersion: configuration?.version ?? null,
+    };
+
+    return {
+      card,
+      configurations: configuration ? [configuration] : [],
       reservedRules,
       slotBlocks,
-      isConfigured: false,
-      lastSyncedAt: new Date(Date.now() - (index % 12) * 3_600_000).toISOString(),
-      missingSyncCount: 0,
     };
-    return { ...store, isConfigured: isStoreConfigured(store) };
   });
 
   // whitelist-постачальникам призначаємо кілька активних магазинів
-  const activeStoreIds = stores.filter((s) => s.ymsStatus === 'active').map((s) => s.id);
+  const activeStoreIds = stores
+    .filter((s) => s.card.ymsStatus === 'active')
+    .map((s) => s.card.id);
   suppliers.forEach((supplier, i) => {
-    if (supplier.storeAccessMode === 'whitelist') {
-      supplier.allowedStoreIds = activeStoreIds.slice(i * 3, i * 3 + 6);
+    if (!supplier.storeAccess.allStores) {
+      supplier.storeAccess = {
+        allStores: false,
+        storeIds: activeStoreIds.slice(i * 3, i * 3 + 6),
+      };
     }
   });
 
-  const supplierUsers: SupplierUser[] = suppliers.flatMap((supplier, i) => [
-    {
-      id: `supu-${i + 1}-a`,
-      supplierId: supplier.id,
-      fullName: supplier.contactPerson,
-      email: `admin${i + 1}@postachalnyk.ua`,
-      phone: supplier.contactPhone,
-      role: 'supplier_admin' as const,
-      active: true,
-    },
-    {
-      id: `supu-${i + 1}-o`,
-      supplierId: supplier.id,
-      fullName: `Оператор ${i + 1}`,
-      email: `operator${i + 1}@postachalnyk.ua`,
-      phone: `+38050${String(1000000 + i * 4321).slice(0, 7)}`,
-      role: 'supplier_operator' as const,
-      active: i % 5 !== 0,
-    },
-  ]);
-
-  const vehicles: Vehicle[] = suppliers.flatMap((supplier, i) =>
-    Array.from({ length: 3 }, (_, j) => ({
-      id: `veh-${i + 1}-${j + 1}`,
-      supplierId: supplier.id,
-      plate: `AA${String(1000 + i * 37 + j * 7).slice(0, 4)}${['ВА', 'КМ', 'ОР'][j % 3]}`,
-      model: ['Mercedes Sprinter', 'MAN TGL', 'Renault Master', 'Volvo FL'][
-        (i + j) % 4
-      ],
-      weightTons: clampWeight(3 + ((i + j * 3) % 30)),
-    })),
-  );
-
-  const drivers: SupplierDriver[] = suppliers.flatMap((supplier, i) =>
-    Array.from({ length: 2 }, (_, j) => ({
-      id: `drv-${i + 1}-${j + 1}`,
-      supplierId: supplier.id,
-      fullName: `${['Олег', 'Тарас', 'Богдан', 'Василь'][(i + j) % 4]} ${['Іваненко', 'Петренко', 'Коваль', 'Шевченко'][(i * 2 + j) % 4]}`,
-      phone: `+38063${String(4000000 + i * 9871 + j * 13).slice(0, 7)}`,
-      active: true,
-    })),
-  );
-
-  const staff: StaffUser[] = STAFF_SEED.map((s) => ({
-    id: s.id,
-    fullName: s.fullName,
-    email: s.email,
-    phone: s.phone,
-    role: s.role,
-    active: s.active,
-    storeIds: s.storeIndexes.map((i) => stores[i]?.id).filter((v): v is string => !!v),
+  const accounts: MockAccount[] = ACCOUNT_SEED.map((a) => ({
+    id: a.id,
+    fullName: a.fullName,
+    email: a.email,
+    role: a.role,
+    roleLabel: ROLE_LABELS[a.role] ?? a.role,
+    active: a.active,
+    networkWide: a.storeIndexes.length === 0,
+    storeIds: a.storeIndexes
+      .map((i) => stores[i]?.card.id)
+      .filter((v): v is string => !!v),
   }));
-
-  const bookings = seedBookings(stores, suppliers, vehicles, rnd, today);
-  suppliers.forEach((supplier) => {
-    supplier.bookingsCount = bookings.filter(
-      (b) => b.supplierId === supplier.id,
-    ).length;
-  });
 
   return {
     stores,
     suppliers,
-    supplierUsers,
-    vehicles,
-    drivers,
-    staff,
-    syncRuns: seedSyncRuns(stores),
-    bookings,
-    audit: seedAudit(stores, suppliers, staff),
+    accounts,
+    syncLog: seedSyncLog(),
+    bookings: seedBookings(stores, suppliers, rnd, today),
     syncRunning: false,
   };
 }
@@ -404,160 +512,97 @@ function clampWeight(value: number): number {
 }
 
 function seedBookings(
-  stores: readonly Store[],
+  stores: readonly MockStore[],
   suppliers: readonly Supplier[],
-  vehicles: readonly Vehicle[],
   rnd: () => number,
   today: string,
-): Booking[] {
-  const bookings: Booking[] = [];
-  const statuses: BookingStatus[] = [
-    'booked',
-    'booked',
-    'booked',
-    'completed',
-    'completed',
-    'no_show',
-    'cancelled',
-  ];
+): MockBookingFact[] {
+  const facts: MockBookingFact[] = [];
   let counter = 1;
   for (const store of stores) {
-    if (store.ymsStatus !== 'active' && store.ymsStatus !== 'paused') {
-      continue;
-    }
-    if (store.ramps.length === 0 || store.slotSizeMinutes === null) {
+    const config = store.configurations[0];
+    if (!config || store.card.ymsStatus === 'archived') {
       continue;
     }
     const count = 2 + Math.floor(rnd() * 4);
     for (let i = 0; i < count; i += 1) {
       const supplier = suppliers[Math.floor(rnd() * suppliers.length)];
-      const vehicle =
-        vehicles.filter((v) => v.supplierId === supplier.id)[
-          Math.floor(rnd() * 3)
-        ] ?? vehicles[0];
-      const offset = Math.floor(rnd() * 20) - 6;
+      const offset = Math.floor(rnd() * 20) - 12;
       const hour = 8 + Math.floor(rnd() * 9);
-      const status = offset < 0 ? statuses[3 + (i % 4)] : statuses[i % 3];
-      bookings.push({
-        id: `bk-${counter++}`,
-        storeId: store.id,
+      const date = addDays(today, offset);
+      const start = `${date}T${String(hour).padStart(2, '0')}:00:00+00:00`;
+      const end = `${date}T${String(hour).padStart(2, '0')}:${String(
+        config.slotSizeMinutes % 60,
+      ).padStart(2, '0')}:00+00:00`;
+      const past = offset < 0;
+      const roll = rnd();
+      const status = !past
+        ? 'booked'
+        : roll < 0.7
+          ? 'completed'
+          : roll < 0.82
+            ? 'no_show'
+            : roll < 0.92
+              ? 'cancelled'
+              : 'rejected';
+      const delayed = past && rnd() < 0.25;
+      facts.push({
+        bookingId: `bk-${counter++}`,
+        storeId: store.card.id,
+        city: store.card.city,
         supplierId: supplier.id,
-        supplierName: supplier.name,
-        supplierPhone: supplier.contactPhone,
-        date: addDays(today, offset),
-        startTime: `${String(hour).padStart(2, '0')}:00`,
-        rampId: store.ramps[Math.floor(rnd() * store.ramps.length)].id,
-        vehiclePlate: vehicle.plate,
-        vehicleWeightTons: vehicle.weightTons,
-        orderId: `ORD-${100000 + counter}`,
+        rampId: config.ramps[Math.floor(rnd() * config.ramps.length)]?.id ?? 'r1',
+        slotStart: start,
+        slotEnd: end,
+        type: rnd() < 0.15 ? 'walk_in' : 'scheduled',
         status,
+        waitingMinutes: status === 'completed' ? Math.round(rnd() * 40) : null,
+        unloadingMinutes:
+          status === 'completed'
+            ? Math.round(config.slotSizeMinutes * (0.5 + rnd() * 0.8))
+            : null,
+        slotMinutes: config.slotSizeMinutes,
+        delayed,
+        delayReason: delayed
+          ? DELAY_REASONS[Math.floor(rnd() * DELAY_REASONS.length)]
+          : null,
+        rejectedReason: status === 'rejected' ? 'no_documents' : null,
+        palletsCount: 4 + Math.floor(rnd() * 20),
+        unloadedPalletsCount: status === 'completed' ? 4 + Math.floor(rnd() * 20) : 0,
+        onTime: status === 'completed' ? !delayed : null,
       });
     }
   }
-  return bookings;
+  return facts;
 }
 
-function seedSyncRuns(stores: readonly Store[]): SyncRun[] {
-  const runs: SyncRun[] = [];
+function seedSyncLog(): SyncLogEntry[] {
+  const entries: SyncLogEntry[] = [];
   const now = Date.now();
   for (let i = 0; i < 8; i += 1) {
     const startedAt = new Date(now - i * 6 * 3_600_000);
     const failed = i === 3;
-    const created = failed ? 0 : i === 0 ? 2 : i % 3;
-    const changed = failed ? 0 : (i * 3) % 7;
-    const missing = failed ? 0 : i % 2;
-    runs.push({
+    const status: SyncStatus = failed ? 'failed' : i === 5 ? 'partial' : 'success';
+    const trigger: SyncTrigger = i % 4 === 0 ? 'manual' : 'cron';
+    entries.push({
       id: `sync-${8 - i}`,
+      status,
+      statusLabel: SYNC_STATUS_LABELS[status],
+      trigger,
+      triggerLabel: SYNC_TRIGGER_LABELS[trigger],
+      initiator: trigger === 'manual' ? 'su-2' : null,
+      source: 'mcp',
       startedAt: startedAt.toISOString(),
       finishedAt: new Date(startedAt.getTime() + 42_000 + i * 3_000).toISOString(),
-      durationMs: 42_000 + i * 3_000,
-      type: i % 4 === 0 ? 'manual' : 'auto',
-      initiatedBy: i % 4 === 0 ? 'Оксана Лисенко' : null,
-      status: failed ? 'error' : 'success',
-      error: failed ? 'Таймаут MCP при offset=1500: обрив пагінації' : null,
-      newCount: created,
-      changedCount: changed,
-      missingCount: missing,
-      diff: {
-        created: stores.slice(i, i + created).map((s) => ({
-          externalId: s.externalId,
-          city: s.city,
-          address: s.address,
-        })),
-        changed: stores.slice(10 + i, 10 + i + changed).map((s) => ({
-          externalId: s.externalId,
-          city: s.city,
-          changes: [
-            {
-              field: 'address',
-              oldValue: s.address,
-              newValue: `${s.address}, корп. 2`,
-            },
-            { field: 'open', oldValue: 'true', newValue: 'true' },
-          ],
-        })),
-        missing: stores.slice(40 + i, 40 + i + missing).map((s, idx) => ({
-          externalId: s.externalId,
-          city: s.city,
-          address: s.address,
-          missingSyncCount: idx + 1,
-          hasFutureBookings: idx === 0,
-        })),
-      },
-    });
-  }
-  return runs;
-}
-
-function seedAudit(
-  stores: readonly Store[],
-  suppliers: readonly Supplier[],
-  staff: readonly StaffUser[],
-): AuditEntry[] {
-  const entries: AuditEntry[] = [];
-  const now = Date.now();
-  const actors = staff.filter((s) => s.role !== 'store_operator');
-  for (let i = 0; i < 45; i += 1) {
-    const actor = actors[i % actors.length];
-    const kind = i % 5;
-    const store = stores[(i * 7) % stores.length];
-    const supplier = suppliers[i % suppliers.length];
-    entries.push({
-      id: `aud-${45 - i}`,
-      at: new Date(now - i * 3_400_000).toISOString(),
-      userId: actor.id,
-      userName: actor.fullName,
-      role: actor.role,
-      ip: `10.20.${i % 255}.${(i * 3) % 255}`,
-      objectType:
-        kind === 0
-          ? 'store'
-          : kind === 1
-            ? 'supplier'
-            : kind === 2
-              ? 'staff_user'
-              : kind === 3
-                ? 'slot_block'
-                : 'sync',
-      objectId: kind === 1 ? supplier.id : store.id,
-      objectLabel:
-        kind === 1 ? supplier.name : `${store.externalId} — ${store.city}`,
-      action:
-        kind === 0
-          ? 'update'
-          : kind === 1
-            ? 'status_change'
-            : kind === 2
-              ? 'create'
-              : kind === 3
-                ? 'create'
-                : 'sync_run',
-      changes:
-        kind === 0
-          ? [{ field: 'maxVehicleWeightTons', oldValue: '20', newValue: '18' }]
-          : kind === 1
-            ? [{ field: 'status', oldValue: 'active', newValue: 'suspended' }]
-            : [],
+      durationSeconds: 42 + i * 3,
+      fetched: failed ? 0 : 1200 + i,
+      created: failed ? 0 : i === 0 ? 2 : i % 3,
+      updated: failed ? 0 : (i * 3) % 7,
+      missing: failed ? 0 : i % 2,
+      archived: 0,
+      conflicts: status === 'partial' ? 2 : 0,
+      skipped: failed ? 0 : i % 4,
+      errors: failed ? ['Таймаут MCP при offset=1500: обрив пагінації'] : [],
     });
   }
   return entries;

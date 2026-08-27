@@ -35,18 +35,27 @@ describe('I18nService', () => {
     expect(i18n.has('нема.такого.ключа')).toBe(false);
   });
 
-  it('має переклади для всіх статусів і довідників причин', () => {
+  it('має переклади для всіх статусів', () => {
     for (const status of ALL_STATUSES) {
       expect(i18n.has(`status.${status}`)).toBe(true);
     }
-    for (const reason of REJECT_REASONS) {
-      expect(i18n.has(`rejectReason.${reason}`)).toBe(true);
-    }
-    for (const reason of PARTIAL_UNLOAD_REASONS) {
-      expect(i18n.has(`partialReason.${reason}`)).toBe(true);
-    }
-    for (const reason of DELAY_REASONS) {
-      expect(i18n.has(`delayReason.${reason}`)).toBe(true);
+  });
+
+  /**
+   * Довідники причин бекенду — це backed-enum'и з україномовними значеннями
+   * (`RejectionReason`, `PartialUnloadReason`, `DelayReason`), тому UI показує
+   * значення як є і окремих ключів i18n для них не існує. Тест закріплює саме
+   * цю властивість: жодних латинських кодів причин у контракті бути не має.
+   */
+  it('значення довідників причин уже україномовні і не потребують ключів', () => {
+    const cyrillic = /^[а-яїієґА-ЯЇІЄҐ][а-яїієґА-ЯЇІЄҐ\s/'’-]*$/;
+    for (const reason of [
+      ...REJECT_REASONS,
+      ...PARTIAL_UNLOAD_REASONS,
+      ...DELAY_REASONS,
+    ]) {
+      expect(reason).toMatch(cyrillic);
+      expect(i18n.has(`rejectReason.${reason}`)).toBe(false);
     }
   });
 

@@ -34,15 +34,19 @@ final readonly class StoreCatalogService
      * STL-02, STL-03, STL-05: серверні фільтри, пошук, пагінація і сортування.
      *
      * @param array<string, mixed> $query
+     * @param list<string>|null    $storeScope RBAC-17/RBAC-18: скоуп магазинів актора —
+     *                                         null для мережевих ролей, перелік для магазинних;
+     *                                         порожній перелік = порожня вибірка (RBAC-13),
+     *                                         колекція фільтрується мовчки
      *
      * @return array<string, mixed>
      */
-    public function list(array $query): array
+    public function list(array $query, ?array $storeScope = null): array
     {
         $now = $this->clock->now();
         $configuredIds = $this->configurations->configuredStoreIds($now);
 
-        $criteria = $this->buildCriteria($query, $configuredIds);
+        $criteria = $this->buildCriteria($query, $configuredIds, $storeScope);
         $page = $this->branches->search($criteria);
 
         $items = array_map(
@@ -74,11 +78,13 @@ final readonly class StoreCatalogService
     /**
      * Список міст довідника для фільтра admin-web (STL-02).
      *
+     * @param list<string>|null $storeScope скоуп магазинів актора (див. list())
+     *
      * @return list<array{city: string, storeCount: int}>
      */
-    public function cities(): array
+    public function cities(?array $storeScope = null): array
     {
-        return $this->branches->cities(new BranchCriteria());
+        return $this->branches->cities(new BranchCriteria(scopedStoreIds: $storeScope));
     }
 
     public function requireBranch(string $branchId): Branch
@@ -100,8 +106,9 @@ final readonly class StoreCatalogService
     /**
      * @param array<string, mixed> $query
      * @param list<string>         $configuredIds
+     * @param list<string>|null    $storeScope
      */
-    private function buildCriteria(array $query, array $configuredIds): BranchCriteria
+    private function buildCriteria(array $query, array $configuredIds, ?array $storeScope = null): BranchCriteria
     {
         $statuses = [];
 
@@ -139,6 +146,7 @@ final readonly class StoreCatalogService
             query: isset($query['q']) ? (string) $query['q'] : null,
             configured: $configured,
             configuredStoreIds: $configuredIds,
+            scopedStoreIds: $storeScope,
             page: max(1, isset($query['page']) ? (int) $query['page'] : 1),
             perPage: $perPage,
             sortBy: isset($query['sortBy']) ? (string) $query['sortBy'] : 'city',

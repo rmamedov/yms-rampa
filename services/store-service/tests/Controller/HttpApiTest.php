@@ -11,6 +11,7 @@ use App\Domain\Configuration\StoreConfigurationRepository;
 use App\Infrastructure\Http\ProblemJsonFactory;
 use App\Kernel;
 use App\Tests\Support\BranchFactory;
+use App\Tests\Support\IdentityHeaders;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -167,7 +168,7 @@ final class HttpApiTest extends TestCase
     {
         $this->seedBranch();
 
-        $body = $this->json($this->request('GET', '/api/supplier/v1/stores'));
+        $body = $this->json($this->request('GET', '/api/supplier/v1/stores', headers: IdentityHeaders::supplier()));
 
         self::assertSame(0, $body['total']);
         self::assertSame([], $body['items']);
@@ -177,23 +178,27 @@ final class HttpApiTest extends TestCase
     {
         $this->seedActiveVisibleBranch();
 
-        $stores = $this->json($this->request('GET', '/api/supplier/v1/stores?city=%D0%9A%D0%B8%D1%97%D0%B2'));
-        $cities = $this->json($this->request('GET', '/api/supplier/v1/cities'));
+        $stores = $this->json($this->request(
+            'GET',
+            '/api/supplier/v1/stores?city=%D0%9A%D0%B8%D1%97%D0%B2',
+            headers: IdentityHeaders::supplier(),
+        ));
+        $cities = $this->json($this->request('GET', '/api/supplier/v1/cities', headers: IdentityHeaders::supplier()));
 
         self::assertSame(1, $stores['total']);
         self::assertSame('1998', $stores['items'][0]['externalId']);
         self::assertSame([['city' => 'Київ', 'storeCount' => 1]], $cities['items']);
     }
 
-    /** SUP-03: whitelist магазинів звужує вибірку постачальника. */
-    public function testSupplierWhitelistHeaderLimitsResults(): void
+    /** SUP-03: непорожній X-Store-Ids звужує вибірку постачальника. */
+    public function testSupplierStoreIdsHeaderNarrowsResults(): void
     {
         $this->seedActiveVisibleBranch();
 
         $body = $this->json($this->request(
             'GET',
             '/api/supplier/v1/stores',
-            headers: ['HTTP_X_SUPPLIER_STORES' => '11111111-1111-4111-8111-111111111111'],
+            headers: IdentityHeaders::supplier(storeIds: ['11111111-1111-4111-8111-111111111111']),
         ));
 
         self::assertSame(0, $body['total']);
@@ -258,11 +263,15 @@ final class HttpApiTest extends TestCase
     }
 
     /**
+     * За замовчуванням запит іде з ідентичністю мережевої ролі: шлюз підставляє
+     * службові заголовки в КОЖЕН запит, тож «запит без ідентичності» — це вже
+     * окремий негативний сценарій (IdentityScopeTest).
+     *
      * @param array<string, string> $headers
      */
     private function request(string $method, string $uri, ?string $content = null, array $headers = []): Response
     {
-        $request = Request::create($uri, $method, server: $headers, content: $content);
+        $request = Request::create($uri, $method, server: $headers + IdentityHeaders::staff(), content: $content);
 
         if (null !== $content) {
             $request->headers->set('Content-Type', 'application/json');

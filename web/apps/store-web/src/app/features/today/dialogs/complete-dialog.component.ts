@@ -84,11 +84,17 @@ export class CompleteDialogComponent {
   submit(): void {
     this.submitted.set(true);
     if (!this.errors().valid) return;
+    // Бекенд приймає вкладений обʼєкт partialUnload {reason, comment};
+    // окремих полів partialUnload*/flag у тілі запиту немає.
     this.confirmed.emit({
       unloadedPalletsCount: this.unloadedValue(),
-      partialUnload: this.partial(),
-      partialUnloadReason: this.partial() ? this.reason() : null,
-      partialUnloadComment: this.comment().trim() || null,
+      partialUnload:
+        this.partial() && this.reason()
+          ? {
+              reason: this.reason() as PartialUnloadReason,
+              comment: this.comment().trim() || null,
+            }
+          : null,
     });
   }
 }

@@ -1,10 +1,17 @@
 import { Observable } from 'rxjs';
-import { Page, PageQuery, SyncRun } from '../models';
+import { PageSize, SyncLog, SyncReport } from '../models';
 
-/** store-service: журнал і ручний запуск синхронізації з MCP (5.6). */
+/**
+ * store-service, розділ «Синхронізація MCP» (5.6):
+ *   GET  /api/admin/v1/sync/log?page&perPage
+ *   POST /api/admin/v1/sync/run
+ */
 export abstract class SyncApi {
-  abstract list(query: PageQuery): Observable<Page<SyncRun>>;
-  abstract get(id: string): Observable<SyncRun>;
-  /** SYNC-02: повторний запуск під час активної синхронізації заборонений. */
-  abstract run(initiatedBy: string): Observable<SyncRun>;
+  abstract log(page: number, perPage: PageSize): Observable<SyncLog>;
+  /**
+   * SYNC-02: повторний запуск під час активної синхронізації —
+   * 409 SYNC_ALREADY_RUNNING. Ініціатора бекенд бере з заголовків
+   * ідентичності, тіло запиту порожнє.
+   */
+  abstract run(): Observable<SyncReport>;
 }

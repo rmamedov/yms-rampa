@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Controller\Admin;
 
+use App\Domain\Access\AccessDeniedException;
 use App\Domain\Analytics\AnalyticsDashboard;
+use App\Domain\Analytics\AnalyticsQuery;
 use App\Domain\Exception\InvalidFilterException;
 use App\Domain\Fact\BookingFact;
 use App\Domain\Kpi\Statistics;
 use App\Infrastructure\Export\AnalyticsCsvView;
+use App\Infrastructure\Http\ActorResolver;
 use App\Infrastructure\Http\AnalyticsQueryFactory;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -19,13 +22,25 @@ use Symfony\Component\Routing\Attribute\Route;
 /**
  * HTTP API аналітики staff-контуру: /api/admin/v1/analytics/...
  *
- * Усі ендпоінти — read-only (ANL-12: для analyst дашборди лише для читання;
- * обмеження store_manager його магазинами виконує api-gateway, підставляючи
- * фільтр storeId). Кожна відповідь несе мітку recalculatedAt (ANL-14) та,
- * за відсутності даних, явний стан «Немає даних за обраний період» (ANL-13).
+ * Усі ендпоінти — read-only (ANL-12: для analyst дашборди лише для читання).
  *
- * Помилки фільтрів повертаються у форматі RFC 7807 application/problem+json
- * (див. ProblemJsonExceptionListener).
+ * ДОСТУП. Скоуп перевіряє САМ сервіс, а не шлюз: раніше обмеження магазинної
+ * ролі трималося на тому, що api-gateway підставить у query-рядок фільтр
+ * storeId. Це було ескалацією прав — порожній фільтр у AnalyticsQuery означає
+ * «без обмеження за магазином», тож запит без storeId віддавав магазинному
+ * менеджерові всю мережу. Тепер кожен ендпоінт читає ідентичність із
+ * службових заголовків (ActorResolver) і звужує вибірку скоупом актора:
+ *
+ *   super_admin / network_manager / analyst — уся мережа (RBAC-16);
+ *   store_manager / store_operator — РІВНО магазини з X-Store-Ids, а порожній
+ *       перелік означає нуль доступу, а не «всі» (RBAC-13);
+ *   ролі partner-контуру (постачальник, водій) — 403.
+ *
+ * Кожна відповідь несе мітку recalculatedAt (ANL-14) та, за відсутності даних,
+ * явний стан «Немає даних за обраний період» (ANL-13).
+ *
+ * Помилки фільтрів і доступу повертаються у форматі RFC 7807
+ * application/problem+json (див. ProblemJsonExceptionListener).
  */
 #[AsController]
 #[Route('/api/admin/v1/analytics')]
@@ -36,6 +51,7 @@ final readonly class AnalyticsController
     public function __construct(
         private AnalyticsDashboard $dashboard,
         private AnalyticsQueryFactory $queryFactory,
+        private ActorResolver $actorResolver = new ActorResolver(),
         private AnalyticsCsvView $csvView = new AnalyticsCsvView(),
     ) {
     }
@@ -46,7 +62,7 @@ final readonly class AnalyticsController
     #[Route('/kpi', name: 'admin_analytics_kpi', methods: ['GET'])]
     public function kpi(Request $request): JsonResponse
     {
-        $query = $this->queryFactory->fromRequest($request);
+        $query = $this->scopedQuery($request);
         $summary = $this->dashboard->summary($query);
 
         return $this->json([
@@ -62,7 +78,7 @@ final readonly class AnalyticsController
     #[Route('/breakdown', name: 'admin_analytics_breakdown', methods: ['GET'])]
     public function breakdown(Request $request): JsonResponse
     {
-        $query = $this->queryFactory->fromRequest($request);
+        $query = $this->scopedQuery($request);
         $dimension = $this->queryFactory->dimensionFromRequest($request);
         $rows = $this->dashboard->breakdown($query, $dimension);
 
@@ -81,7 +97,7 @@ final readonly class AnalyticsController
     #[Route('/utilization', name: 'admin_analytics_utilization', methods: ['GET'])]
     public function utilization(Request $request): JsonResponse
     {
-        $query = $this->queryFactory->fromRequest($request);
+        $query = $this->scopedQuery($request);
         $dimension = $this->queryFactory->dimensionFromRequest($request);
         $groups = $this->dashboard->utilization($query, $dimension);
 
@@ -103,7 +119,7 @@ final readonly class AnalyticsController
     #[Route('/bookings', name: 'admin_analytics_bookings', methods: ['GET'])]
     public function bookings(Request $request): JsonResponse
     {
-        $query = $this->queryFactory->fromRequest($request);
+        $query = $this->scopedQuery($request);
         $facts = $this->dashboard->bookings($query);
 
         return $this->json([
@@ -120,7 +136,7 @@ final readonly class AnalyticsController
     #[Route('/export.csv', name: 'admin_analytics_export_csv', methods: ['GET'])]
     public function exportCsv(Request $request): Response
     {
-        $query = $this->queryFactory->fromRequest($request);
+        $query = $this->scopedQuery($request);
         $dataset = (string) ($request->query->get('dataset') ?? 'bookings');
 
         $csv = match ($dataset) {
@@ -143,6 +159,25 @@ final readonly class AnalyticsController
         );
 
         return $response;
+    }
+
+    /**
+     * Єдина точка входу в дані: ідентичність із заголовків шлюзу + фільтри
+     * запиту, звужені скоупом актора. Жоден ендпоінт не будує AnalyticsQuery
+     * повз цей метод — інакше магазинна роль отримала б вибірку без обмеження
+     * за магазином.
+     *
+     * @throws AccessDeniedException роль не читає аналітику або магазин поза скоупом
+     */
+    private function scopedQuery(Request $request): AnalyticsQuery
+    {
+        $actor = $this->actorResolver->fromRequest($request);
+
+        if (!$actor->canReadAnalytics()) {
+            throw AccessDeniedException::analyticsIsStaffOnly($actor->role);
+        }
+
+        return $this->queryFactory->fromRequest($request, $actor);
     }
 
     /**

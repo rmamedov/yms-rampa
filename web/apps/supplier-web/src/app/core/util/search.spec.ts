@@ -7,30 +7,61 @@ const cities: CityItem[] = [
   { city: 'Львів', storeCount: 31 },
 ];
 
+const storeDefaults = {
+  latitude: null,
+  longitude: null,
+  phone: null,
+  ramps: [],
+  slotSizeMinutes: 30,
+  leadTimeMinutes: 60,
+  bookingHorizonDays: 14,
+};
+
 const branches: BranchItem[] = [
   {
     storeId: 's1',
     externalId: '1998',
+    name: 'Сільпо №1998',
     city: 'Київ',
     address: 'просп. Володимира Івасюка, 46',
     maxVehicleWeightTons: 20,
-    hasFreeSlots: true,
-    ymsStatus: 'active',
+    ...storeDefaults,
   },
   {
     storeId: 's2',
     externalId: '2025',
+    name: 'Сільпо №2025',
     city: 'Київ',
     address: 'вул. Бережанська, 22',
     maxVehicleWeightTons: 10,
-    hasFreeSlots: false,
-    ymsStatus: 'active',
+    ...storeDefaults,
   },
 ];
 
+const vehicleDefaults = {
+  supplierId: 'sup-1',
+  lastUsedAt: null,
+  createdAt: '2026-03-01T00:00:00Z',
+  updatedAt: '2026-03-01T00:00:00Z',
+};
+
 const vehicles: Vehicle[] = [
-  { id: 'v1', plateNumber: 'АА1234ВС', brand: 'Renault', weightTons: 3.5, active: true },
-  { id: 'v2', plateNumber: 'ВІ5678КМ', brand: 'MAN', weightTons: 20, active: true },
+  {
+    id: 'v1',
+    plateNumber: 'АА1234ВС',
+    brand: 'Renault',
+    weightTons: 3.5,
+    active: true,
+    ...vehicleDefaults,
+  },
+  {
+    id: 'v2',
+    plateNumber: 'ВІ5678КМ',
+    brand: 'MAN',
+    weightTons: 20,
+    active: true,
+    ...vehicleDefaults,
+  },
 ];
 
 describe('пошук у довідниках (SUP-CITY-03, SUP-BR-04, SUP-BOOK-02)', () => {

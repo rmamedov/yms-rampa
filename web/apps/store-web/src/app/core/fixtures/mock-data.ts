@@ -1,12 +1,10 @@
 import {
-  AuditEntry,
-  Booking,
-  BookingStatus,
-  DelayReason,
-  DriverInfo,
-  RejectReason,
-} from '../models/booking.model';
-import { StaffProfile, StaffRole, StoreScope } from '../models/auth.model';
+  WireBooking,
+  WireStaffUser,
+  WireStatusChange,
+  WireStoreSnapshot,
+} from '../api/wire.model';
+import { StaffRole } from '../models/auth.model';
 import { Ramp, StoreConfig, SupplierRef } from '../models/store.model';
 import {
   isoDayOfWeek,
@@ -15,6 +13,11 @@ import {
   toKyivDateKey,
 } from '../util/date.util';
 import { BRANCHES } from './branches.fixture';
+
+/**
+ * Дані мок-режиму. Мок ЗАВЖДИ віддає структури у формі реального бекенду
+ * (див. api/wire.model.ts), тому розбіжність контрактів помітна одразу.
+ */
 
 /** Детермінований PRNG (mulberry32) — однакові дані між перезавантаженнями. */
 export function makeRng(seed: string): () => number {
@@ -53,20 +56,25 @@ export const SUPPLIERS: readonly SupplierRef[] = [
   { supplierId: 'sp-10', name: 'ТОВ «Гетьман»' },
 ];
 
-const DRIVERS: readonly DriverInfo[] = [
-  { driverId: 'dr-01', fullName: 'Іван Коваленко', phone: '+380671234501' },
-  { driverId: 'dr-02', fullName: 'Петро Мельник', phone: '+380671234502' },
-  { driverId: 'dr-03', fullName: 'Олег Шевченко', phone: '+380671234503' },
-  { driverId: 'dr-04', fullName: 'Андрій Бондаренко', phone: '+380671234504' },
-  { driverId: 'dr-05', fullName: 'Сергій Ткаченко', phone: '+380671234505' },
-  { driverId: 'dr-06', fullName: 'Микола Гриценко', phone: '+380671234506' },
+const DRIVER_IDS: readonly string[] = [
+  'dr-01',
+  'dr-02',
+  'dr-03',
+  'dr-04',
+  'dr-05',
+  'dr-06',
 ];
 
 const PLATE_PREFIXES = ['AA', 'AI', 'AX', 'BC', 'CA', 'KA'];
 const PLATE_SUFFIXES = ['BB', 'IP', 'KX', 'MM', 'OP', 'TT'];
 const BRANDS = ['MAN', 'Volvo', 'Scania', 'DAF', 'Mercedes-Benz', 'Renault'];
 
-function branchToScope(index: number): StoreScope {
+/** Довідник філій мок-режиму: storeId → снапшот, який віддає бекенд. */
+export interface MockStore extends WireStoreSnapshot {
+  readonly storeId: string;
+}
+
+function branchToStore(index: number): MockStore {
   const branch = BRANCHES[index % BRANCHES.length];
   return {
     storeId: branch.branchId,
@@ -77,51 +85,105 @@ function branchToScope(index: number): StoreScope {
   };
 }
 
-export function storeScopes(count: number, offset = 0): StoreScope[] {
-  return Array.from({ length: count }, (_, i) => branchToScope(offset + i));
+export function mockStores(count: number, offset = 0): MockStore[] {
+  return Array.from({ length: count }, (_, i) => branchToStore(offset + i));
 }
 
-/** Демо-користувачі мок-режиму. */
-export const MOCK_USERS: readonly StaffProfile[] = [
-  {
-    userId: 'u-operator',
-    fullName: 'Оксана Литвин',
-    email: 'operator@silpo.ua',
-    role: 'store_operator',
-    stores: storeScopes(2, 0),
-  },
-  {
-    userId: 'u-manager',
-    fullName: 'Дмитро Савченко',
-    email: 'manager@silpo.ua',
-    role: 'store_manager',
-    stores: storeScopes(3, 2),
-  },
-  {
-    userId: 'u-single',
-    fullName: 'Ірина Панченко',
-    email: 'single@silpo.ua',
-    role: 'store_operator',
-    stores: storeScopes(1, 5),
-  },
-  {
-    userId: 'u-outsider',
-    fullName: 'Тарас Гнатюк',
-    email: 'admin@silpo.ua',
-    role: 'admin',
-    stores: [],
-  },
+/** Усі філії, доступні мок-режиму (обʼєднання скоупів демо-користувачів). */
+export const MOCK_STORES: readonly MockStore[] = mockStores(6);
+
+export function findMockStore(storeId: string): MockStore | null {
+  return MOCK_STORES.find((s) => s.storeId === storeId) ?? null;
+}
+
+const STORE_PERMISSIONS: readonly string[] = [
+  'store.read',
+  'slot.read',
+  'booking.read.all',
+  'booking.create_walk_in',
+  'booking.mark_arrived',
+  'booking.mark_unloading',
+  'booking.mark_unloaded',
+  'booking.mark_no_show',
+  'booking.mark_delayed',
+  'booking.reject',
+  'booking.reassign_ramp',
 ];
 
-export function buildStoreConfig(scope: StoreScope): StoreConfig {
-  const rng = makeRng(`config:${scope.storeId}`);
+const ROLE_LABELS: Readonly<Record<StaffRole, string>> = {
+  super_admin: 'Суперадміністратор',
+  network_manager: 'Менеджер мережі',
+  store_manager: 'Керівник магазину',
+  store_operator: 'Приймальник магазину',
+  analyst: 'Аналітик',
+  supplier_admin: 'Адміністратор постачальника',
+  supplier_operator: 'Оператор постачальника',
+  driver: 'Водій',
+};
+
+function mockUser(
+  id: string,
+  fullName: string,
+  email: string,
+  role: StaffRole,
+  storeIds: readonly string[],
+  networkWide = false,
+): WireStaffUser {
+  return {
+    id,
+    email,
+    fullName,
+    role,
+    roleLabel: ROLE_LABELS[role],
+    scope: { storeIds, networkWide },
+    twoFactorEnabled: false,
+    permissions: STORE_PERMISSIONS,
+  };
+}
+
+/** Демо-користувачі мок-режиму — у формі `LoginResult::profile()`. */
+export const MOCK_USERS: readonly WireStaffUser[] = [
+  mockUser(
+    'u-operator',
+    'Оксана Литвин',
+    'operator@silpo.ua',
+    'store_operator',
+    MOCK_STORES.slice(0, 2).map((s) => s.storeId),
+  ),
+  mockUser(
+    'u-manager',
+    'Дмитро Савченко',
+    'manager@silpo.ua',
+    'store_manager',
+    MOCK_STORES.slice(2, 5).map((s) => s.storeId),
+  ),
+  mockUser(
+    'u-single',
+    'Ірина Панченко',
+    'single@silpo.ua',
+    'store_operator',
+    MOCK_STORES.slice(5, 6).map((s) => s.storeId),
+  ),
+  // RBAC-16: мережева роль поза контуром магазину — доступу до store-web немає.
+  mockUser(
+    'u-outsider',
+    'Тарас Гнатюк',
+    'admin@silpo.ua',
+    'network_manager',
+    [],
+    true,
+  ),
+];
+
+export function buildStoreConfig(store: MockStore): StoreConfig {
+  const rng = makeRng(`config:${store.storeId}`);
   const rampCount = 3 + Math.floor(rng() * 2);
   return {
-    storeId: scope.storeId,
-    externalId: scope.externalId,
-    displayName: scope.displayName,
-    city: scope.city,
-    address: scope.address,
+    storeId: store.storeId,
+    externalId: store.externalId,
+    displayName: store.displayName,
+    city: store.city,
+    address: store.address,
     ramps: DEFAULT_RAMPS.slice(0, rampCount),
     slotSizeMinutes: 30,
     receivingWindows: [
@@ -166,11 +228,6 @@ export function slotStartsForDate(
   return result;
 }
 
-interface GeneratedBooking {
-  booking: Booking;
-  audit: AuditEntry[];
-}
-
 function plate(rng: () => number): string {
   const digits = String(1000 + Math.floor(rng() * 9000));
   const prefix = PLATE_PREFIXES[Math.floor(rng() * PLATE_PREFIXES.length)];
@@ -178,40 +235,35 @@ function plate(rng: () => number): string {
   return `${prefix}${digits}${suffix}`;
 }
 
-function auditEntry(
-  bookingId: string,
+function change(
+  from: string | null,
+  to: string,
   at: string,
-  action: AuditEntry['action'],
-  fromValue: string | null,
-  toValue: string | null,
-  actorKind: AuditEntry['actorKind'] = 'staff',
-  actorName = 'Оксана Литвин',
-  actorRole: string | null = 'store_operator',
-  comment: string | null = null,
-): AuditEntry {
-  return {
-    id: `au-${bookingId}-${action}-${at}`,
-    bookingId,
-    at,
-    actorKind,
-    actorName,
-    actorRole,
-    action,
-    fromValue,
-    toValue,
-    comment,
-  };
+  by: string,
+  meta?: Record<string, unknown>,
+): WireStatusChange {
+  return meta ? { from, to, at, by, meta } : { from, to, at, by };
 }
 
-const REJECT_REASON_POOL: readonly RejectReason[] = [
-  'missing_documents',
-  'cargo_mismatch',
-  'weight_exceeded',
+/** HH:mm у Києві для поля `localTime`. */
+function localTime(iso: string): string {
+  return new Intl.DateTimeFormat('uk-UA', {
+    timeZone: 'Europe/Kyiv',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(iso));
+}
+
+const REJECT_REASON_POOL: readonly string[] = [
+  'відсутні документи',
+  'невідповідність вантажу',
+  'перевищення тоннажу',
 ];
-const DELAY_REASON_POOL: readonly DelayReason[] = [
-  'ramp_busy',
-  'previous_vehicle',
-  'technical',
+const DELAY_REASON_POOL: readonly string[] = [
+  'затори',
+  'поломка',
+  'затримка на попередній точці',
 ];
 
 /**
@@ -220,17 +272,24 @@ const DELAY_REASON_POOL: readonly DelayReason[] = [
  * no_show та відмова.
  */
 export function generateDay(
+  store: MockStore,
   config: StoreConfig,
   dateKey: string,
   nowIso: string,
-): { bookings: Booking[]; audit: AuditEntry[] } {
+): WireBooking[] {
   const rng = makeRng(`day:${config.storeId}:${dateKey}`);
   const nowMs = new Date(nowIso).getTime();
   const todayKey = toKyivDateKey(nowIso);
   const isPast = dateKey < todayKey;
   const isFuture = dateKey > todayKey;
   const starts = slotStartsForDate(config, dateKey);
-  const generated: GeneratedBooking[] = [];
+  const generated: WireBooking[] = [];
+  const snapshot: WireStoreSnapshot = {
+    externalId: store.externalId,
+    displayName: store.displayName,
+    city: store.city,
+    address: store.address,
+  };
 
   let seq = 0;
   for (const ramp of config.ramps) {
@@ -243,12 +302,12 @@ export function generateDay(
       const slotEndMs = new Date(slotEnd).getTime();
 
       const supplier = SUPPLIERS[Math.floor(rng() * SUPPLIERS.length)];
-      const driver =
-        rng() > 0.2 ? DRIVERS[Math.floor(rng() * DRIVERS.length)] : null;
+      const driverId =
+        rng() > 0.2 ? DRIVER_IDS[Math.floor(rng() * DRIVER_IDS.length)] : null;
       const pallets = 4 + Math.floor(rng() * 22);
-      const id = `bk-${config.externalId}-${dateKey}-${ramp.rampId}-${startMinutes}`;
+      const id = `bk-${store.externalId}-${dateKey}-${ramp.rampId}-${startMinutes}`;
 
-      let status: BookingStatus;
+      let status: string;
       if (isFuture) {
         status = 'booked';
       } else if (isPast) {
@@ -265,27 +324,15 @@ export function generateDay(
         status = 'booked';
       }
 
-      const audit: AuditEntry[] = [];
       const createdAt = new Date(slotStartMs - 26 * 3600_000).toISOString();
-      audit.push(
-        auditEntry(
-          id,
-          createdAt,
-          'created',
-          null,
-          'booked',
-          'supplier',
-          supplier.name,
-          null,
-        ),
-      );
+      const statusHistory: WireStatusChange[] = [];
 
       let arrivedAt: string | null = null;
       let unloadingStartedAt: string | null = null;
       let completedAt: string | null = null;
       let unloadedPalletsCount: number | null = null;
-      let partialUnload: Booking['partialUnload'] = null;
-      let rejectedAt: Booking['rejectedAt'] = null;
+      let partialUnload: WireBooking['partialUnload'] = null;
+      let rejectedAt: WireBooking['rejectedAt'] = null;
 
       if (
         status === 'arrived' ||
@@ -296,17 +343,8 @@ export function generateDay(
         arrivedAt = new Date(
           slotStartMs - Math.floor(rng() * 20) * 60_000,
         ).toISOString();
-        audit.push(
-          auditEntry(
-            id,
-            arrivedAt,
-            'status_changed',
-            'booked',
-            'arrived',
-            'driver',
-            driver?.fullName ?? 'Водій',
-            null,
-          ),
+        statusHistory.push(
+          change('booked', 'arrived', arrivedAt, driverId ?? 'u-operator'),
         );
       }
       if (status === 'unloading' || status === 'completed') {
@@ -314,8 +352,8 @@ export function generateDay(
           Math.max(slotStartMs, new Date(arrivedAt as string).getTime()) +
             Math.floor(rng() * 12) * 60_000,
         ).toISOString();
-        audit.push(
-          auditEntry(id, unloadingStartedAt, 'status_changed', 'arrived', 'unloading'),
+        statusHistory.push(
+          change('arrived', 'unloading', unloadingStartedAt, 'u-operator'),
         );
       }
       if (status === 'completed') {
@@ -328,42 +366,35 @@ export function generateDay(
           ? Math.max(1, pallets - 1 - Math.floor(rng() * 5))
           : pallets;
         partialUnload = partial
-          ? { flag: true, reason: 'order_mismatch', comment: null }
+          ? {
+              flag: true,
+              reason: 'розбіжність із замовленням',
+              comment: null,
+            }
           : null;
-        audit.push(
-          auditEntry(id, completedAt, 'status_changed', 'unloading', 'completed'),
-        );
-        audit.push(
-          auditEntry(
-            id,
-            completedAt,
-            'unload_recorded',
-            String(pallets),
-            String(unloadedPalletsCount),
-          ),
+        statusHistory.push(
+          change('unloading', 'completed', completedAt, 'u-operator', {
+            unloadedPalletsCount,
+          }),
         );
       }
       if (status === 'rejected') {
-        const reason = REJECT_REASON_POOL[Math.floor(rng() * REJECT_REASON_POOL.length)];
+        const reason =
+          REJECT_REASON_POOL[Math.floor(rng() * REJECT_REASON_POOL.length)];
         const at = new Date(
           new Date(arrivedAt as string).getTime() + 9 * 60_000,
         ).toISOString();
         rejectedAt = { at, by: 'u-operator', reason, comment: null };
-        audit.push(auditEntry(id, at, 'rejected', 'arrived', 'rejected'));
+        statusHistory.push(
+          change('arrived', 'rejected', at, 'u-operator', { reason }),
+        );
       }
       if (status === 'no_show') {
-        const at = new Date(slotEndMs + config.noShowGraceMinutes * 60_000).toISOString();
-        audit.push(
-          auditEntry(
-            id,
-            at,
-            'status_changed',
-            'booked',
-            'no_show',
-            'system_cron',
-            'system-cron',
-            null,
-          ),
+        const at = new Date(
+          slotEndMs + config.noShowGraceMinutes * 60_000,
+        ).toISOString();
+        statusHistory.push(
+          change('booked', 'no_show', at, 'system', { auto: true }),
         );
       }
 
@@ -371,76 +402,67 @@ export function generateDay(
         status === 'booked' && slotStartMs > nowMs && rng() < 0.12
           ? {
               flag: true,
-              reason: DELAY_REASON_POOL[Math.floor(rng() * DELAY_REASON_POOL.length)],
+              reason:
+                DELAY_REASON_POOL[Math.floor(rng() * DELAY_REASON_POOL.length)],
               eta: new Date(slotStartMs + 40 * 60_000).toISOString(),
-              comment: null,
             }
-          : { flag: false, reason: null, eta: null, comment: null };
-      if (delayed.flag) {
-        audit.push(
-          auditEntry(
-            id,
-            new Date(slotStartMs - 90 * 60_000).toISOString(),
-            'delay_set',
-            null,
-            delayed.eta,
-          ),
-        );
-      }
+          : { flag: false, reason: null, eta: null };
 
-      const booking: Booking = {
+      generated.push({
         id,
         type: 'scheduled',
-        storeId: config.storeId,
+        status,
+        storeId: store.storeId,
+        store: snapshot,
         rampId: ramp.rampId,
         slotStart,
         slotEnd,
+        localDate: dateKey,
+        localTime: localTime(slotStart),
         supplierId: supplier.supplierId,
-        supplierNameSnapshot: supplier.name,
+        supplierName: supplier.name,
         vehicle: {
           plateNumber: plate(rng),
           weightTons: [3.5, 5, 7.5, 10][Math.floor(rng() * 4)],
           brand: BRANDS[Math.floor(rng() * BRANDS.length)],
         },
-        driver,
+        driverId,
         orderId: rng() < 0.85 ? `ORD-${10000 + seq * 37}` : null,
         palletsCount: pallets,
-        status,
         delayed,
         arrivedAt,
         unloadingStartedAt,
         completedAt,
         cancelledAt: null,
+        cancellation: null,
         rejectedAt,
         unloadedPalletsCount,
         partialUnload,
-        version: 1,
+        rescheduleOf: null,
+        routeSheetId: null,
+        createdBy: supplier.supplierId,
+        createdAt,
         updatedAt: completedAt ?? unloadingStartedAt ?? arrivedAt ?? slotStart,
-      };
-      generated.push({ booking, audit });
+        statusHistory,
+      });
     }
   }
 
   // Гарантований overrun на першій рампі поточної дати (STW-40).
   if (!isPast && !isFuture) {
-    const candidates = generated
-      .filter(
-        (g) =>
-          g.booking.rampId === config.ramps[0].rampId &&
-          new Date(g.booking.slotEnd).getTime() < nowMs,
-      )
-      .sort(
-        (a, b) =>
-          new Date(b.booking.slotStart).getTime() -
-          new Date(a.booking.slotStart).getTime(),
-      );
-    const target = candidates[0];
-    if (target) {
-      const slotStartMs = new Date(target.booking.slotStart).getTime();
+    const index = lastIndexMatching(
+      generated,
+      (b) =>
+        b.rampId === config.ramps[0].rampId &&
+        new Date(b.slotEnd).getTime() < nowMs,
+    );
+    if (index >= 0) {
+      const target = generated[index];
+      const slotStartMs = new Date(target.slotStart).getTime();
       const arrived = new Date(slotStartMs - 12 * 60_000).toISOString();
       const started = new Date(slotStartMs + 6 * 60_000).toISOString();
-      target.booking = {
-        ...target.booking,
+      generated[index] = {
+        ...target,
         status: 'unloading',
         arrivedAt: arrived,
         unloadingStartedAt: started,
@@ -449,76 +471,87 @@ export function generateDay(
         partialUnload: null,
         rejectedAt: null,
         updatedAt: started,
+        statusHistory: [
+          change('booked', 'arrived', arrived, target.driverId ?? 'u-operator'),
+          change('arrived', 'unloading', started, 'u-operator'),
+        ],
       };
-      target.audit = [
-        target.audit[0],
-        auditEntry(
-          target.booking.id,
-          arrived,
-          'status_changed',
-          'booked',
-          'arrived',
-          'driver',
-          target.booking.driver?.fullName ?? 'Водій',
-          null,
-        ),
-        auditEntry(target.booking.id, started, 'status_changed', 'arrived', 'unloading'),
-      ];
     }
   }
 
   // Вчорашнє незакрите розвантаження — сценарій дозакриття зміни (STW-22).
-  if (isPast) {
-    const target = generated[generated.length - 1];
-    if (target) {
-      const slotStartMs = new Date(target.booking.slotStart).getTime();
-      target.booking = {
-        ...target.booking,
-        status: 'unloading',
-        arrivedAt: new Date(slotStartMs - 10 * 60_000).toISOString(),
-        unloadingStartedAt: new Date(slotStartMs + 5 * 60_000).toISOString(),
-        completedAt: null,
-        unloadedPalletsCount: null,
-        partialUnload: null,
-        rejectedAt: null,
-      };
-    }
+  if (isPast && generated.length) {
+    const index = generated.length - 1;
+    const target = generated[index];
+    const slotStartMs = new Date(target.slotStart).getTime();
+    const arrived = new Date(slotStartMs - 10 * 60_000).toISOString();
+    const started = new Date(slotStartMs + 5 * 60_000).toISOString();
+    generated[index] = {
+      ...target,
+      status: 'unloading',
+      arrivedAt: arrived,
+      unloadingStartedAt: started,
+      completedAt: null,
+      unloadedPalletsCount: null,
+      partialUnload: null,
+      rejectedAt: null,
+      updatedAt: started,
+      statusHistory: [
+        change('booked', 'arrived', arrived, target.driverId ?? 'u-operator'),
+        change('arrived', 'unloading', started, 'u-operator'),
+      ],
+    };
   }
 
   // Позапланові прибуття поточної дати (STW-37).
   if (!isPast && !isFuture) {
-    const walkIns = buildWalkIns(config, dateKey, nowIso);
-    generated.push(...walkIns);
+    generated.push(...buildWalkIns(store, config, dateKey, nowIso, snapshot));
   }
 
-  return {
-    bookings: generated.map((g) => g.booking),
-    audit: generated.flatMap((g) => g.audit),
-  };
+  return generated;
+}
+
+function lastIndexMatching(
+  list: readonly WireBooking[],
+  predicate: (booking: WireBooking) => boolean,
+): number {
+  let best = -1;
+  let bestStart = Number.NEGATIVE_INFINITY;
+  list.forEach((booking, index) => {
+    if (!predicate(booking)) return;
+    const start = new Date(booking.slotStart).getTime();
+    if (start > bestStart) {
+      bestStart = start;
+      best = index;
+    }
+  });
+  return best;
 }
 
 function buildWalkIns(
+  store: MockStore,
   config: StoreConfig,
   dateKey: string,
   nowIso: string,
-): GeneratedBooking[] {
+  snapshot: WireStoreSnapshot,
+): WireBooking[] {
   const rng = makeRng(`walkin:${config.storeId}:${dateKey}`);
   const nowMs = new Date(nowIso).getTime();
   const lastRamp = config.ramps[config.ramps.length - 1];
-  const result: GeneratedBooking[] = [];
+  const result: WireBooking[] = [];
 
   const specs = [
     {
       offsetMinutes: -60,
       supplierId: null,
       name: 'ФОП Гуменюк В. П. (поза системою)',
-      status: 'completed' as BookingStatus,
+      status: 'completed',
     },
     {
       offsetMinutes: -15,
       supplierId: SUPPLIERS[3].supplierId,
       name: SUPPLIERS[3].name,
-      status: 'arrived' as BookingStatus,
+      status: 'arrived',
     },
   ];
 
@@ -530,11 +563,11 @@ function buildWalkIns(
     const slotEnd = new Date(
       slotStartMs + config.slotSizeMinutes * 60_000,
     ).toISOString();
-    const id = `wi-${config.externalId}-${dateKey}-${index}`;
+    const id = `wi-${store.externalId}-${dateKey}-${index}`;
     const pallets = 3 + Math.floor(rng() * 8);
     const arrivedAt = slotStart;
-    const audit: AuditEntry[] = [
-      auditEntry(id, arrivedAt, 'created', null, 'arrived'),
+    const statusHistory: WireStatusChange[] = [
+      change(null, 'arrived', arrivedAt, 'u-operator', { walkIn: true }),
     ];
     let unloadingStartedAt: string | null = null;
     let completedAt: string | null = null;
@@ -544,43 +577,46 @@ function buildWalkIns(
       unloadingStartedAt = new Date(slotStartMs + 7 * 60_000).toISOString();
       completedAt = new Date(slotStartMs + 32 * 60_000).toISOString();
       unloadedPalletsCount = pallets;
-      audit.push(
-        auditEntry(id, unloadingStartedAt, 'status_changed', 'arrived', 'unloading'),
-        auditEntry(id, completedAt, 'status_changed', 'unloading', 'completed'),
+      statusHistory.push(
+        change('arrived', 'unloading', unloadingStartedAt, 'u-operator'),
+        change('unloading', 'completed', completedAt, 'u-operator', {
+          unloadedPalletsCount,
+        }),
       );
     }
 
     result.push({
-      booking: {
-        id,
-        type: 'walk_in',
-        storeId: config.storeId,
-        rampId: lastRamp.rampId,
-        slotStart,
-        slotEnd,
-        supplierId: spec.supplierId,
-        supplierNameSnapshot: spec.name,
-        vehicle: {
-          plateNumber: plate(rng),
-          weightTons: 5,
-          brand: null,
-        },
-        driver: null,
-        orderId: null,
-        palletsCount: pallets,
-        status: spec.status,
-        delayed: { flag: false, reason: null, eta: null, comment: null },
-        arrivedAt,
-        unloadingStartedAt,
-        completedAt,
-        cancelledAt: null,
-        rejectedAt: null,
-        unloadedPalletsCount,
-        partialUnload: null,
-        version: 1,
-        updatedAt: completedAt ?? arrivedAt,
-      },
-      audit,
+      id,
+      type: 'walk_in',
+      status: spec.status,
+      storeId: store.storeId,
+      store: snapshot,
+      rampId: lastRamp.rampId,
+      slotStart,
+      slotEnd,
+      localDate: dateKey,
+      localTime: localTime(slotStart),
+      supplierId: spec.supplierId,
+      supplierName: spec.name,
+      vehicle: { plateNumber: plate(rng), weightTons: 5, brand: null },
+      driverId: null,
+      orderId: null,
+      palletsCount: pallets,
+      delayed: { flag: false, reason: null, eta: null },
+      arrivedAt,
+      unloadingStartedAt,
+      completedAt,
+      cancelledAt: null,
+      cancellation: null,
+      rejectedAt: null,
+      unloadedPalletsCount,
+      partialUnload: null,
+      rescheduleOf: null,
+      routeSheetId: null,
+      createdBy: 'u-operator',
+      createdAt: arrivedAt,
+      updatedAt: completedAt ?? arrivedAt,
+      statusHistory,
     });
   });
 

@@ -23,6 +23,10 @@ final readonly class BranchCriteria
      * @param string|null           $query              пошук за externalId (точний/префіксний) або адресою (підрядок)
      * @param bool|null             $configured         фільтр «Налаштовано / Не налаштовано»
      * @param list<string>|null     $configuredStoreIds перелік налаштованих магазинів (обчислює прикладний шар)
+     * @param list<string>|null     $scopedStoreIds     RBAC-17: скоуп-предикат `_id ∈ storeIds`;
+     *                                                  null = без фільтра (скоуп «вся мережа», RBAC-16),
+     *                                                  ПОРОЖНІЙ список = нуль доступу (RBAC-13),
+     *                                                  тобто гарантовано порожня вибірка
      * @param bool|null             $visibleToSuppliers null = без фільтра
      */
     public function __construct(
@@ -31,6 +35,7 @@ final readonly class BranchCriteria
         public ?string $query = null,
         public ?bool $configured = null,
         public ?array $configuredStoreIds = null,
+        public ?array $scopedStoreIds = null,
         public ?bool $visibleToSuppliers = null,
         public ?bool $eligibleOnly = null,
         public int $page = 1,
@@ -48,6 +53,11 @@ final readonly class BranchCriteria
     /** Чи відповідає філія всім фільтрам (спільна логіка для InMemory-реалізації). */
     public function matches(Branch $branch): bool
     {
+        // RBAC-13: порожній перелік магазинів у скоупі не пропускає ЖОДНОЇ філії.
+        if (null !== $this->scopedStoreIds && !\in_array($branch->id(), $this->scopedStoreIds, true)) {
+            return false;
+        }
+
         if ([] !== $this->cities && !\in_array($branch->city(), $this->cities, true)) {
             return false;
         }

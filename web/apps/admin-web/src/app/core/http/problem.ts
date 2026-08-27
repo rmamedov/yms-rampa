@@ -11,23 +11,41 @@ export interface ProblemDetails {
   readonly requestId?: string;
 }
 
-/** Коди, на які UI реагує окремими сценаріями. */
+/**
+ * Коди, на які UI реагує власним текстом. Перелік звірено з бекендом:
+ * store-service (NotFoundException/ValidationException/ConflictException),
+ * partner-service, identity-staff-service, analytics-service.
+ */
 export const KNOWN_ERROR_CODES = [
-  'SLOT_ALREADY_BOOKED',
-  'SLOT_HELD',
-  'VEHICLE_TOO_HEAVY',
-  'DATE_OUT_OF_HORIZON',
-  'BOOKING_LIMIT_EXCEEDED',
+  // спільні / RBAC
   'AUTH_TOKEN_INVALID',
+  'AUTH_REFRESH_REUSED',
+  'AUTH_INVALID_CREDENTIALS',
+  'AUTH_ACCOUNT_DISABLED',
   'RBAC_PERMISSION_DENIED',
   'RBAC_SCOPE_VIOLATION',
-  'RBAC_ROLE_ASSIGNMENT_FORBIDDEN',
-  'RBAC_SELF_ROLE_CHANGE_FORBIDDEN',
-  'RBAC_MULTIPLE_ROLES_FORBIDDEN',
-  'RBAC_LAST_SUPER_ADMIN',
   'RESOURCE_NOT_FOUND',
-  'SYNC_ALREADY_RUNNING',
+  'VALIDATION_FAILED',
+  'INTERNAL_ERROR',
+  // store-service
+  'STORE_NOT_FOUND',
   'STORE_NOT_CONFIGURED',
+  'CONFIG_NOT_FOUND',
+  'CONFIG_VALIDATION_FAILED',
+  'MCP_FIELD_READ_ONLY',
+  'RESERVED_RULE_NOT_FOUND',
+  'RESERVED_RULE_OVERLAP',
+  'SLOT_BLOCK_NOT_FOUND',
+  'SYNC_ALREADY_RUNNING',
+  // partner-service
+  'SUPPLIER_NOT_FOUND',
+  'SUPPLIER_HAS_BOOKINGS',
+  'SUPPLIER_STATUS_INVALID',
+  // analytics-service
+  'ANALYTICS_INVALID_PERIOD',
+  'ANALYTICS_PERIOD_TOO_LONG',
+  'ANALYTICS_INVALID_DIMENSION',
+  'ANALYTICS_INVALID_FILTER',
 ] as const;
 
 export type KnownErrorCode = (typeof KNOWN_ERROR_CODES)[number];

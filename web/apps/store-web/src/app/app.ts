@@ -3,6 +3,7 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/rou
 import { AuthService } from './core/auth/auth.service';
 import { BoardStore } from './core/data/board.store';
 import { TranslatePipe } from './core/i18n/translate.pipe';
+import { StoreScope } from './core/models/auth.model';
 
 @Component({
   selector: 'app-root',
@@ -29,6 +30,19 @@ export class App {
     const role = this.profile()?.role;
     return role ? `header.role.${role}` : '';
   });
+
+  /**
+   * Підпис магазину. Бекенд у профілі віддає лише storeIds, тому описові
+   * частини зʼявляються тільки після завантаження конфігурації магазину.
+   */
+  storeLabel(store: StoreScope): string {
+    const parts = [store.displayName];
+    if (store.externalId) parts.push(store.externalId);
+    if (store.city) {
+      parts.push(store.address ? `${store.city}, ${store.address}` : store.city);
+    }
+    return parts.join(' · ');
+  }
 
   /** STW-04: перемикання магазину повністю перезавантажує контекст. */
   onStoreChange(storeId: string): void {

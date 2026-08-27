@@ -11,15 +11,21 @@ import {
   DAYS_OF_WEEK,
   DayOfWeek,
   Ramp,
+  ReceivingWindow,
   ReservedSlotRule,
-  StoreConfig,
+  SlotSizeMinutes,
   Supplier,
 } from '../../../core/models';
+import { ReservedSlotRuleDraft } from '../../../core/data/stores.api';
 import { TranslatePipe } from '../../../core/i18n/translate.pipe';
 import { validateReservedRule } from '../../../core/utils/store-config.util';
-import { addDays, formatDate, kyivDate } from '../../../core/utils/time.util';
+import { addDays, formatDate, isoToKyivDate, kyivDate } from '../../../core/utils/time.util';
 
-/** Вкладка «Резерви»: розклад резервних слотів (STC-40…STC-43). */
+/**
+ * Вкладка «Резерви» (STC-40…STC-43).
+ * Кожна дія одразу йде на /stores/{id}/reserved-slot-rules — це окремий
+ * ресурс бекенду, а не частина конфігурації.
+ */
 @Component({
   selector: 'app-store-reserves-tab',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -27,13 +33,18 @@ import { addDays, formatDate, kyivDate } from '../../../core/utils/time.util';
   templateUrl: './reserves-tab.component.html',
 })
 export class StoreReservesTabComponent {
-  readonly config = input.required<StoreConfig>();
+  readonly rules = input.required<readonly ReservedSlotRule[]>();
+  readonly ramps = input.required<readonly Ramp[]>();
+  readonly windows = input.required<readonly ReceivingWindow[]>();
+  readonly slotSizeMinutes = input.required<SlotSizeMinutes | null>();
   readonly suppliers = input.required<readonly Supplier[]>();
   readonly canEdit = input(false);
-  readonly changed = output<readonly ReservedSlotRule[]>();
+
+  readonly ruleCreate = output<ReservedSlotRuleDraft>();
+  readonly ruleToggle = output<{ id: string; active: boolean }>();
+  readonly ruleDelete = output<string>();
 
   protected readonly days = DAYS_OF_WEEK;
-  protected readonly rules = signal<ReservedSlotRule[]>([]);
   protected readonly errors = signal<readonly string[]>([]);
 
   protected readonly mode = signal<'weekly' | 'date'>('weekly');
@@ -46,18 +57,19 @@ export class StoreReservesTabComponent {
   protected readonly validTo = signal('');
 
   protected readonly formatDate = formatDate;
+  protected readonly formatIsoDate = (iso: string | null): string =>
+    iso === null ? '∞' : formatDate(isoToKyivDate(iso));
 
   protected readonly activeSuppliers = computed(() =>
     this.suppliers().filter((s) => s.status === 'active'),
   );
   protected readonly enabledRamps = computed<readonly Ramp[]>(() =>
-    this.config().ramps.filter((r) => r.enabled),
+    this.ramps().filter((r) => r.enabled),
   );
 
   constructor() {
     effect(() => {
-      this.rules.set(this.config().reservedRules.map((r) => ({ ...r })));
-      const ramps = this.config().ramps.filter((r) => r.enabled);
+      const ramps = this.ramps().filter((r) => r.enabled);
       if (this.rampId() === '' && ramps.length > 0) {
         this.rampId.set(ramps[0].id);
       }
@@ -73,42 +85,54 @@ export class StoreReservesTabComponent {
   }
 
   protected rampLabel(id: string): string {
-    const ramp = this.config().ramps.find((r) => r.id === id);
+    const ramp = this.ramps().find((r) => r.id === id);
     return ramp ? (ramp.name ?? `№${ramp.number}`) : id;
   }
 
   protected addRule(): void {
     const weekly = this.mode() === 'weekly';
-    const rule: ReservedSlotRule = {
-      id: `res-${Date.now()}`,
+    const draft: ReservedSlotRuleDraft = {
       supplierId: this.supplierId(),
+      rampId: this.rampId(),
+      slotStartTime: this.slotStartTime(),
       dayOfWeek: weekly ? this.dayOfWeek() : null,
       date: weekly ? null : this.date(),
-      slotStartTime: this.slotStartTime(),
-      rampId: this.rampId(),
       validFrom: this.validFrom(),
       validTo: this.validTo() === '' ? null : this.validTo(),
       active: true,
     };
-    const errors = validateReservedRule(rule, this.config(), this.rules());
+    const errors = validateReservedRule(
+      draft,
+      {
+        ramps: this.ramps(),
+        receivingWindows: this.windows(),
+        slotSizeMinutes: this.slotSizeMinutes(),
+      },
+      this.rules().map((r) => ({
+        id: r.id,
+        supplierId: r.supplierId,
+        rampId: r.rampId,
+        slotStartTime: r.slotStartTime,
+        dayOfWeek: r.dayOfWeek,
+        date: r.date,
+        validFrom: isoToKyivDate(r.validFrom),
+        validTo: r.validTo === null ? null : isoToKyivDate(r.validTo),
+        active: r.active,
+      })),
+    );
     this.errors.set(errors);
     if (errors.length > 0) {
       return;
     }
-    this.rules.update((list) => [...list, rule]);
-    this.changed.emit(this.rules());
+    this.ruleCreate.emit(draft);
   }
 
   protected toggleActive(id: string, active: boolean): void {
-    this.rules.update((list) =>
-      list.map((r) => (r.id === id ? { ...r, active } : r)),
-    );
-    this.changed.emit(this.rules());
+    this.ruleToggle.emit({ id, active });
   }
 
   protected removeRule(id: string): void {
-    this.rules.update((list) => list.filter((r) => r.id !== id));
-    this.changed.emit(this.rules());
+    this.ruleDelete.emit(id);
   }
 
   protected setMode(event: Event): void {
@@ -125,11 +149,5 @@ export class StoreReservesTabComponent {
 
   protected setRamp(event: Event): void {
     this.rampId.set((event.target as HTMLSelectElement).value);
-  }
-
-  protected periodLabel(rule: ReservedSlotRule): string {
-    return rule.dayOfWeek !== null
-      ? `${rule.dayOfWeek}`
-      : formatDate(rule.date);
   }
 }

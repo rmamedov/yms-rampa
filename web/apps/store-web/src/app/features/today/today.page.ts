@@ -93,7 +93,7 @@ export class TodayPage implements OnInit, OnDestroy {
     const booking = this.selected();
     if (!booking) return {} as Record<string, string | number>;
     return {
-      supplier: booking.supplierNameSnapshot,
+      supplier: booking.supplierName,
       plate: booking.vehicle.plateNumber,
       slot: `${formatTime(booking.slotStart)}–${formatTime(booking.slotEnd)}`,
     };
@@ -145,12 +145,12 @@ export class TodayPage implements OnInit, OnDestroy {
   onAction(booking: Booking, action: BookingActionId): void {
     this.selected.set(booking);
     switch (action) {
-      case 'startUnloading':
-        this.store.startUnloading(booking);
+      case 'arrived':
+        this.store.markArrived(booking);
         this.selected.set(null);
         break;
-      case 'clearDelay':
-        this.store.clearDelay(booking);
+      case 'startUnloading':
+        this.store.startUnloading(booking);
         this.selected.set(null);
         break;
       case 'complete':

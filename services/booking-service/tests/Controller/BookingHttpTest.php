@@ -278,7 +278,7 @@ final class BookingHttpTest extends TestCase
         $request = Request::create($uri, $method, content: [] === $body ? '' : json_encode($body, \JSON_THROW_ON_ERROR));
         $request->headers->set(ActorResolver::USER_HEADER, 'su-1');
         $request->headers->set(ActorResolver::ROLE_HEADER, 'store_manager');
-        $request->headers->set(ActorResolver::STORE_HEADER, Scenario::STORE_ID);
+        $request->headers->set(ActorResolver::STORES_HEADER, Scenario::STORE_ID);
 
         return $request;
     }

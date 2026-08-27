@@ -64,7 +64,7 @@ final class BookingFactory
             supplierNameSnapshot: 'ТОВ Молокія',
             vehicle: Scenario::vehicle('BC5555CT', 3.5),
             palletsCount: 4,
-            createdBy: new Actor('su-1', Role::StoreOperator, storeId: Scenario::STORE_ID),
+            createdBy: new Actor('su-1', Role::StoreOperator, storeIds: [Scenario::STORE_ID]),
             now: Scenario::kyiv('2026-08-27 09:05'),
         );
     }

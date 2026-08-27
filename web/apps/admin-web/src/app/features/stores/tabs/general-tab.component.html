@@ -20,11 +20,11 @@
     </div>
     <div class="field">
       <label for="mcp-lat">{{ 'store.mcp.latitude' | t }}</label>
-      <input id="mcp-lat" type="text" class="mono" [value]="store().latitude" readonly />
+      <input id="mcp-lat" type="text" class="mono" [value]="store().latitude ?? ''" readonly />
     </div>
     <div class="field">
       <label for="mcp-lon">{{ 'store.mcp.longitude' | t }}</label>
-      <input id="mcp-lon" type="text" class="mono" [value]="store().longitude" readonly />
+      <input id="mcp-lon" type="text" class="mono" [value]="store().longitude ?? ''" readonly />
     </div>
     <div class="field">
       <label for="mcp-open">{{ 'store.mcp.open' | t }}</label>
@@ -128,7 +128,7 @@
         [disabled]="!canEdit()"
         (change)="setStatus($event)"
       >
-        @for (status of statuses; track status) {
+        @for (status of availableStatuses(); track status) {
           <option [value]="status">{{ 'ymsStatus.' + status | t }}</option>
         }
       </select>

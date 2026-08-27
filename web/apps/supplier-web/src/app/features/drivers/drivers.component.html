@@ -30,7 +30,7 @@
             <tr>
               <td><strong>{{ driver.lastName }} {{ driver.firstName }}</strong></td>
               <td>{{ driver.phone }}</td>
-              <td>{{ driver.plateNumber ?? ('common.notSet' | t) }}</td>
+              <td>{{ plateOf(driver) ?? ('common.notSet' | t) }}</td>
               <td>
                 <span class="chip" [class.chip--ok]="driver.active" [class.chip--off]="!driver.active">
                   {{ (driver.active ? 'drivers.active' : 'drivers.inactive') | t }}
@@ -132,12 +132,9 @@
 @if (credentials(); as created) {
   <app-modal [title]="'drivers.passwordTitle' | t" (closed)="credentials.set(null)">
     <p class="drivers__password">{{ created.password }}</p>
-    <p class="field__hint">{{ 'drivers.passwordOnce' | t }}</p>
+    <p class="field__hint">{{ created.passwordNotice }}</p>
     <p class="muted small">
-      {{ created.driver.phone }} ·
-      @if (created.smsSent) {
-        {{ 'drivers.smsSent' | t }}
-      }
+      {{ 'drivers.loginLabel' | t }}: {{ created.login }}
     </p>
     <div modalFooter>
       <button type="button" class="btn btn--primary" (click)="credentials.set(null)">

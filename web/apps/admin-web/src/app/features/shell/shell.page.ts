@@ -13,10 +13,8 @@ interface NavItem {
 const NAV: readonly NavItem[] = [
   { section: 'stores', link: '/stores', labelKey: 'nav.stores' },
   { section: 'suppliers', link: '/suppliers', labelKey: 'nav.suppliers' },
-  { section: 'staff', link: '/staff-users', labelKey: 'nav.staff' },
   { section: 'sync', link: '/mcp-sync', labelKey: 'nav.sync' },
   { section: 'analytics', link: '/analytics', labelKey: 'nav.analytics' },
-  { section: 'audit', link: '/audit', labelKey: 'nav.audit' },
 ];
 
 /** Каркас адмінки: бічна навігація за ролями (ADM-02) + outlet. */

@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Domain\Access\Permission;
 use App\Domain\PartnerUser\PartnerUser;
 use App\Domain\Service\DriverCredentials;
 use App\Domain\Service\DriverService;
+use App\Infrastructure\Http\ActorResolver;
 use App\Infrastructure\Http\JsonBody;
-use App\Infrastructure\Http\SupplierContext;
 use App\Infrastructure\Http\View;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -17,13 +18,20 @@ use Symfony\Component\Routing\Attribute\Route;
 
 /**
  * Розділ «Водії» кабінету постачальника (SUP-DRV-01…SUP-DRV-05).
+ *
+ * Право за матрицею 4.4 — `driver.manage`, надане зі скоупом (S) лише ролі
+ * supplier_admin. Окремого права на читання водіїв у матриці немає, тож за
+ * RBAC-02 (deny by default) увесь розділ закритий тим самим правом.
+ *
+ * Постачальник береться ВИКЛЮЧНО з ідентичності запиту (X-Supplier-Id), тому
+ * чужі водії недосяжні ні на читання, ні на зміну; порожній заголовок — 403.
  */
 #[Route('/api/supplier/v1/drivers')]
 final class SupplierDriverController
 {
     public function __construct(
         private readonly DriverService $drivers,
-        private readonly SupplierContext $context,
+        private readonly ActorResolver $actors,
     ) {
     }
 
@@ -33,7 +41,7 @@ final class SupplierDriverController
     #[Route('', name: 'supplier_drivers_list', methods: ['GET'])]
     public function list(Request $request): JsonResponse
     {
-        $items = $this->drivers->list($this->context->supplierId($request));
+        $items = $this->drivers->list($this->supplierId($request));
 
         return new JsonResponse([
             'items' => array_map(static fn (PartnerUser $d): array => View::driver($d), $items),
@@ -51,7 +59,7 @@ final class SupplierDriverController
     #[Route('', name: 'supplier_drivers_create', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
-        $supplierId = $this->context->supplierId($request);
+        $supplierId = $this->supplierId($request);
         $body = JsonBody::fromRequest($request);
 
         $credentials = $this->drivers->createDriver(
@@ -69,14 +77,14 @@ final class SupplierDriverController
     public function get(string $id, Request $request): JsonResponse
     {
         return new JsonResponse(View::driver(
-            $this->drivers->getDriver($this->context->supplierId($request), $id),
+            $this->drivers->getDriver($this->supplierId($request), $id),
         ));
     }
 
     #[Route('/{id}', name: 'supplier_drivers_update', methods: ['PATCH', 'PUT'])]
     public function update(string $id, Request $request): JsonResponse
     {
-        $supplierId = $this->context->supplierId($request);
+        $supplierId = $this->supplierId($request);
         $body = JsonBody::fromRequest($request);
         $driver = $this->drivers->getDriver($supplierId, $id);
 
@@ -98,7 +106,7 @@ final class SupplierDriverController
     #[Route('/{id}/regenerate-password', name: 'supplier_drivers_regenerate_password', methods: ['POST'])]
     public function regeneratePassword(string $id, Request $request): JsonResponse
     {
-        $credentials = $this->drivers->regeneratePassword($this->context->supplierId($request), $id);
+        $credentials = $this->drivers->regeneratePassword($this->supplierId($request), $id);
 
         return new JsonResponse(self::withCredentials($credentials));
     }
@@ -111,7 +119,7 @@ final class SupplierDriverController
     public function deactivate(string $id, Request $request): JsonResponse
     {
         return new JsonResponse(View::driver(
-            $this->drivers->deactivate($this->context->supplierId($request), $id),
+            $this->drivers->deactivate($this->supplierId($request), $id),
         ));
     }
 
@@ -119,8 +127,16 @@ final class SupplierDriverController
     public function activate(string $id, Request $request): JsonResponse
     {
         return new JsonResponse(View::driver(
-            $this->drivers->activate($this->context->supplierId($request), $id),
+            $this->drivers->activate($this->supplierId($request), $id),
         ));
+    }
+
+    /**
+     * Постачальник запиту: ідентичність + право `driver.manage` у скоупі.
+     */
+    private function supplierId(Request $request): string
+    {
+        return $this->actors->ownSupplierId($request, Permission::DriverManage);
     }
 
     /**

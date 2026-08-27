@@ -3,13 +3,13 @@
 
   <div class="page-header">
     <div>
-      <h1>{{ currentStore.displayName }}</h1>
+      <h1>{{ currentStore.effectiveDisplayName }}</h1>
       <div class="row muted">
         <span class="mono">{{ currentStore.externalId }}</span>
         <span>·</span>
         <span>{{ currentStore.city }}</span>
         <span>·</span>
-        <span>{{ currentStore.addressOverride ?? currentStore.address }}</span>
+        <span>{{ currentStore.effectiveAddress }}</span>
       </div>
     </div>
   </div>
@@ -44,7 +44,7 @@
       @if (draft(); as config) {
         <app-store-receiving-tab
           [windows]="config.receivingWindows"
-          [exceptions]="config.exceptions"
+          [exceptions]="config.calendarExceptions"
           [slotSizeMinutes]="config.slotSizeMinutes"
           [canEdit]="canConfigure()"
           (changed)="onReceivingChange($event)"
@@ -67,8 +67,10 @@
       @if (draft(); as config) {
         <app-store-limits-tab
           [maxVehicleWeightTons]="config.maxVehicleWeightTons"
-          [leadTimeHours]="config.leadTimeHours"
+          [leadTimeMinutes]="config.leadTimeMinutes"
           [bookingHorizonDays]="config.bookingHorizonDays"
+          [noShowGraceMinutes]="config.noShowGraceMinutes"
+          [holdMaxMinutes]="config.holdMaxMinutes"
           [canEdit]="canConfigure()"
           (changed)="onLimitsChange($event)"
         />
@@ -77,25 +79,32 @@
     @case ('reserves') {
       @if (draft(); as config) {
         <app-store-reserves-tab
-          [config]="config"
+          [rules]="currentStore.reservedRules"
+          [ramps]="config.ramps"
+          [windows]="config.receivingWindows"
+          [slotSizeMinutes]="config.slotSizeMinutes"
           [suppliers]="suppliers()"
           [canEdit]="canConfigure()"
-          (changed)="onReservesChange($event)"
+          (ruleCreate)="createReserve($event)"
+          (ruleToggle)="toggleReserve($event)"
+          (ruleDelete)="removeReserve($event)"
         />
       }
     }
     @case ('blocks') {
       @if (draft(); as config) {
         <app-store-blocks-tab
-          [config]="config"
+          [blocks]="currentStore.slotBlocks"
+          [ramps]="config.ramps"
           [canEdit]="canBlock()"
-          (changed)="onBlocksChange($event)"
+          (blockCreate)="createBlock($event)"
+          (blockRelease)="releaseBlock($event)"
         />
       }
     }
   }
 
-  @if (activeTab() !== 'general') {
+  @if (activeTab() === 'receiving' || activeTab() === 'slots' || activeTab() === 'limits') {
     <div class="card">
       <div class="row">
         <div>
@@ -105,34 +114,28 @@
             type="date"
             [value]="effectiveFrom()"
             [min]="minEffectiveDate()"
-            [disabled]="!canConfigure() && !canBlock()"
+            [disabled]="!canConfigure()"
             (input)="setEffectiveFrom($any($event.target).value)"
           />
           <div class="field-hint">{{ 'conflicts.effectiveFrom.hint' | t }}</div>
           @if (effectiveDateError(); as error) {
             <div class="field-error">{{ error | t }}</div>
           }
+          @if (configIncomplete()) {
+            <div class="field-error">{{ 'store.error.configIncomplete' | t }}</div>
+          }
         </div>
         <span class="spacer"></span>
         <button
           type="button"
           class="btn btn-primary"
-          [disabled]="(!canConfigure() && !canBlock()) || !dirty() || saving()"
-          (click)="requestSave()"
+          [disabled]="!canConfigure() || !dirty() || saving() || configIncomplete()"
+          (click)="save()"
         >
           {{ saving() ? ('common.loading' | t) : ('common.save' | t) }}
         </button>
       </div>
     </div>
-  }
-
-  @if (conflicts(); as list) {
-    <app-conflicts-dialog
-      [conflicts]="list"
-      [effectiveFrom]="effectiveFrom()"
-      (confirmed)="onConflictsConfirmed($event)"
-      (closed)="closeConflicts()"
-    />
   }
 
   @if (pendingTab()) {

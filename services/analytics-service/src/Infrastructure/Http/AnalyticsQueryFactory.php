@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Http;
 
+use App\Domain\Access\Actor;
 use App\Domain\Analytics\AnalyticsQuery;
 use App\Domain\Analytics\Dimension;
 use App\Domain\Analytics\PeriodBucket;
@@ -21,6 +22,10 @@ use Symfony\Component\HttpFoundation\Request;
  * Дати в параметрах — локальні дати магазину (Europe/Kyiv); межі періоду
  * перетворюються в UTC-напівінтервал [from; to), де to — початок доби,
  * наступної за «по». Тому «з=по=2026-03-14» означає рівно одну добу.
+ *
+ * Фільтр магазинів — НЕ лише зручність користувача: він же несе скоуп доступу.
+ * Тому запитані магазини завжди звужуються скоупом актора
+ * (Actor::narrowStoreScope), а не приймаються на віру з query-рядка.
  */
 final readonly class AnalyticsQueryFactory
 {
@@ -31,7 +36,10 @@ final readonly class AnalyticsQueryFactory
     {
     }
 
-    public function fromRequest(Request $request): AnalyticsQuery
+    /**
+     * @throws \App\Domain\Access\AccessDeniedException якщо запитані магазини поза скоупом актора
+     */
+    public function fromRequest(Request $request, Actor $actor): AnalyticsQuery
     {
         [$from, $to] = $this->resolvePeriod($request);
 
@@ -39,7 +47,7 @@ final readonly class AnalyticsQueryFactory
             from: $from,
             to: $to,
             cities: $this->list($request, 'city'),
-            storeIds: $this->list($request, 'storeId'),
+            storeIds: $actor->narrowStoreScope($this->list($request, 'storeId')),
             supplierIds: $this->list($request, 'supplierId'),
             rampIds: $this->list($request, 'rampId'),
             types: array_map($this->toType(...), $this->list($request, 'type')),

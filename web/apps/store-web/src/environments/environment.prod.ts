@@ -8,7 +8,7 @@ export type { Environment };
  */
 export const environment: Environment = {
   production: true,
-  useMocks: true,
+  useMocks: false,
   apiBaseUrl: '/api/store/v1',
   pollingIntervalMs: 15_000,
   staleThresholdMs: 60_000,

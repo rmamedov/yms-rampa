@@ -17,11 +17,21 @@ describe('ToastService — повідомлення про помилки (SUP-E
       ),
     ).toBe('Цей слот щойно забронював інший постачальник');
 
+    // Плейсхолдери словника — імена розширень problem-документа бекенду.
     expect(
       toasts.messageFor(
-        problem(422, ERROR_CODES.vehicleTooHeavy, 'raw', { tons: 10 }),
+        problem(422, ERROR_CODES.vehicleTooHeavy, 'raw', {
+          maxVehicleWeightTons: 10,
+          actualWeightTons: 20,
+        }),
       ),
     ).toBe('Ця філія приймає авто до 10 т');
+
+    expect(
+      toasts.messageFor(
+        problem(422, ERROR_CODES.dateOutOfHorizon, 'raw', { horizonDays: 14 }),
+      ),
+    ).toContain('14');
 
     expect(
       toasts.messageFor(

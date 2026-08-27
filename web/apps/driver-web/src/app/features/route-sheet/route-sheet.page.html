@@ -1,8 +1,8 @@
 <header class="topbar">
   <div class="titles">
     <h1 class="title">{{ 'sheet.title' | t }}</h1>
-    @if (profile(); as driver) {
-      <p class="driver">{{ driver.fullName }}</p>
+    @if (driverLabel(); as phone) {
+      <p class="driver">{{ phone }}</p>
     }
   </div>
   <button
@@ -17,12 +17,6 @@
 
 @if (offlineBanner(); as banner) {
   <p class="banner offline" role="status">{{ banner }}</p>
-}
-
-@if (queue.pendingCount() > 0) {
-  <p class="banner queued" role="status">
-    {{ 'offline.queued' | t: { count: queue.pendingCount() } }}
-  </p>
 }
 
 @if (install.available()) {
@@ -83,15 +77,8 @@
         <app-point-card
           [point]="point"
           [active]="isActive(i)"
-          [windowState]="windowStateFor(point)"
-          [queued]="queue.isQueued(point.bookingId)"
-          [submitting]="arrivingId() === point.bookingId"
-          [online]="network.online()"
           (routeRequested)="onRouteRequested($event)"
           (routeOptionsRequested)="openNavigatorSheet($event)"
-          (arriveRequested)="requestArrive($event)"
-          (delayRequested)="openDelay($event)"
-          (orderIdSubmitted)="saveOrderId($event)"
         />
       </li>
     }
@@ -131,29 +118,4 @@
       {{ 'common.cancel' | t }}
     </button>
   </app-bottom-sheet>
-}
-
-@if (openSheet() === 'delay') {
-  <app-bottom-sheet [heading]="'delay.title' | t" (dismiss)="closeSheet()">
-    <app-delay-form
-      [busy]="delayBusy()"
-      [serverError]="delayError()"
-      (submitted)="submitDelay($event)"
-      (cancelled)="closeSheet()"
-    />
-  </app-bottom-sheet>
-}
-
-@if (confirmPoint()) {
-  <app-confirm-dialog
-    [heading]="confirmHeading()"
-    [confirmLabel]="'arrive.confirmYes' | t"
-    [cancelLabel]="'arrive.confirmNo' | t"
-    (confirmed)="confirmArrive()"
-    (cancelled)="cancelArrive()"
-  />
-}
-
-@if (toast(); as message) {
-  <p class="toast" role="status">{{ message }}</p>
 }

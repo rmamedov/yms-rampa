@@ -7,7 +7,6 @@ import { Injectable } from '@angular/core';
 export const STORAGE_KEYS = {
   session: 'yms.driver.session',
   navigatorApp: 'yms.driver.navigator',
-  arrivalQueue: 'yms.driver.arrivalQueue',
   routeSheetCache: 'yms.driver.routeSheetCache',
   installPromptDismissed: 'yms.driver.installPromptDismissed',
 } as const;

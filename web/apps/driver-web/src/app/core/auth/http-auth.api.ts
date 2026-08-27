@@ -6,13 +6,20 @@ import type { LoginRequest, LoginResponse } from '../models/auth.model';
 import { environment } from '../../../environments/environment';
 import { SKIP_AUTH } from '../http/auth.context';
 
-interface RawLoginResponse {
+/** Тіло відповіді AuthResult::toArray() identity-partner-service. */
+interface RawAuthResponse {
   accessToken: string;
-  refreshToken: string;
-  /** Час життя access-токена в секундах. */
+  /** ISO 8601 з таймзоною (DATE_ATOM) — основне джерело моменту протермінування. */
+  accessExpiresAt: string;
+  /** Час життя access-токена в секундах; запасний варіант. */
   expiresIn: number;
+  refreshToken: string;
+  refreshExpiresAt: string;
+  tokenType: 'Bearer';
   profile: LoginResponse['profile'];
 }
+
+const DEFAULT_ACCESS_TTL_SECONDS = 900;
 
 @Injectable()
 export class HttpAuthApi extends AuthApi {
@@ -21,7 +28,7 @@ export class HttpAuthApi extends AuthApi {
 
   override login(request: LoginRequest): Observable<LoginResponse> {
     return this.http
-      .post<RawLoginResponse>(`${this.base}/login`, request, {
+      .post<RawAuthResponse>(`${this.base}/login`, request, {
         context: new HttpContext().set(SKIP_AUTH, true),
       })
       .pipe(map(toLoginResponse));
@@ -29,7 +36,7 @@ export class HttpAuthApi extends AuthApi {
 
   override refresh(refreshToken: string): Observable<LoginResponse> {
     return this.http
-      .post<RawLoginResponse>(
+      .post<RawAuthResponse>(
         `${this.base}/refresh`,
         { refreshToken },
         { context: new HttpContext().set(SKIP_AUTH, true) },
@@ -37,6 +44,7 @@ export class HttpAuthApi extends AuthApi {
       .pipe(map(toLoginResponse));
   }
 
+  /** Бекенд відповідає 204 без тіла. */
   override logout(refreshToken: string): Observable<void> {
     return this.http
       .post<void>(`${this.base}/logout`, { refreshToken })
@@ -44,11 +52,15 @@ export class HttpAuthApi extends AuthApi {
   }
 }
 
-function toLoginResponse(raw: RawLoginResponse): LoginResponse {
+function toLoginResponse(raw: RawAuthResponse): LoginResponse {
+  const absolute = Date.parse(raw.accessExpiresAt ?? '');
+
   return {
     accessToken: raw.accessToken,
     refreshToken: raw.refreshToken,
-    accessExpiresAt: Date.now() + (raw.expiresIn ?? 900) * 1000,
+    accessExpiresAt: Number.isNaN(absolute)
+      ? Date.now() + (raw.expiresIn ?? DEFAULT_ACCESS_TTL_SECONDS) * 1000
+      : absolute,
     profile: raw.profile,
   };
 }

@@ -138,6 +138,9 @@ final class MongoConnection
     /**
      * Індекси розділу 10.5:
      *  - staff_users: unique {email:1}, multikey {storeIds:1};
+     *    гарячий шлях `/internal/v1/auth/verify` читає документ за `_id`,
+     *    а первинний індекс `{_id:1}` MongoDB створює сама — окремий індекс
+     *    для нього не потрібен і був би дублікатом;
      *  - refresh_tokens: TTL на expiresAt (expireAfterSeconds:0), {userId:1, revokedAt:1};
      *  - login_attempts: {login:1, at:-1}, TTL на at (30 днів).
      */

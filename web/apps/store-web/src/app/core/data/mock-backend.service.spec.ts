@@ -1,13 +1,14 @@
 import { MockBackend } from './mock-backend.service';
 import { MOCK_USERS } from '../fixtures/mock-data';
+import { toBooking } from '../api/wire.mapper';
+import { WireBooking, WireWalkInRequest } from '../api/wire.model';
 import { AppError } from '../models/problem.model';
-import { Booking, WalkInPayload } from '../models/booking.model';
 import { computeDailyStats } from '../util/board.util';
 import { toKyivDateKey } from '../util/date.util';
 
 /** Четвер, 13:00 за Києвом — усередині вікна прийому 08:00–20:00. */
 const NOW = '2026-08-27T10:00:00.000Z';
-const STORE_ID = MOCK_USERS[0].stores[0].storeId;
+const STORE_ID = MOCK_USERS[0].scope.storeIds[0];
 const TODAY = toKyivDateKey(NOW);
 
 function expectProblem(fn: () => unknown, code: string, status: number): void {
@@ -29,23 +30,26 @@ describe('MockBackend — автентифікація', () => {
     backend.clock = () => NOW;
   });
 
-  it('видає токени і профіль із закріпленими магазинами', () => {
+  it('видає плоску відповідь із токенами і профілем, як AuthController', () => {
     const result = backend.login({
       email: 'operator@silpo.ua',
       password: 'demo',
     });
-    expect(result.tokens.accessToken).toContain('mock-access.');
-    expect(result.profile.role).toBe('store_operator');
-    expect(result.profile.stores.length).toBeGreaterThan(1);
+    expect(result.tokenType).toBe('Bearer');
+    expect(result.accessToken).toContain('mock-access.');
+    expect(result.expiresIn).toBeGreaterThan(0);
+    expect(result.user.role).toBe('store_operator');
+    expect(result.user.scope.storeIds.length).toBeGreaterThan(1);
+    expect(result.user.scope.networkWide).toBe(false);
   });
 
-  it('менеджер має власний набір магазинів, а адмін — жодного (STW-01/02)', () => {
+  it('менеджер має власний скоуп, мережева роль — порожній (STW-01/02)', () => {
     expect(
-      backend.login({ email: 'manager@silpo.ua', password: 'x' }).profile.role,
+      backend.login({ email: 'manager@silpo.ua', password: 'x' }).user.role,
     ).toBe('store_manager');
-    expect(
-      backend.login({ email: 'admin@silpo.ua', password: 'x' }).profile.stores,
-    ).toEqual([]);
+    const outsider = backend.login({ email: 'admin@silpo.ua', password: 'x' }).user;
+    expect(outsider.role).toBe('network_manager');
+    expect(outsider.scope.storeIds).toEqual([]);
   });
 
   it('відхиляє порожні облікові дані і невалідний refresh', () => {
@@ -67,17 +71,17 @@ describe('MockBackend — дошка і дії магазину', () => {
     backend.login({ email: 'operator@silpo.ua', password: 'demo' });
   });
 
-  function walkIn(overrides: Partial<WalkInPayload> = {}): Booking {
+  function walkIn(overrides: Partial<WireWalkInRequest> = {}): WireBooking {
     const slot = backend.freeSlotsNow(STORE_ID)[0];
-    return backend.createWalkIn(STORE_ID, {
-      supplierId: null,
-      externalSupplierName: 'ФОП Гуменюк В. П.',
-      plateNumber: 'aa1234bb',
-      weightTons: 5,
-      palletsCount: 12,
-      orderId: null,
+    return backend.createWalkIn({
+      storeId: STORE_ID,
       rampId: slot.rampId,
       slotStart: slot.slotStart,
+      vehicle: { plateNumber: 'aa1234bb', weightTons: 5, brand: null },
+      palletsCount: 12,
+      supplierId: null,
+      supplierName: 'ФОП Гуменюк В. П.',
+      orderId: null,
       ...overrides,
     });
   }
@@ -97,53 +101,85 @@ describe('MockBackend — дошка і дії магазину', () => {
     expect(board.bookings.some((b) => b.type === 'walk_in')).toBe(true);
   });
 
-  it('проводить walk-in через arrived → unloading → completed (AC-9.3, AC-9.11)', () => {
+  it('віддає бронювання у формі BookingPresenter', () => {
+    const booking = backend.getBoard(STORE_ID, TODAY).bookings[0];
+    expect(Object.keys(booking)).toEqual(
+      expect.arrayContaining([
+        'id',
+        'type',
+        'status',
+        'storeId',
+        'store',
+        'rampId',
+        'slotStart',
+        'slotEnd',
+        'localDate',
+        'localTime',
+        'supplierId',
+        'supplierName',
+        'vehicle',
+        'driverId',
+        'palletsCount',
+        'delayed',
+        'statusHistory',
+      ]),
+    );
+    // Оптимістичної версії бекенд не має — її не має бути й у моці.
+    expect('version' in booking).toBe(false);
+    expect(booking.store.displayName).toContain('Сільпо');
+  });
+
+  it('проводить walk-in через arrived → unloading → completed (ST-02, ST-03)', () => {
     const created = walkIn();
     expect(created.type).toBe('walk_in');
     expect(created.status).toBe('arrived');
     expect(created.arrivedAt).toBe(NOW);
     expect(created.vehicle.plateNumber).toBe('AA1234BB');
 
-    const unloading = backend.startUnloading(created.id, created.version);
+    const unloading = backend.startUnloading(created.id);
     expect(unloading.status).toBe('unloading');
     expect(unloading.unloadingStartedAt).toBe(NOW);
-    expect(unloading.version).toBe(created.version + 1);
 
-    const completed = backend.completeUnloading(
-      unloading.id,
-      unloading.version,
-      {
-        unloadedPalletsCount: 9,
-        partialUnload: false,
-        partialUnloadReason: 'order_mismatch',
-        partialUnloadComment: null,
+    const completed = backend.completeUnloading(unloading.id, {
+      unloadedPalletsCount: 9,
+      partialUnload: {
+        reason: 'розбіжність із замовленням',
+        comment: null,
       },
-    );
+    });
     expect(completed.status).toBe('completed');
     expect(completed.unloadedPalletsCount).toBe(9);
-    // STW-36: недовантаження вмикає partialUnload автоматично.
     expect(completed.partialUnload?.flag).toBe(true);
-    expect(completed.partialUnload?.reason).toBe('order_mismatch');
+    expect(completed.partialUnload?.reason).toBe('розбіжність із замовленням');
 
-    const log = backend.getAuditLog(completed.id);
-    expect(log.map((e) => e.action)).toEqual(
-      expect.arrayContaining([
-        'created',
-        'status_changed',
-        'unload_recorded',
-      ]),
-    );
-    expect(log.every((e) => e.at.length > 0)).toBe(true);
+    // Журнал дій будується зі statusHistory — окремого ендпоінта немає.
+    const history = toBooking(completed).statusHistory;
+    expect(history.map((e) => e.to)).toEqual([
+      'arrived',
+      'unloading',
+      'completed',
+    ]);
+    expect(history.every((e) => e.at.length > 0)).toBe(true);
   });
 
-  it('повертає 409 на застарілу версію — гонка двох операторів (STW-17, AC-9.9)', () => {
+  it('недовантаження без причини — 422 VALIDATION_FAILED (ST-03)', () => {
     const created = walkIn();
-    const first = backend.startUnloading(created.id, created.version);
-    expect(first.status).toBe('unloading');
+    backend.startUnloading(created.id);
+    expectProblem(
+      () =>
+        backend.completeUnloading(created.id, { unloadedPalletsCount: 9 }),
+      'VALIDATION_FAILED',
+      422,
+    );
+  });
+
+  it('повторний перехід — 409 INVALID_STATUS_TRANSITION (ST-06)', () => {
+    const created = walkIn();
+    expect(backend.startUnloading(created.id).status).toBe('unloading');
 
     expectProblem(
-      () => backend.startUnloading(created.id, created.version),
-      'BOOKING_STATUS_CONFLICT',
+      () => backend.startUnloading(created.id),
+      'INVALID_STATUS_TRANSITION',
       409,
     );
   });
@@ -152,86 +188,87 @@ describe('MockBackend — дошка і дії магазину', () => {
     const created = walkIn();
     expectProblem(
       () =>
-        backend.completeUnloading(created.id, created.version, {
-          unloadedPalletsCount: 12,
-          partialUnload: false,
-          partialUnloadReason: null,
-          partialUnloadComment: null,
-        }),
-      'BOOKING_STATUS_CONFLICT',
+        backend.completeUnloading(created.id, { unloadedPalletsCount: 12 }),
+      'INVALID_STATUS_TRANSITION',
       409,
     );
   });
 
-  it('не дає позначити «Не приїхав» до кінця слоту (STW-15)', () => {
+  it('не дає позначити «Не приїхав» до кінця слоту (NOSH-02)', () => {
     const board = backend.getBoard(STORE_ID, TODAY);
     const future = board.bookings.find(
       (b) => b.status === 'booked' && new Date(b.slotEnd).getTime() > Date.parse(NOW),
     );
     expect(future).toBeDefined();
     expectProblem(
-      () => backend.markNoShow(future!.id, future!.version),
-      'NO_SHOW_TOO_EARLY',
+      () => backend.markNoShow(future!.id),
+      'VALIDATION_FAILED',
       422,
     );
   });
 
-  it('фіксує відмову в прийомі з причиною з довідника (STW-35, AC-9.12)', () => {
+  it('фіксує відмову з причиною з довідника бекенду (ST-07)', () => {
     const created = walkIn();
+    // Значення поза backed-enum RejectionReason → 422.
     expectProblem(
-      () =>
-        backend.reject(created.id, created.version, {
-          reason: 'other',
-          comment: '  ',
-        }),
-      'REJECT_REASON_REQUIRED',
+      () => backend.reject(created.id, { reason: 'other', comment: 'x' }),
+      'VALIDATION_FAILED',
+      422,
+    );
+    expectProblem(
+      () => backend.reject(created.id, { reason: 'інше', comment: '  ' }),
+      'VALIDATION_FAILED',
       422,
     );
 
-    const rejected = backend.reject(created.id, created.version, {
-      reason: 'missing_documents',
+    const rejected = backend.reject(created.id, {
+      reason: 'відсутні документи',
       comment: null,
     });
     expect(rejected.status).toBe('rejected');
-    expect(rejected.rejectedAt?.reason).toBe('missing_documents');
+    expect(rejected.rejectedAt?.reason).toBe('відсутні документи');
     expect(rejected.rejectedAt?.at).toBe(NOW);
-    expect(backend.getAuditLog(rejected.id).some((e) => e.action === 'rejected')).toBe(
-      true,
-    );
   });
 
-  it('ставить прапорець delayed без зміни статусу і валідує ETA (STW-20, AC-9.5)', () => {
+  it('ставить прапорець delayed без зміни статусу і валідує ETA (DLY-01)', () => {
     const created = walkIn();
     expectProblem(
       () =>
-        backend.setDelay(created.id, created.version, {
-          reason: 'ramp_busy',
+        backend.setDelay(created.id, {
+          reason: 'затори',
+          eta: new Date(Date.parse(NOW) - 60_000).toISOString(),
           comment: null,
-          eta: new Date(Date.parse(created.slotStart) - 60_000).toISOString(),
         }),
-      'ETA_BEFORE_SLOT_START',
+      'VALIDATION_FAILED',
       422,
     );
 
-    const eta = new Date(Date.parse(created.slotStart) + 45 * 60_000).toISOString();
-    const delayed = backend.setDelay(created.id, created.version, {
-      reason: 'ramp_busy',
-      comment: 'Рампа зайнята',
+    const eta = new Date(Date.parse(NOW) + 45 * 60_000).toISOString();
+    const delayed = backend.setDelay(created.id, {
+      reason: 'затори',
       eta,
+      comment: 'Рампа зайнята',
     });
     expect(delayed.status).toBe('arrived');
     expect(delayed.delayed.flag).toBe(true);
     expect(delayed.delayed.eta).toBe(eta);
+    expect(delayed.delayed.reason).toBe('затори');
 
-    const cleared = backend.clearDelay(delayed.id, delayed.version);
-    expect(cleared.delayed.flag).toBe(false);
-    expect(
-      backend.getAuditLog(cleared.id).some((e) => e.action === 'delay_cleared'),
-    ).toBe(true);
+    // ST-02 знімає прапорець затримки — так само, як у Booking::startUnloading.
+    expect(backend.startUnloading(delayed.id).delayed.flag).toBe(false);
   });
 
-  it('переводить бронювання на вільну рампу того самого слота (STW-41, AC-9.13)', () => {
-    // Слот, у якому вільні щонайменше дві рампи.
+  it('для причини «інше» склеює коментар у reason, як бекенд', () => {
+    const created = walkIn();
+    const delayed = backend.setDelay(created.id, {
+      reason: 'інше',
+      eta: new Date(Date.parse(NOW) + 45 * 60_000).toISOString(),
+      comment: 'аварія на мосту',
+    });
+    expect(delayed.delayed.reason).toBe('інше: аварія на мосту');
+  });
+
+  it('переводить бронювання на вільну рампу того самого слота (EDIT-06)', () => {
     const byStart = new Map<string, string[]>();
     for (const slot of backend.freeSlotsNow(STORE_ID)) {
       byStart.set(slot.slotStart, [
@@ -242,42 +279,37 @@ describe('MockBackend — дошка і дії магазину', () => {
     const entry = [...byStart.entries()].find(([, ramps]) => ramps.length >= 2);
     expect(entry).toBeDefined();
 
-    const created = walkIn({
-      slotStart: entry![0],
-      rampId: entry![1][0],
-    });
+    const created = walkIn({ slotStart: entry![0], rampId: entry![1][0] });
     const free = backend.freeRampsForSlot(created);
     expect(free.length).toBeGreaterThan(0);
 
-    const moved = backend.reassignRamp(created.id, created.version, {
-      rampId: free[0],
-    });
+    const moved = backend.reassignRamp(created.id, { rampId: free[0] });
     expect(moved.rampId).toBe(free[0]);
     expect(moved.slotStart).toBe(created.slotStart);
     expect(moved.slotEnd).toBe(created.slotEnd);
-    expect(
-      backend.getAuditLog(moved.id).some((e) => e.action === 'ramp_reassigned'),
-    ).toBe(true);
 
     expectProblem(
-      () =>
-        backend.reassignRamp(moved.id, moved.version, { rampId: moved.rampId }),
-      'RAMP_SLOT_TAKEN',
-      422,
+      () => backend.reassignRamp(moved.id, { rampId: moved.rampId }),
+      'SLOT_ALREADY_BOOKED',
+      409,
     );
   });
 
-  it('перевіряє тоннаж walk-in проти ліміту магазину (STW-38)', () => {
-    expectProblem(() => walkIn({ weightTons: 14 }), 'VEHICLE_TOO_HEAVY', 422);
-    expectProblem(() => walkIn({ palletsCount: 99 }), 'VALIDATION_FAILED', 422);
+  it('перевіряє тоннаж і палети walk-in проти правил бекенду (WALK-01)', () => {
     expectProblem(
-      () => walkIn({ supplierId: null, externalSupplierName: '   ' }),
+      () => walkIn({ vehicle: { plateNumber: 'AA1', weightTons: 14, brand: null } }),
+      'VEHICLE_TOO_HEAVY',
+      422,
+    );
+    expectProblem(() => walkIn({ palletsCount: 99 }), 'PALLETS_OUT_OF_RANGE', 422);
+    expectProblem(
+      () => walkIn({ supplierId: null, supplierName: '   ' }),
       'VALIDATION_FAILED',
       422,
     );
   });
 
-  it('не дає створити walk-in на зайнятий слот (розділ 9.11)', () => {
+  it('не дає створити walk-in на зайнятий слот', () => {
     const created = walkIn();
     expectProblem(
       () => walkIn({ rampId: created.rampId, slotStart: created.slotStart }),
@@ -287,17 +319,21 @@ describe('MockBackend — дошка і дії магазину', () => {
   });
 
   it('walk-in враховується у денній статистиці окремим показником (STW-24)', () => {
-    const before = computeDailyStats(backend.getBoard(STORE_ID, TODAY).bookings);
+    const before = computeDailyStats(
+      backend.getBoard(STORE_ID, TODAY).bookings.map(toBooking),
+    );
     walkIn();
-    const after = computeDailyStats(backend.getBoard(STORE_ID, TODAY).bookings);
+    const after = computeDailyStats(
+      backend.getBoard(STORE_ID, TODAY).bookings.map(toBooking),
+    );
     expect(after.walkIn).toBe(before.walkIn + 1);
     expect(after.total).toBe(before.total + 1);
   });
 
-  it('забороняє доступ до чужого магазину (STW-02)', () => {
+  it('забороняє доступ до чужого магазину (RBAC-13)', () => {
     expectProblem(
       () => backend.getStoreConfig('чужий-магазин'),
-      'STORE_FORBIDDEN',
+      'ACCESS_DENIED',
       403,
     );
   });

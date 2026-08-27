@@ -1,24 +1,30 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  computed,
-  effect,
   input,
   output,
   signal,
 } from '@angular/core';
-import { Ramp, SlotBlock, StoreConfig } from '../../../core/models';
+import { Ramp, SlotBlock } from '../../../core/models';
+import { SlotBlockDraft } from '../../../core/data/stores.api';
 import { TranslatePipe } from '../../../core/i18n/translate.pipe';
 import {
   diffDays,
   formatDate,
+  formatTime,
+  isoToKyivDate,
   isValidDate,
   kyivDate,
+  kyivDateTimeToIso,
   timeToMinutes,
 } from '../../../core/utils/time.util';
 import { validateReason } from '../../../core/utils/validators.util';
 
-/** Вкладка «Блокування слотів»: разові блокування з причиною (STC-50…STC-52). */
+/**
+ * Вкладка «Блокування слотів» (STC-50…STC-52).
+ * Ресурс /stores/{id}/slot-blocks: межі періоду — UTC-мітки blockFrom/blockTo,
+ * тому локальні дата+час перетворюються в ISO перед відправкою.
+ */
 @Component({
   selector: 'app-store-blocks-tab',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -26,11 +32,13 @@ import { validateReason } from '../../../core/utils/validators.util';
   templateUrl: './blocks-tab.component.html',
 })
 export class StoreBlocksTabComponent {
-  readonly config = input.required<StoreConfig>();
+  readonly blocks = input.required<readonly SlotBlock[]>();
+  readonly ramps = input.required<readonly Ramp[]>();
   readonly canEdit = input(false);
-  readonly changed = output<readonly SlotBlock[]>();
 
-  protected readonly blocks = signal<SlotBlock[]>([]);
+  readonly blockCreate = output<SlotBlockDraft>();
+  readonly blockRelease = output<string>();
+
   protected readonly errors = signal<readonly string[]>([]);
 
   protected readonly date = signal(kyivDate());
@@ -40,13 +48,9 @@ export class StoreBlocksTabComponent {
   protected readonly reason = signal('');
 
   protected readonly formatDate = formatDate;
-  protected readonly ramps = computed<readonly Ramp[]>(() => this.config().ramps);
-
-  constructor() {
-    effect(() => {
-      this.blocks.set(this.config().slotBlocks.map((b) => ({ ...b })));
-    });
-  }
+  protected readonly formatTime = formatTime;
+  protected readonly blockDate = (block: SlotBlock): string =>
+    formatDate(isoToKyivDate(block.blockFrom));
 
   protected toggleRamp(id: string): void {
     this.rampIds.update((ids) =>
@@ -60,7 +64,7 @@ export class StoreBlocksTabComponent {
     }
     return block.rampIds
       .map((id) => {
-        const ramp = this.config().ramps.find((r) => r.id === id);
+        const ramp = this.ramps().find((r) => r.id === id);
         return ramp ? (ramp.name ?? `№${ramp.number}`) : id;
       })
       .join(', ');
@@ -81,27 +85,18 @@ export class StoreBlocksTabComponent {
     if (errors.length > 0) {
       return;
     }
-    const block: SlotBlock = {
-      id: `blk-${Date.now()}`,
-      date: this.date(),
-      from: this.from(),
-      to: this.to(),
+    this.blockCreate.emit({
       rampIds: [...this.rampIds()],
+      blockFrom: kyivDateTimeToIso(this.date(), this.from()),
+      blockTo: kyivDateTimeToIso(this.date(), this.to()),
       reason: this.reason().trim(),
-      active: true,
-      createdAt: new Date().toISOString(),
-    };
-    this.blocks.update((list) => [block, ...list]);
+    });
     this.reason.set('');
     this.rampIds.set([]);
-    this.changed.emit(this.blocks());
   }
 
   /** STC-52: зняття блокування повертає слоти в available (SlotReleased). */
-  protected release(id: string): void {
-    this.blocks.update((list) =>
-      list.map((b) => (b.id === id ? { ...b, active: false } : b)),
-    );
-    this.changed.emit(this.blocks());
+  protected releaseBlock(id: string): void {
+    this.blockRelease.emit(id);
   }
 }

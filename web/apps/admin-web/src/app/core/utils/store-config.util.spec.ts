@@ -1,19 +1,13 @@
+import { CalendarException, DayOfWeek, Ramp, ReceivingWindow } from '../models';
 import {
-  CalendarException,
-  DayOfWeek,
-  Ramp,
-  ReservedSlotRule,
-  StoreConfig,
-} from '../models';
-import {
-  canDeleteRamp,
+  ConfigFormState,
+  CONFIG_DEFAULTS,
   countDailySlots,
   effectiveIntervals,
   emptyReceivingWindows,
   generateSlotStarts,
-  isStoreConfigured,
   minimumEffectiveDate,
-  missingConfigParts,
+  ReservedRuleCandidate,
   validateDayIntervals,
   validateEffectiveDate,
   validateException,
@@ -23,62 +17,31 @@ import {
 import { addDays } from './time.util';
 
 function ramp(overrides: Partial<Ramp> = {}): Ramp {
-  return {
-    id: 'r1',
-    number: 1,
-    name: 'Основна',
-    enabled: true,
-    disabledFrom: null,
-    hasBookings: false,
-    ...overrides,
-  };
+  return { id: 'r1', number: 1, name: 'Основна', enabled: true, ...overrides };
 }
 
-function config(overrides: Partial<StoreConfig> = {}): StoreConfig {
+function windows(): ReceivingWindow[] {
+  return emptyReceivingWindows().map((w) =>
+    w.dayOfWeek <= 5
+      ? { dayOfWeek: w.dayOfWeek, intervals: [{ from: '08:00', to: '12:00' }] }
+      : w,
+  );
+}
+
+function config(overrides: Partial<ConfigFormState> = {}): ConfigFormState {
   return {
     slotSizeMinutes: 30,
     ramps: [ramp()],
     maxVehicleWeightTons: 20,
-    leadTimeHours: 4,
-    bookingHorizonDays: 21,
-    receivingWindows: emptyReceivingWindows().map((w) =>
-      w.dayOfWeek <= 5
-        ? { dayOfWeek: w.dayOfWeek, intervals: [{ from: '08:00', to: '12:00' }] }
-        : w,
-    ),
-    exceptions: [],
-    reservedRules: [],
-    slotBlocks: [],
+    leadTimeMinutes: CONFIG_DEFAULTS.leadTimeMinutes,
+    bookingHorizonDays: CONFIG_DEFAULTS.bookingHorizonDays,
+    noShowGraceMinutes: CONFIG_DEFAULTS.noShowGraceMinutes,
+    holdMaxMinutes: CONFIG_DEFAULTS.holdMaxMinutes,
+    receivingWindows: windows(),
+    calendarExceptions: [],
     ...overrides,
   };
 }
-
-describe('STL-04 — ознака «налаштовано»', () => {
-  it('магазин налаштований лише за наявності всіх чотирьох параметрів', () => {
-    expect(isStoreConfigured(config())).toBe(true);
-  });
-
-  it('перелічує всі відсутні параметри', () => {
-    const broken = config({
-      slotSizeMinutes: null,
-      maxVehicleWeightTons: null,
-      ramps: [],
-      receivingWindows: emptyReceivingWindows(),
-    });
-    expect(missingConfigParts(broken)).toEqual([
-      'store.missing.windows',
-      'store.missing.slotSize',
-      'store.missing.ramp',
-      'store.missing.weight',
-    ]);
-    expect(isStoreConfigured(broken)).toBe(false);
-  });
-
-  it('вимкнена рампа не рахується активною', () => {
-    const disabled = config({ ramps: [ramp({ enabled: false })] });
-    expect(missingConfigParts(disabled)).toContain('store.missing.ramp');
-  });
-});
 
 describe('STC-11 — валідація інтервалів прийому', () => {
   it('початок має бути раніше за кінець', () => {
@@ -141,16 +104,16 @@ describe('STC-23 — генерація сітки слотів', () => {
   });
 
   it('виняток «вихідний» має пріоритет над тижневим шаблоном', () => {
-    const date = addDays('2026-09-07', 0); // понеділок
+    const date = '2026-09-07'; // понеділок
     const exception: CalendarException = {
-      id: 'e1',
+      id: `exc-${date}`,
       date,
       type: 'closed',
       intervals: [],
       reason: 'Свято',
     };
-    expect(effectiveIntervals(config({ exceptions: [exception] }), date)).toEqual([]);
-    expect(effectiveIntervals(config(), date)).toHaveLength(1);
+    expect(effectiveIntervals(windows(), [exception], date)).toEqual([]);
+    expect(effectiveIntervals(windows(), [], date)).toHaveLength(1);
   });
 });
 
@@ -226,72 +189,93 @@ describe('STC-12/13 — календар винятків', () => {
   });
 });
 
-describe('STC-21/22 — рампи', () => {
+describe('STC-21 — рампи', () => {
   it('номери рамп мають бути унікальні', () => {
     expect(validateRamps([ramp({ id: 'a' }), ramp({ id: 'b' })])).toContain(
       'slots.error.rampNumber',
     );
   });
 
-  it('рампу з історією бронювань видалити не можна', () => {
-    expect(canDeleteRamp(ramp({ hasBookings: true }))).toBe(false);
-    expect(canDeleteRamp(ramp({ hasBookings: false }))).toBe(true);
+  it('порожній перелік рамп — помилка', () => {
+    expect(validateRamps([])).toContain('slots.error.noRamps');
   });
 });
 
 describe('STC-42 — правила резерву', () => {
-  const base: ReservedSlotRule = {
+  const base: ReservedRuleCandidate = {
     id: 'res-1',
     supplierId: 'sup-1',
+    rampId: 'r1',
+    slotStartTime: '08:00',
     dayOfWeek: 1,
     date: null,
-    slotStartTime: '08:00',
-    rampId: 'r1',
     validFrom: '2026-09-01',
     validTo: null,
-    active: true,
+  };
+  const context = () => {
+    const cfg = config();
+    return {
+      ramps: cfg.ramps,
+      receivingWindows: cfg.receivingWindows,
+      slotSizeMinutes: cfg.slotSizeMinutes,
+    };
   };
 
   it('коректне правило валідне', () => {
-    expect(validateReservedRule(base, config(), [])).toEqual([]);
+    expect(validateReservedRule(base, context(), [])).toEqual([]);
   });
 
   it('час поза вікном прийому відхиляється', () => {
     expect(
-      validateReservedRule({ ...base, slotStartTime: '20:00' }, config(), []),
+      validateReservedRule({ ...base, slotStartTime: '20:00' }, context(), []),
     ).toContain('reserves.error.outsideWindow');
   });
 
   it('вимкнена рампа відхиляється', () => {
     const cfg = config({ ramps: [ramp({ enabled: false })] });
-    expect(validateReservedRule(base, cfg, [])).toContain('reserves.error.rampDisabled');
+    expect(
+      validateReservedRule(base, {
+        ramps: cfg.ramps,
+        receivingWindows: cfg.receivingWindows,
+        slotSizeMinutes: cfg.slotSizeMinutes,
+      }, []),
+    ).toContain('reserves.error.rampDisabled');
   });
 
   it('одночасно день тижня і дата — помилка', () => {
     expect(
-      validateReservedRule({ ...base, date: '2026-09-07' }, config(), []),
+      validateReservedRule({ ...base, date: '2026-09-07' }, context(), []),
     ).toContain('reserves.error.mode');
   });
 
   it('перетин двох правил на один слот заборонений', () => {
     expect(
-      validateReservedRule({ ...base, id: 'res-2' }, config(), [base]),
+      validateReservedRule({ ...base, id: 'res-2' }, context(), [
+        { ...base, active: true },
+      ]),
     ).toContain('reserves.error.overlap');
   });
 });
 
 describe('STC-60 — дата набрання чинності', () => {
-  it('мінімальна дата — завтра', () => {
-    expect(minimumEffectiveDate('2026-08-27')).toBe('2026-08-28');
+  const today = '2026-08-27';
+
+  it('для наступних версій мінімальна дата — завтра', () => {
+    expect(minimumEffectiveDate(false, today)).toBe('2026-08-28');
+    expect(validateEffectiveDate(today, false, today)).toBe(
+      'conflicts.error.effectiveFrom',
+    );
+    expect(validateEffectiveDate('2026-08-26', false, today)).toBe(
+      'conflicts.error.effectiveFrom',
+    );
+    expect(validateEffectiveDate('2026-08-28', false, today)).toBeNull();
   });
 
-  it('сьогодні і минуле відхиляються', () => {
-    expect(validateEffectiveDate('2026-08-27', '2026-08-27')).toBe(
+  it('для ПЕРШОЇ версії бекенд дозволяє сьогоднішню дату', () => {
+    expect(minimumEffectiveDate(true, today)).toBe(today);
+    expect(validateEffectiveDate(today, true, today)).toBeNull();
+    expect(validateEffectiveDate('2026-08-26', true, today)).toBe(
       'conflicts.error.effectiveFrom',
     );
-    expect(validateEffectiveDate('2026-08-26', '2026-08-27')).toBe(
-      'conflicts.error.effectiveFrom',
-    );
-    expect(validateEffectiveDate('2026-08-28', '2026-08-27')).toBeNull();
   });
 });

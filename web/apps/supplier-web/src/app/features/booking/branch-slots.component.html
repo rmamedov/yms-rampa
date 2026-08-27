@@ -79,8 +79,8 @@
 
     @if (loading()) {
       <p class="muted"><span class="spinner"></span> {{ 'common.loading' | t }}</p>
-    } @else if (grid(); as data) {
-      @if (data.rows.length === 0) {
+    } @else if (grid()) {
+      @if (rows().length === 0) {
         <div class="empty-state">{{ 'slots.empty' | t }}</div>
       } @else {
         <div class="grid-scroll">
@@ -91,18 +91,20 @@
             <thead>
               <tr>
                 <th scope="col">{{ 'slots.time' | t }}</th>
-                @for (ramp of data.ramps; track ramp.rampId) {
+                @for (ramp of store.ramps; track ramp.rampId) {
                   <th scope="col">{{ 'slots.ramp' | t }} {{ ramp.name }}</th>
                 }
               </tr>
             </thead>
             <tbody>
-              @for (row of data.rows; track row.slotStart) {
+              @for (row of rows(); track row.slotStart) {
                 <tr>
                   <th scope="row" class="slot-grid__time">{{ row.label }}</th>
-                  @for (cell of row.cells; track cell.rampId) {
+                  @for (cell of row.cells; track $index) {
                     <td class="slot-grid__cell">
-                      @if (selectable(cell)) {
+                      @if (!cell) {
+                        <span class="slot slot--static slot--blocked" aria-hidden="true">—</span>
+                      } @else if (selectable(cell)) {
                         <button
                           type="button"
                           class="slot"

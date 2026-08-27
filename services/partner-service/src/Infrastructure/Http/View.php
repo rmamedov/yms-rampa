@@ -6,6 +6,7 @@ namespace App\Infrastructure\Http;
 
 use App\Domain\PartnerUser\PartnerUser;
 use App\Domain\Supplier\Supplier;
+use App\Domain\Supplier\SupplierAccessSnapshot;
 use App\Domain\Supplier\SupplierContact;
 use App\Domain\Vehicle\Vehicle;
 
@@ -37,6 +38,46 @@ final class View
             'suspendReason' => $supplier->suspendReason(),
             'createdAt' => self::date($supplier->createdAt()),
             'updatedAt' => self::date($supplier->updatedAt()),
+        ];
+    }
+
+    /**
+     * Службове подання для booking-service (BOOK-02).
+     *
+     * Свідомо вужче за View::supplier(): між сервісами їдуть лише поля, від
+     * яких залежить рішення про бронювання. `allowedStoreIds` порожній, коли
+     * `allStores` = true — саме так це трактує SupplierInfo booking-service.
+     *
+     * @return array{supplierId: string, name: string, status: string, allStores: bool, allowedStoreIds: list<string>}
+     */
+    public static function supplierAccess(SupplierAccessSnapshot $snapshot): array
+    {
+        return [
+            'supplierId' => $snapshot->supplierId,
+            'name' => $snapshot->name,
+            'status' => $snapshot->status->value,
+            'allStores' => $snapshot->allStores,
+            'allowedStoreIds' => $snapshot->allowedStoreIds,
+        ];
+    }
+
+    /**
+     * Готова відповідь на питання «чи може цей постачальник бронювати в цій
+     * філії». Надмножина supplierAccess(): booking-service одним викликом
+     * отримує і рішення, і сам знімок постачальника для журналу та UI.
+     *
+     * @return array<string, mixed>
+     */
+    public static function supplierStoreAccess(SupplierAccessSnapshot $snapshot, string $storeId): array
+    {
+        $reason = $snapshot->denialReason($storeId);
+
+        return self::supplierAccess($snapshot) + [
+            'storeId' => $storeId,
+            'allowed' => null === $reason,
+            // Причина заповнена лише за відмови: SUPPLIER_SUSPENDED або
+            // SUPPLIER_STORE_NOT_ALLOWED.
+            'reason' => $reason,
         ];
     }
 

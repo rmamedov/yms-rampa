@@ -39,7 +39,8 @@
       >
         <option [ngValue]="null">—</option>
         @for (item of reasons; track item) {
-          <option [ngValue]="item">{{ 'partialReason.' + item | t }}</option>
+          <!-- Значення довідника бекенду вже україномовні (PartialUnloadReason). -->
+          <option [ngValue]="item">{{ item }}</option>
         }
       </select>
     </div>

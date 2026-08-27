@@ -15,8 +15,7 @@ import {
   YMS_STATUSES,
   YmsStatus,
 } from '../../core/models';
-import { StoresApi, ConfigTemplateId } from '../../core/data/stores.api';
-import { AuditApi } from '../../core/data/audit.api';
+import { StoresApi } from '../../core/data/stores.api';
 import { AuthService } from '../../core/auth/auth.service';
 import { ToastService } from '../../core/ui/toast.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
@@ -38,7 +37,7 @@ import {
 } from '../../core/utils/query-state.util';
 import { formatDateTime } from '../../core/utils/time.util';
 
-type BulkAction = 'status' | 'visibility' | 'template';
+type BulkAction = 'status' | 'visibility';
 
 @Component({
   selector: 'app-store-list-page',
@@ -55,7 +54,6 @@ type BulkAction = 'status' | 'visibility' | 'template';
 })
 export class StoreListPage {
   private readonly api = inject(StoresApi);
-  private readonly audit = inject(AuditApi);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
@@ -70,23 +68,22 @@ export class StoreListPage {
   protected readonly cityOptions = signal<readonly SelectOption[]>([]);
   protected readonly selection = signal<readonly string[]>([]);
   protected readonly searchTerm = signal('');
+  protected readonly serverEmptyMessage = signal<string | null>(null);
 
   protected readonly bulkOpen = signal<BulkAction | null>(null);
   protected readonly bulkStatus = signal<YmsStatus>('paused');
   protected readonly bulkVisible = signal(true);
-  protected readonly bulkTemplate = signal<ConfigTemplateId>('standard');
   protected readonly bulkResult = signal<readonly BulkResultRow[] | null>(null);
 
   protected readonly statusOptions: readonly SelectOption[] = YMS_STATUSES.map(
     (status) => ({ value: status, label: this.i18n.t(`ymsStatus.${status}`) }),
   );
-  protected readonly templateOptions: readonly ConfigTemplateId[] = [
-    'standard',
-    'short',
-  ];
   protected readonly bulkStatusOptions = YMS_STATUSES;
 
   protected readonly hasFilters = computed(() => hasActiveFilters(this.state().filter));
+  protected readonly emptyMessage = computed(
+    () => this.serverEmptyMessage() ?? this.i18n.t('stores.empty'),
+  );
   protected readonly configuredValue = computed(() => {
     const configured = this.state().filter.configured;
     return configured === null ? '' : configured ? 'true' : 'false';
@@ -114,7 +111,12 @@ export class StoreListPage {
       .cities()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((cities) =>
-        this.cityOptions.set(cities.map((city) => ({ value: city, label: city }))),
+        this.cityOptions.set(
+          cities.map((c) => ({
+            value: c.city,
+            label: `${c.city} (${c.storeCount})`,
+          })),
+        ),
       );
   }
 
@@ -148,6 +150,8 @@ export class StoreListPage {
         next: (page) => {
           this.rows.set(page.items);
           this.total.set(page.total);
+          // STL-06: текст порожньої вибірки формує store-service
+          this.serverEmptyMessage.set(page.emptyMessage ?? null);
           this.loading.set(false);
         },
         error: (error: unknown) => {
@@ -237,9 +241,7 @@ export class StoreListPage {
     const request$ =
       action === 'status'
         ? this.api.bulkStatus(ids, this.bulkStatus())
-        : action === 'visibility'
-          ? this.api.bulkVisibility(ids, this.bulkVisible())
-          : this.api.applyTemplate(ids, this.bulkTemplate());
+        : this.api.bulkVisibility(ids, this.bulkVisible());
 
     request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => {
@@ -249,19 +251,6 @@ export class StoreListPage {
           ok,
           failed: result.length - ok,
         });
-        // ADM-04: окремий запис аудиту на кожен магазин
-        for (const row of result.filter((r) => r.ok)) {
-          this.audit
-            .write({
-              objectType: 'store',
-              objectId: row.id,
-              objectLabel: row.label,
-              action: action === 'template' ? 'update' : 'status_change',
-              changes: [],
-            })
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe({ error: () => undefined });
-        }
         this.load();
       },
       error: (error: unknown) => this.toast.error(error),
@@ -277,9 +266,4 @@ export class StoreListPage {
     this.bulkStatus.set((event.target as HTMLSelectElement).value as YmsStatus);
   }
 
-  protected onBulkTemplate(event: Event): void {
-    this.bulkTemplate.set(
-      (event.target as HTMLSelectElement).value as ConfigTemplateId,
-    );
-  }
 }

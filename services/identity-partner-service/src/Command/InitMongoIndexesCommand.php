@@ -75,9 +75,13 @@ final class InitMongoIndexesCommand extends Command
     {
         return [
             // 10.6: unique {login:1}; {supplierId:1} для масових операцій (AUTH-28).
+            // {_id:1, active:1} — покритий індекс для перевірки активності
+            // акаунта на КОЖЕН запит шлюзу (GET /internal/v1/auth/verify):
+            // проєкція {_id:0, active:1} читається прямо з індексу.
             'partner_accounts' => [
                 ['key' => ['login' => 1], 'name' => 'login_unique', 'unique' => true],
                 ['key' => ['supplierId' => 1], 'name' => 'supplierId_idx'],
+                ['key' => ['_id' => 1, 'active' => 1], 'name' => 'id_active_idx'],
             ],
             // 10.5/10.6: TTL на expiresAt; вибірка для logout-all; пошук за хешем (AUTH-30).
             'refresh_tokens' => [

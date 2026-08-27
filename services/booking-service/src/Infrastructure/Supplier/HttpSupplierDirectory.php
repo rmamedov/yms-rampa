@@ -1,0 +1,116 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Infrastructure\Supplier;
+
+use App\Domain\Booking\Exception\SupplierNotAllowedException;
+use App\Domain\Supplier\SupplierDirectory;
+use App\Domain\Supplier\SupplierInfo;
+use App\Infrastructure\Internal\InternalJsonGateway;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
+
+/**
+ * Довідник постачальників поверх partner-service (BOOK-02).
+ *
+ * Контракт сусіда:
+ *   GET {base}/internal/v1/suppliers/{supplierId}
+ *   200 {"supplierId","name","status":"active|suspended","allStores":bool,
+ *        "allowedStoreIds":[…]};
+ *   GET {base}/internal/v1/suppliers/{supplierId}/store-access/{storeId}
+ *   200 те саме + {"storeId","allowed":bool,
+ *        "reason":null|"SUPPLIER_SUSPENDED"|"SUPPLIER_STORE_NOT_ALLOWED"};
+ *   404 application/problem+json з code = SUPPLIER_NOT_FOUND.
+ *
+ * ВЕРДИКТ ухвалює partner-service, а не booking-service. Відмова приходить
+ * як 200 з allowed=false, і саме її ми перекладаємо в SUPPLIER_NOT_ALLOWED.
+ * Локально перевіряти allowedStoreIds не можна: у partner-service порожній
+ * список при allStores=false означає «жодного магазину», а доменний
+ * SupplierInfo::hasAccessTo читає порожній список як «усі магазини» —
+ * протилежно. Тому рішення завжди береться з поля `allowed`.
+ */
+final class HttpSupplierDirectory implements SupplierDirectory
+{
+    private readonly InternalJsonGateway $gateway;
+
+    /**
+     * Знімки постачальників у межах одного HTTP-запиту.
+     *
+     * Потрібен окремо від кешу шлюзу (той ключується шляхом): відповідь
+     * store-access є надмножиною відповіді на /suppliers/{id}, тож після
+     * перевірки доступу наступний find() того самого постачальника
+     * обслуговується без другого виклику до сусіда.
+     *
+     * @var array<string, SupplierInfo|null>
+     */
+    private array $known = [];
+
+    public function __construct(
+        HttpClientInterface $http,
+        string $baseUrl,
+        float $timeoutSeconds = InternalJsonGateway::DEFAULT_TIMEOUT_SECONDS,
+    ) {
+        $this->gateway = new InternalJsonGateway($http, 'partner-service', $baseUrl, $timeoutSeconds);
+    }
+
+    public function find(string $supplierId): ?SupplierInfo
+    {
+        if (\array_key_exists($supplierId, $this->known)) {
+            return $this->known[$supplierId];
+        }
+
+        $payload = $this->gateway->getJson('/internal/v1/suppliers/'.InternalJsonGateway::segment($supplierId));
+
+        return $this->known[$supplierId] = null === $payload ? null : self::toInfo($supplierId, $payload);
+    }
+
+    public function assertMayBookAt(string $supplierId, string $storeId): SupplierInfo
+    {
+        $payload = $this->gateway->getJson(\sprintf(
+            '/internal/v1/suppliers/%s/store-access/%s',
+            InternalJsonGateway::segment($supplierId),
+            InternalJsonGateway::segment($storeId),
+        ));
+
+        if (null === $payload) {
+            $this->known[$supplierId] = null;
+
+            throw new SupplierNotAllowedException($supplierId, $storeId, 'Постачальника не знайдено');
+        }
+
+        $supplier = $this->known[$supplierId] = self::toInfo($supplierId, $payload);
+
+        if (true === ($payload['allowed'] ?? null)) {
+            return $supplier;
+        }
+
+        throw match ((string) ($payload['reason'] ?? '')) {
+            // SUP-02: призупинений (або архівований) постачальник не бронює
+            // навіть у «своїй» філії — статус перевіряється першим.
+            'SUPPLIER_SUSPENDED' => SupplierNotAllowedException::suspended($supplierId, $storeId),
+            default => new SupplierNotAllowedException($supplierId, $storeId),
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private static function toInfo(string $supplierId, array $payload): SupplierInfo
+    {
+        $allStores = (bool) ($payload['allStores'] ?? false);
+
+        return new SupplierInfo(
+            supplierId: (string) ($payload['supplierId'] ?? $supplierId),
+            name: (string) ($payload['name'] ?? ''),
+            active: 'active' === (string) ($payload['status'] ?? ''),
+            // При allStores=true partner-service віддає порожній перелік —
+            // це рівно те, як SupplierInfo кодує «доступ до всіх філій».
+            allowedStoreIds: $allStores
+                ? []
+                : array_map(
+                    static fn (mixed $id): string => (string) $id,
+                    array_values((array) ($payload['allowedStoreIds'] ?? [])),
+                ),
+        );
+    }
+}

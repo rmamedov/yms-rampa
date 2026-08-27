@@ -13,23 +13,47 @@ export interface ProblemDetails {
   readonly [key: string]: unknown;
 }
 
-/** Відомі коди, на які UI реагує окремо (розділ 9.11 + загальні коди). */
+/**
+ * Коди, на які UI реагує власним текстом.
+ *
+ * Перелік звірено з реальними джерелами:
+ *  - booking-service `App\Domain\**\*Exception::ERROR_CODE`;
+ *  - identity-staff-service `App\Domain\Auth\Exception\*`;
+ *  - api-gateway (nginx): ROUTE_NOT_FOUND, AUTH_TOKEN_INVALID.
+ *
+ * `STORE_READ_NOT_IMPLEMENTED` — власний код застосунку для маршрутів
+ * читання, яких у контурі магазину ще немає.
+ */
 export const KNOWN_PROBLEM_CODES = [
+  // booking-service
+  'VALIDATION_FAILED',
+  'ACCESS_DENIED',
+  'BOOKING_NOT_FOUND',
+  'INVALID_STATUS_TRANSITION',
+  'TRANSITION_NOT_ALLOWED',
   'SLOT_ALREADY_BOOKED',
+  'SLOT_NOT_AVAILABLE',
+  'SLOT_RESERVED',
   'SLOT_HELD',
   'VEHICLE_TOO_HEAVY',
+  'VEHICLE_TIME_CONFLICT',
+  'PALLETS_OUT_OF_RANGE',
+  'INVALID_PLATE_NUMBER',
+  'SUPPLIER_NOT_ALLOWED',
+  'STORE_NOT_FOUND',
+  'EDIT_DEADLINE_PASSED',
   'DATE_OUT_OF_HORIZON',
   'BOOKING_LIMIT_EXCEEDED',
-  'BOOKING_STATUS_CONFLICT',
-  'STORE_FORBIDDEN',
-  'NO_SHOW_TOO_EARLY',
-  'ETA_BEFORE_SLOT_START',
-  'REJECT_REASON_REQUIRED',
-  'RAMP_SLOT_TAKEN',
-  'SLOT_HAS_ACTIVE_BOOKING',
+  // identity-staff-service + шлюз
   'AUTH_INVALID_CREDENTIALS',
   'AUTH_TOKEN_INVALID',
-  'FORBIDDEN_ROLE',
+  'AUTH_TOKEN_EXPIRED',
+  'AUTH_REFRESH_REUSED',
+  'AUTH_ACCOUNT_DISABLED',
+  'AUTH_ACCOUNT_LOCKED',
+  'ROUTE_NOT_FOUND',
+  // власний код застосунку
+  'STORE_READ_NOT_IMPLEMENTED',
 ] as const;
 
 export type KnownProblemCode = (typeof KNOWN_PROBLEM_CODES)[number];

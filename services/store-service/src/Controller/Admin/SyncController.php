@@ -6,6 +6,7 @@ namespace App\Controller\Admin;
 
 use App\Application\Service\BranchSyncService;
 use App\Domain\Sync\SyncTrigger;
+use App\Infrastructure\Http\ActorResolver;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -13,12 +14,16 @@ use Symfony\Component\Routing\Attribute\Route;
 
 /**
  * Розділ «Синхронізація MCP» (5.6, 11.1): журнал запусків і ручний запуск.
+ *
+ * Синхронізація стосується всього довідника, а не окремого магазину, тож
+ * магазинного скоупу тут немає — перевіряється лише ідентичність staff-контуру.
  */
 #[Route('/api/admin/v1/sync')]
 final class SyncController extends AbstractController
 {
     public function __construct(
         private readonly BranchSyncService $sync,
+        private readonly ActorResolver $actors,
     ) {
     }
 
@@ -26,6 +31,8 @@ final class SyncController extends AbstractController
     #[Route('/log', methods: ['GET'])]
     public function log(Request $request): JsonResponse
     {
+        $this->actors->staff($request);
+
         return new JsonResponse($this->sync->log(
             $request->query->getInt('page', 1),
             $request->query->getInt('perPage', 20),
@@ -39,7 +46,9 @@ final class SyncController extends AbstractController
     #[Route('/run', methods: ['POST'])]
     public function run(Request $request): JsonResponse
     {
-        $report = $this->sync->run(SyncTrigger::Manual, $request->headers->get('X-User-Id'));
+        $actor = $this->actors->staff($request);
+
+        $report = $this->sync->run(SyncTrigger::Manual, $actor->userId);
 
         return new JsonResponse($report->toArray());
     }

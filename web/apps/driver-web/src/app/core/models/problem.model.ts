@@ -20,23 +20,29 @@ export interface ProblemDetails {
   readonly violations?: readonly Violation[];
 }
 
-/** Відомі коди, на які клієнт реагує окремими сценаріями. */
+/**
+ * Коди, які клієнт розрізняє окремо. Перелік звірено з бекендом:
+ * AuthException::errorCode() (identity-partner-service),
+ * DomainProblem::errorCode() (booking-service) і ROUTE_NOT_FOUND від
+ * api-gateway. NETWORK_UNAVAILABLE — суто клієнтський код офлайну.
+ */
 export const KNOWN_PROBLEM_CODES = [
-  'SLOT_ALREADY_BOOKED',
-  'SLOT_HELD',
-  'VEHICLE_TOO_HEAVY',
-  'DATE_OUT_OF_HORIZON',
-  'BOOKING_LIMIT_EXCEEDED',
-  'BOOKING_ALREADY_ARRIVED',
-  'BOOKING_CANCELLED',
-  'ARRIVAL_WINDOW_NOT_OPEN',
   'AUTH_INVALID_CREDENTIALS',
   'AUTH_ACCOUNT_LOCKED',
   'AUTH_ACCOUNT_DISABLED',
-  'AUTH_RATE_LIMITED',
   'AUTH_ROLE_NOT_ALLOWED',
+  'AUTH_TOKEN_INVALID',
+  'AUTH_TOKEN_EXPIRED',
   'AUTH_REFRESH_REUSED',
-  'DELAY_ETA_IN_PAST',
+  'PARTNER_LOGIN_INVALID',
+  'VALIDATION_FAILED',
+  'ACCESS_DENIED',
+  'BOOKING_NOT_FOUND',
+  'NOT_FOUND',
+  'ROUTE_NOT_FOUND',
+  'UPSTREAM_UNAVAILABLE',
+  'INTERNAL_ERROR',
+  'NETWORK_UNAVAILABLE',
 ] as const;
 
 export type KnownProblemCode = (typeof KNOWN_PROBLEM_CODES)[number];

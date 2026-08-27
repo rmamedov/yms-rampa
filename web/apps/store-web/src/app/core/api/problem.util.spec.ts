@@ -7,7 +7,7 @@ function problemResponse(status: number, body: unknown): HttpErrorResponse {
     status,
     statusText: 'Error',
     error: body,
-    url: '/api/store/v1/bookings/bk-1/complete',
+    url: '/api/store/v1/bookings/bk-1/completed',
   });
 }
 
@@ -21,6 +21,9 @@ describe('Обробка помилок RFC 7807', () => {
     );
     expect(messageKeyForCode('DATE_OUT_OF_HORIZON')).toBe(
       'error.DATE_OUT_OF_HORIZON',
+    );
+    expect(messageKeyForCode('INVALID_STATUS_TRANSITION')).toBe(
+      'error.INVALID_STATUS_TRANSITION',
     );
     expect(messageKeyForCode('BOOKING_LIMIT_EXCEEDED')).toBe(
       'error.BOOKING_LIMIT_EXCEEDED',
@@ -36,14 +39,14 @@ describe('Обробка помилок RFC 7807', () => {
         type: 'https://yms.rampa/problems/conflict',
         title: 'Conflict',
         status: 409,
-        code: 'BOOKING_STATUS_CONFLICT',
+        code: 'INVALID_STATUS_TRANSITION',
         detail: 'Статус уже змінено',
       }),
     );
     expect(error).toBeInstanceOf(AppError);
     expect(error.status).toBe(409);
-    expect(error.code).toBe('BOOKING_STATUS_CONFLICT');
-    expect(error.messageKey).toBe('error.BOOKING_STATUS_CONFLICT');
+    expect(error.code).toBe('INVALID_STATUS_TRANSITION');
+    expect(error.messageKey).toBe('error.INVALID_STATUS_TRANSITION');
   });
 
   it('для невідомого коду показує detail з бекенду', () => {
@@ -64,17 +67,19 @@ describe('Обробка помилок RFC 7807', () => {
     });
   });
 
-  it('усі відомі коди сценаріїв розділу 9.11 мають повідомлення', () => {
+  it('усі коди, які реально повертає бекенд, мають повідомлення', () => {
     const codes = [
-      'BOOKING_STATUS_CONFLICT',
-      'STORE_FORBIDDEN',
-      'NO_SHOW_TOO_EARLY',
-      'ETA_BEFORE_SLOT_START',
-      'REJECT_REASON_REQUIRED',
+      'VALIDATION_FAILED',
+      'ACCESS_DENIED',
+      'BOOKING_NOT_FOUND',
+      'INVALID_STATUS_TRANSITION',
+      'TRANSITION_NOT_ALLOWED',
       'SLOT_ALREADY_BOOKED',
       'VEHICLE_TOO_HEAVY',
-      'RAMP_SLOT_TAKEN',
-      'SLOT_HAS_ACTIVE_BOOKING',
+      'PALLETS_OUT_OF_RANGE',
+      'AUTH_INVALID_CREDENTIALS',
+      'AUTH_TOKEN_INVALID',
+      'ROUTE_NOT_FOUND',
     ];
     for (const code of codes) {
       expect(messageKeyForCode(code)).toBe(`error.${code}`);

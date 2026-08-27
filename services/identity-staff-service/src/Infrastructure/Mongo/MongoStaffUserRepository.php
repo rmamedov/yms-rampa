@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\Mongo;
 
 use App\Domain\Identity\Email;
+use App\Domain\Identity\IdentitySnapshot;
 use App\Domain\Identity\Role;
 use App\Domain\Identity\StaffUser;
 use App\Domain\Identity\StaffUserRepository;
@@ -29,6 +30,36 @@ final readonly class MongoStaffUserRepository implements StaffUserRepository
         $document = $this->connection->findOne(self::COLLECTION, ['_id' => $id]);
 
         return null === $document ? null : self::hydrate($document);
+    }
+
+    /**
+     * Гарячий шлях api-gateway: виклик на КОЖЕН запит до API.
+     *
+     * Пошук за `_id` — первинний індекс колекції, який MongoDB створює
+     * автоматично, тому додаткового індексу не потребує (10.5). Проєкція
+     * обмежує документ чотирма полями: `passwordHash` і `passwordHistory`
+     * (пʼять argon2id-хешів) по мережі не передаються (AUTH-61).
+     */
+    public function findIdentityById(string $id): ?IdentitySnapshot
+    {
+        $document = $this->connection->findOne(
+            self::COLLECTION,
+            ['_id' => $id],
+            ['projection' => ['role' => 1, 'storeIds' => 1, 'active' => 1, 'archivedAt' => 1]],
+        );
+
+        if (null === $document) {
+            return null;
+        }
+
+        return new IdentitySnapshot(
+            userId: (string) $document['_id'],
+            role: Role::from((string) $document['role']),
+            storeIds: array_values(array_map(strval(...), (array) ($document['storeIds'] ?? []))),
+            // DATA-03: архівований запис так само неактивний
+            active: (bool) ($document['active'] ?? true)
+                && null === MongoConnection::toDateTimeImmutable($document['archivedAt'] ?? null),
+        );
     }
 
     public function findByEmail(Email $email): ?StaffUser

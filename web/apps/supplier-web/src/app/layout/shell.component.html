@@ -43,9 +43,9 @@
     </nav>
 
     <div class="shell__user">
-      @if (user(); as current) {
-        <div class="shell__user-name">{{ current.fullName }}</div>
-        <div class="shell__user-org">{{ current.supplierName }}</div>
+      @if (account(); as current) {
+        <div class="shell__user-name">{{ current.login }}</div>
+        <div class="shell__user-org">{{ 'role.' + current.role | t }}</div>
       }
       <button type="button" class="btn btn--ghost btn--sm" (click)="logout()">
         {{ 'nav.logout' | t }}

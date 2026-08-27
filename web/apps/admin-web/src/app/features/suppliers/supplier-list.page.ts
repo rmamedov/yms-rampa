@@ -11,6 +11,7 @@ import { Router, RouterLink } from '@angular/router';
 import {
   PageSize,
   Supplier,
+  SupplierContact,
   SupplierStatus,
 } from '../../core/models';
 import { SuppliersApi, SupplierFilter } from '../../core/data/suppliers.api';
@@ -44,8 +45,6 @@ export class SupplierListPage {
   protected readonly total = signal(0);
   protected readonly page = signal(1);
   protected readonly pageSize = signal<PageSize>(20);
-  protected readonly sort = signal('name');
-  protected readonly direction = signal<'asc' | 'desc'>('asc');
   protected readonly search = signal('');
   protected readonly statusFilter = signal<SupplierStatus | ''>('');
   protected readonly selection = signal<readonly string[]>([]);
@@ -63,21 +62,17 @@ export class SupplierListPage {
     this.load();
   }
 
+  /** AdminSupplierController приймає один статус, а не перелік. */
   private filter(): SupplierFilter {
     return {
       search: this.search().trim(),
-      statuses: this.statusFilter() === '' ? [] : [this.statusFilter() as SupplierStatus],
+      status: this.statusFilter() === '' ? null : (this.statusFilter() as SupplierStatus),
     };
   }
 
   protected load(): void {
     this.api
-      .list(this.filter(), {
-        page: this.page(),
-        pageSize: this.pageSize(),
-        sort: this.sort(),
-        direction: this.direction(),
-      })
+      .list(this.filter(), { page: this.page(), pageSize: this.pageSize() })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (page) => {
@@ -98,24 +93,6 @@ export class SupplierListPage {
       (event.target as HTMLSelectElement).value as SupplierStatus | '',
     );
     this.applyFilters();
-  }
-
-  protected sortBy(column: string): void {
-    if (this.sort() === column) {
-      this.direction.set(this.direction() === 'asc' ? 'desc' : 'asc');
-    } else {
-      this.sort.set(column);
-      this.direction.set('asc');
-    }
-    this.page.set(1);
-    this.load();
-  }
-
-  protected sortIndicator(column: string): string {
-    if (this.sort() !== column) {
-      return '';
-    }
-    return this.direction() === 'desc' ? ' ↓' : ' ↑';
   }
 
   protected setPage(page: number): void {
@@ -167,9 +144,13 @@ export class SupplierListPage {
   }
 
   protected accessLabel(supplier: Supplier): string {
-    return supplier.storeAccessMode === 'all'
+    return supplier.storeAccess.allStores
       ? 'suppliers.access.all'
       : 'suppliers.access.whitelist';
+  }
+
+  protected primaryContact(supplier: Supplier): SupplierContact {
+    return supplier.contacts[0] ?? { name: '—', phone: null, email: null };
   }
 
   protected resetFilters(): void {

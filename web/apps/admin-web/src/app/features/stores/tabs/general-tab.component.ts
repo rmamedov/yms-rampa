@@ -14,7 +14,6 @@ import {
   validateDisplayName,
   validatePhone,
 } from '../../../core/utils/validators.util';
-import { missingConfigParts } from '../../../core/utils/store-config.util';
 
 /** Вкладка «Загальне»: MCP read-only + editable YMS-поля (STC-01…STC-07). */
 @Component({
@@ -35,10 +34,16 @@ export class StoreGeneralTabComponent {
   protected readonly ymsStatus = signal<YmsStatus>('not_configured');
   protected readonly visibleToSuppliers = signal(false);
 
-  protected readonly statuses = YMS_STATUSES;
-
-  protected readonly missing = computed(() => missingConfigParts(this.store()));
-  protected readonly isConfigured = computed(() => this.missing().length === 0);
+  /** STL-04: ознаку «налаштовано» і перелік прогалин рахує store-service. */
+  protected readonly missing = computed(() => this.store().missingSettings);
+  protected readonly isConfigured = computed(() => this.store().isConfigured);
+  /** STC-03: перелік дозволених переходів приходить із картки магазину. */
+  protected readonly availableStatuses = computed(() => {
+    const store = this.store();
+    return YMS_STATUSES.filter(
+      (s) => s === store.ymsStatus || store.allowedTransitions.includes(s),
+    );
+  });
 
   protected readonly displayNameError = computed(() =>
     validateDisplayName(this.displayName()),
@@ -69,7 +74,7 @@ export class StoreGeneralTabComponent {
   constructor() {
     effect(() => {
       const store = this.store();
-      this.displayName.set(store.displayName);
+      this.displayName.set(store.displayName ?? '');
       this.phone.set(store.phone ?? '');
       this.addressOverride.set(store.addressOverride ?? '');
       this.ymsStatus.set(store.ymsStatus);
@@ -83,7 +88,7 @@ export class StoreGeneralTabComponent {
 
   protected buildPatch(): StoreGeneralPatch {
     return {
-      displayName: this.displayName().trim(),
+      displayName: this.displayName().trim() === '' ? null : this.displayName().trim(),
       phone: this.phone().trim() === '' ? null : this.phone().trim(),
       addressOverride:
         this.addressOverride().trim() === '' ? null : this.addressOverride().trim(),

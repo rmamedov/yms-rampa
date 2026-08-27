@@ -7,13 +7,18 @@ import {
 } from '@angular/core';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
 import { DriverApi, VehicleApi } from '../../core/api/contracts';
-import type { Driver, DriverCreated, Vehicle } from '../../core/models/models';
+import type {
+  Driver,
+  DriverCredentials,
+  Vehicle,
+} from '../../core/models/models';
 import {
   normalizePhone,
   validatePhone,
 } from '../../core/util/validation';
 import { ToastService } from '../../shared/ui/toast.service';
 import { ModalComponent } from '../../shared/ui/modal.component';
+import { DriverDirectoryService } from '../../core/services/driver-directory.service';
 
 @Component({
   selector: 'app-drivers',
@@ -27,13 +32,14 @@ export class DriversComponent {
   private readonly vehiclesApi = inject(VehicleApi);
   private readonly toasts = inject(ToastService);
   private readonly i18n = inject(I18nService);
+  private readonly directory = inject(DriverDirectoryService);
 
   protected readonly drivers = signal<readonly Driver[]>([]);
   protected readonly vehicles = signal<readonly Vehicle[]>([]);
   protected readonly loading = signal(true);
   protected readonly formOpen = signal(false);
   protected readonly saving = signal(false);
-  protected readonly credentials = signal<DriverCreated | null>(null);
+  protected readonly credentials = signal<DriverCredentials | null>(null);
   protected readonly confirmRegenerate = signal<Driver | null>(null);
   protected readonly confirmDeactivate = signal<Driver | null>(null);
 
@@ -68,8 +74,20 @@ export class DriversComponent {
     });
   }
 
+  /** Довідник водія в бекенді зберігає лише defaultVehicleId (SUP-DRV-01). */
+  protected plateOf(driver: Driver): string | null {
+    if (!driver.defaultVehicleId) {
+      return null;
+    }
+    return (
+      this.vehicles().find((v) => v.id === driver.defaultVehicleId)
+        ?.plateNumber ?? null
+    );
+  }
+
   protected load(): void {
     this.loading.set(true);
+    this.directory.invalidate();
     this.api.list().subscribe({
       next: (list) => {
         this.drivers.set(list);
@@ -100,7 +118,7 @@ export class DriversComponent {
         phone: normalizePhone(this.phone()),
         firstName: this.firstName().trim(),
         lastName: this.lastName().trim(),
-        vehicleId: this.vehicleId() || undefined,
+        defaultVehicleId: this.vehicleId() || undefined,
       })
       .subscribe({
         next: (created) => {

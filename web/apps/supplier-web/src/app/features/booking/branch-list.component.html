@@ -26,7 +26,6 @@
         <li>
           <a
             class="card branch"
-            [class.branch--dim]="!branch.hasFreeSlots"
             [routerLink]="['/booking/stores', branch.storeId]"
           >
             <span class="branch__address">{{ branch.address }}</span>
@@ -37,8 +36,8 @@
               <span class="chip">
                 {{ 'branch.maxWeight' | t: { tons: branch.maxVehicleWeightTons } }}
               </span>
-              <span class="chip" [class.chip--ok]="branch.hasFreeSlots" [class.chip--off]="!branch.hasFreeSlots">
-                {{ (branch.hasFreeSlots ? 'branch.hasSlots' : 'branch.noSlots') | t }}
+              <span class="chip">
+                {{ 'branch.slotSize' | t: { minutes: branch.slotSizeMinutes } }}
               </span>
             </span>
           </a>

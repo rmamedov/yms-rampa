@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Domain\Auth\AuthenticationService;
-use App\Domain\Auth\Exception\InvalidTokenException;
 use App\Domain\Auth\LoginResult;
 use App\Domain\Auth\TokenService;
 use App\Domain\Identity\Exception\ValidationException;
 use App\Domain\Shared\Clock;
 use App\Domain\Shared\DomainException;
+use App\Http\BearerToken;
 use App\Http\ProblemDetailsFactory;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -120,7 +120,7 @@ final readonly class AuthController
     public function changePassword(Request $request): JsonResponse
     {
         return $this->guard($request, function () use ($request): JsonResponse {
-            $claims = $this->tokens->verifyAccessToken($this->bearerToken($request));
+            $claims = $this->tokens->verifyAccessToken(BearerToken::fromRequest($request));
             $payload = $this->payload($request);
 
             $this->authentication->changePassword(
@@ -243,19 +243,5 @@ final readonly class AuthController
         }
 
         return $value;
-    }
-
-    /**
-     * AUTH-02: відсутній або чужий токен → 401 AUTH_TOKEN_INVALID.
-     */
-    private function bearerToken(Request $request): string
-    {
-        $header = $request->headers->get('Authorization', '');
-
-        if (1 !== preg_match('/^Bearer\s+(.+)$/i', trim($header), $matches)) {
-            throw new InvalidTokenException('відсутній заголовок Authorization: Bearer');
-        }
-
-        return trim($matches[1]);
     }
 }

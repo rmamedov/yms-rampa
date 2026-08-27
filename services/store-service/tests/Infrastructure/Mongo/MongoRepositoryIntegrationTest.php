@@ -127,6 +127,66 @@ final class MongoRepositoryIntegrationTest extends TestCase
         self::assertSame('2025', $byAddress->items[0]->externalId());
     }
 
+    /**
+     * RBAC-17: скоуп — предикат ЗАПИТУ до сховища, а не пост-фільтрація в памʼяті.
+     * RBAC-13: порожній перелік магазинів дає гарантовано порожню вибірку.
+     */
+    public function testScopePredicateIsAppliedByStorage(): void
+    {
+        $lviv = '1eda8887-bf7c-6f38-b0cb-9503162b5586';
+
+        $this->branches->saveAll([
+            BranchFactory::branch(),
+            BranchFactory::branch([
+                'branchId' => $lviv,
+                'externalId' => '2025',
+                'city' => 'Львів',
+                'address' => 'вул. Городоцька, 1',
+            ]),
+        ]);
+
+        $networkWide = $this->branches->search(new BranchCriteria(scopedStoreIds: null, perPage: 20));
+        $scoped = $this->branches->search(new BranchCriteria(scopedStoreIds: [$lviv], perPage: 20));
+        $zeroAccess = $this->branches->search(new BranchCriteria(scopedStoreIds: [], perPage: 20));
+
+        self::assertSame(2, $networkWide->total);
+        self::assertSame(1, $scoped->total);
+        self::assertSame('2025', $scoped->items[0]->externalId());
+        self::assertSame(0, $zeroAccess->total, 'порожній перелік НЕ означає «усі магазини»');
+        self::assertSame([], $zeroAccess->items);
+
+        self::assertSame([], $this->branches->cities(new BranchCriteria(scopedStoreIds: [])));
+    }
+
+    /** Скоуп і фільтр «Налаштовано» лягають на одне поле `_id` і не перетирають один одного. */
+    public function testScopePredicateCombinesWithConfiguredFilter(): void
+    {
+        $lviv = '1eda8887-bf7c-6f38-b0cb-9503162b5586';
+
+        $this->branches->saveAll([
+            BranchFactory::branch(),
+            BranchFactory::branch(['branchId' => $lviv, 'externalId' => '2025', 'city' => 'Львів']),
+        ]);
+
+        $configuredInScope = $this->branches->search(new BranchCriteria(
+            configured: true,
+            configuredStoreIds: [BranchFactory::KYIV_ID, $lviv],
+            scopedStoreIds: [$lviv],
+            perPage: 20,
+        ));
+
+        $configuredOutOfScope = $this->branches->search(new BranchCriteria(
+            configured: true,
+            configuredStoreIds: [BranchFactory::KYIV_ID],
+            scopedStoreIds: [$lviv],
+            perPage: 20,
+        ));
+
+        self::assertSame(1, $configuredInScope->total);
+        self::assertSame('2025', $configuredInScope->items[0]->externalId());
+        self::assertSame(0, $configuredOutOfScope->total);
+    }
+
     public function testCitiesAggregationSkipsEmptyCity(): void
     {
         $this->branches->saveAll([

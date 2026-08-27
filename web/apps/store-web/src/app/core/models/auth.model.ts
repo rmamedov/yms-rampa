@@ -1,10 +1,18 @@
-/** Автентифікація staff-контуру (розділ 3 SRS) і RBAC (розділ 4). */
+/**
+ * Автентифікація staff-контуру (/api/store/v1/auth/...) і RBAC.
+ *
+ * Профіль повторює `LoginResult::profile()` identity-staff-service, ролі —
+ * канонічний перелік `App\Domain\Identity\Role` (RBAC-06). Інших ролей немає.
+ */
 
 export type StaffRole =
+  | 'super_admin'
+  | 'network_manager'
   | 'store_manager'
   | 'store_operator'
-  | 'admin'
-  | 'supplier_manager'
+  | 'analyst'
+  | 'supplier_admin'
+  | 'supplier_operator'
   | 'driver';
 
 /** Ролі, яким дозволено вхід у store-web (STW-01). */
@@ -13,35 +21,56 @@ export const STORE_ROLES: readonly StaffRole[] = [
   'store_operator',
 ];
 
+/**
+ * Магазин у скоупі користувача.
+ *
+ * Бекенд у профілі віддає лише `scope.storeIds`, тому `displayName` за
+ * замовчуванням дорівнює ідентифікатору; описові поля заповнюються зі
+ * снапшота філії в бронюванні (`booking.store`) або з конфігурації магазину
+ * в мок-режимі.
+ */
 export interface StoreScope {
   readonly storeId: string;
-  readonly externalId: string;
   readonly displayName: string;
-  readonly city: string;
-  readonly address: string;
+  readonly externalId: string | null;
+  readonly city: string | null;
+  readonly address: string | null;
 }
 
 export interface StaffProfile {
   readonly userId: string;
   readonly fullName: string;
   readonly email: string;
+  /** RBAC-04: рівно одна роль. */
   readonly role: StaffRole;
-  /** Магазини, закріплені за користувачем (STW-02). */
-  readonly stores: readonly StoreScope[];
+  readonly roleLabel: string;
+  /** RBAC-13: порожній перелік = нуль доступу, а не «усі магазини». */
+  readonly storeIds: readonly string[];
+  /** RBAC-16: доступ до всієї мережі без фільтра за storeIds. */
+  readonly networkWide: boolean;
+  readonly twoFactorEnabled: boolean;
+  readonly permissions: readonly string[];
 }
 
 export interface AuthTokens {
+  readonly tokenType: string;
   readonly accessToken: string;
   readonly refreshToken: string;
-  /** epoch ms */
+  readonly sessionId: string;
+  /** ISO 8601 — момент протермінування access-токена. */
+  readonly accessExpiresAt: string;
+  readonly refreshExpiresAt: string;
+  /** epoch ms, обчислюється з accessExpiresAt. */
   readonly expiresAt: number;
 }
 
+/** Тіло POST /api/store/v1/auth/login — поле саме `email`. */
 export interface LoginRequest {
   readonly email: string;
   readonly password: string;
 }
 
+/** Розібрана відповідь логіну/refresh: бекенд віддає їх однією плоскою структурою. */
 export interface LoginResponse {
   readonly tokens: AuthTokens;
   readonly profile: StaffProfile;

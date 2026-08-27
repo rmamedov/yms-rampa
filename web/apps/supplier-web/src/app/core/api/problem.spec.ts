@@ -8,20 +8,43 @@ import {
 } from './problem';
 
 describe('RFC 7807 problem+json', () => {
-  it('розпізнає problem-документ бекенду в тілі помилки', () => {
+  it('збирає розширення бекенду з верхнього рівня документа в meta', () => {
+    // Саме так їх складає ProblemResponseFactory: поруч зі стандартними
+    // членами, а не у вкладеному об'єкті.
     const body = {
-      type: 'https://yms.rampa/errors/vehicle_too_heavy',
-      title: 'VEHICLE_TOO_HEAVY',
+      type: 'about:blank',
+      title: 'Не пройдено валідацію',
       status: 422,
       detail: 'Ця філія приймає авто до 10 т',
       code: ERROR_CODES.vehicleTooHeavy,
-      meta: { tons: 10 },
+      requestId: 'req-1',
+      maxVehicleWeightTons: 10,
+      actualWeightTons: 20,
     };
     const result = toProblem({ status: 422, error: body });
     expect(isApiProblem(body)).toBe(true);
     expect(result.code).toBe('VEHICLE_TOO_HEAVY');
     expect(result.detail).toBe('Ця філія приймає авто до 10 т');
-    expect(result.meta).toEqual({ tons: 10 });
+    expect(result.requestId).toBe('req-1');
+    expect(result.meta).toEqual({
+      maxVehicleWeightTons: 10,
+      actualWeightTons: 20,
+    });
+  });
+
+  it('лишає meta порожньою, коли розширень немає', () => {
+    const result = toProblem({
+      status: 409,
+      error: {
+        type: 'about:blank',
+        title: 'Конфлікт',
+        status: 409,
+        detail: 'Слот зайнято',
+        code: ERROR_CODES.slotHeld,
+        requestId: 'req-2',
+      },
+    });
+    expect(result.meta).toBeUndefined();
   });
 
   it('перетворює мережеву помилку (status 0) на NETWORK_ERROR', () => {
@@ -30,9 +53,11 @@ describe('RFC 7807 problem+json', () => {
     expect(result.status).toBe(0);
   });
 
-  it('мапить 401 на UNAUTHORIZED, 5xx — на NETWORK_ERROR', () => {
-    expect(toProblem({ status: 401 }).code).toBe(ERROR_CODES.unauthorized);
-    expect(toProblem({ status: 503 }).code).toBe(ERROR_CODES.network);
+  it('мапить статуси без тіла на канонічні коди', () => {
+    expect(toProblem({ status: 401 }).code).toBe(ERROR_CODES.authTokenInvalid);
+    expect(toProblem({ status: 403 }).code).toBe(ERROR_CODES.accessDenied);
+    expect(toProblem({ status: 404 }).code).toBe(ERROR_CODES.notFound);
+    expect(toProblem({ status: 503 }).code).toBe(ERROR_CODES.internalError);
     expect(toProblem({ status: 418 }).code).toBe(ERROR_CODES.unknown);
   });
 

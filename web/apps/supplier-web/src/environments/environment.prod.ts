@@ -4,8 +4,8 @@ export type { AppEnvironment };
 
 export const environment: AppEnvironment = {
   production: true,
-  // Бекенд ще не розгорнуто — прод-збірка демонструє застосунок на моках.
-  useMocks: true,
+  // Прод працює проти реального бекенду /api/supplier/v1.
+  useMocks: false,
   apiBaseUrl: '/api',
   mockLatencyMs: 0,
   demoLogin: { email: 'supplier@rampa.ua', password: 'rampa2026' },

@@ -1,12 +1,15 @@
 import { inject, Injectable } from '@angular/core';
 import { Observable, defer, delay, of, throwError } from 'rxjs';
+import { toBooking, toLoginResponse } from '../api/wire.mapper';
 import {
-  AuthTokens,
-  LoginRequest,
-  LoginResponse,
-} from '../models/auth.model';
+  WireCompleteRequest,
+  WireDelayRequest,
+  WireReassignRequest,
+  WireRejectRequest,
+  WireWalkInRequest,
+} from '../api/wire.model';
+import { LoginRequest, LoginResponse } from '../models/auth.model';
 import {
-  AuditEntry,
   Booking,
   CompleteUnloadingPayload,
   DelayPayload,
@@ -36,11 +39,18 @@ export class MockAuthGateway extends AuthGateway {
   private readonly backend = inject(MockBackend);
 
   override login(request: LoginRequest): Observable<LoginResponse> {
-    return respond(() => this.backend.login(request));
+    return respond(() =>
+      toLoginResponse(
+        this.backend.login({
+          email: request.email,
+          password: request.password,
+        }),
+      ),
+    );
   }
 
-  override refresh(refreshToken: string): Observable<AuthTokens> {
-    return respond(() => this.backend.refresh(refreshToken));
+  override refresh(refreshToken: string): Observable<LoginResponse> {
+    return respond(() => toLoginResponse(this.backend.refresh(refreshToken)));
   }
 
   override logout(): Observable<void> {
@@ -48,6 +58,10 @@ export class MockAuthGateway extends AuthGateway {
   }
 }
 
+/**
+ * Мок-шлюз ходить у мок-бекенд рівно тими самими тілами запитів, що й HTTP-шлюз,
+ * і проганяє відповіді через той самий мапер — контракти не можуть розійтися.
+ */
 @Injectable()
 export class MockStoreGateway extends StoreGateway {
   private readonly backend = inject(MockBackend);
@@ -61,7 +75,10 @@ export class MockStoreGateway extends StoreGateway {
   }
 
   override getBoard(storeId: string, dateKey: string): Observable<BoardSnapshot> {
-    return respond(() => this.backend.getBoard(storeId, dateKey));
+    return respond(() => {
+      const snapshot = this.backend.getBoard(storeId, dateKey);
+      return { bookings: snapshot.bookings.map(toBooking), now: snapshot.now };
+    });
   }
 
   override getSlots(storeId: string, dateKey: string): Observable<readonly Slot[]> {
@@ -75,60 +92,80 @@ export class MockStoreGateway extends StoreGateway {
     return respond(() => this.backend.getWeek(storeId, mondayKey));
   }
 
-  override getAuditLog(bookingId: string): Observable<readonly AuditEntry[]> {
-    return respond(() => this.backend.getAuditLog(bookingId));
+  override markArrived(bookingId: string): Observable<Booking> {
+    return respond(() => toBooking(this.backend.markArrived(bookingId)));
   }
 
-  override startUnloading(bookingId: string, version: number): Observable<Booking> {
-    return respond(() => this.backend.startUnloading(bookingId, version));
+  override startUnloading(bookingId: string): Observable<Booking> {
+    return respond(() => toBooking(this.backend.startUnloading(bookingId)));
   }
 
   override completeUnloading(
     bookingId: string,
-    version: number,
     payload: CompleteUnloadingPayload,
   ): Observable<Booking> {
+    const body: WireCompleteRequest = {
+      unloadedPalletsCount: payload.unloadedPalletsCount,
+      ...(payload.partialUnload
+        ? {
+            partialUnload: {
+              reason: payload.partialUnload.reason,
+              comment: payload.partialUnload.comment,
+            },
+          }
+        : {}),
+    };
     return respond(() =>
-      this.backend.completeUnloading(bookingId, version, payload),
+      toBooking(this.backend.completeUnloading(bookingId, body)),
     );
   }
 
-  override markNoShow(bookingId: string, version: number): Observable<Booking> {
-    return respond(() => this.backend.markNoShow(bookingId, version));
+  override markNoShow(bookingId: string): Observable<Booking> {
+    return respond(() => toBooking(this.backend.markNoShow(bookingId)));
   }
 
   override reject(
     bookingId: string,
-    version: number,
     payload: RejectPayload,
   ): Observable<Booking> {
-    return respond(() => this.backend.reject(bookingId, version, payload));
+    const body: WireRejectRequest = {
+      reason: payload.reason,
+      comment: payload.comment,
+    };
+    return respond(() => toBooking(this.backend.reject(bookingId, body)));
   }
 
   override setDelay(
     bookingId: string,
-    version: number,
     payload: DelayPayload,
   ): Observable<Booking> {
-    return respond(() => this.backend.setDelay(bookingId, version, payload));
-  }
-
-  override clearDelay(bookingId: string, version: number): Observable<Booking> {
-    return respond(() => this.backend.clearDelay(bookingId, version));
+    const body: WireDelayRequest = {
+      reason: payload.reason,
+      eta: payload.eta,
+      comment: payload.comment,
+    };
+    return respond(() => toBooking(this.backend.setDelay(bookingId, body)));
   }
 
   override reassignRamp(
     bookingId: string,
-    version: number,
     payload: ReassignPayload,
   ): Observable<Booking> {
-    return respond(() => this.backend.reassignRamp(bookingId, version, payload));
+    const body: WireReassignRequest = { rampId: payload.rampId };
+    return respond(() => toBooking(this.backend.reassignRamp(bookingId, body)));
   }
 
-  override createWalkIn(
-    storeId: string,
-    payload: WalkInPayload,
-  ): Observable<Booking> {
-    return respond(() => this.backend.createWalkIn(storeId, payload));
+  override createWalkIn(payload: WalkInPayload): Observable<Booking> {
+    const body: WireWalkInRequest = {
+      storeId: payload.storeId,
+      rampId: payload.rampId,
+      slotStart: payload.slotStart,
+      vehicle: payload.vehicle,
+      palletsCount: payload.palletsCount,
+      supplierId: payload.supplierId,
+      supplierName: payload.supplierName,
+      orderId: payload.orderId,
+    };
+    return respond(() => toBooking(this.backend.createWalkIn(body)));
   }
 }

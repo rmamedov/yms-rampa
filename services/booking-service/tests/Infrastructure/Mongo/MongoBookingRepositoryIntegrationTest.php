@@ -83,7 +83,7 @@ final class MongoBookingRepositoryIntegrationTest extends TestCase
         $repository->insertIfSlotFree($first, []);
 
         $cancelEvent = $first->cancel(
-            new \App\Domain\Access\Actor('su-1', \App\Domain\Access\Role::StoreManager, storeId: Scenario::STORE_ID),
+            new \App\Domain\Access\Actor('su-1', \App\Domain\Access\Role::StoreManager, storeIds: [Scenario::STORE_ID]),
             $first->createdAt,
             2,
         );

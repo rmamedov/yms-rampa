@@ -5,13 +5,19 @@
     <button
       type="button"
       class="btn btn-primary"
-      [disabled]="busy()"
+      [disabled]="busy() || running()"
       (click)="run()"
     >
-      {{ busy() ? ('sync.status.running' | t) : ('sync.run' | t) }}
+      {{ busy() || running() ? ('sync.status.running' | t) : ('sync.run' | t) }}
     </button>
   }
 </div>
+
+@if (running()) {
+  <div class="notice notice-info">
+    {{ 'sync.banner.running' | t: { at: formatDateTime(lastSuccessfulAt()) } }}
+  </div>
+}
 
 <div class="table-wrap">
   <table class="data">
@@ -21,10 +27,11 @@
         <th>{{ 'sync.col.type' | t }}</th>
         <th>{{ 'sync.col.duration' | t }}</th>
         <th>{{ 'sync.col.status' | t }}</th>
+        <th>{{ 'sync.col.fetched' | t }}</th>
         <th>{{ 'sync.col.new' | t }}</th>
         <th>{{ 'sync.col.changed' | t }}</th>
         <th>{{ 'sync.col.missing' | t }}</th>
-        <th></th>
+        <th>{{ 'sync.col.conflicts' | t }}</th>
       </tr>
     </thead>
     <tbody>
@@ -32,30 +39,27 @@
         <tr>
           <td>{{ formatDateTime(run.startedAt) }}</td>
           <td>
-            {{ 'sync.type.' + run.type | t }}
-            @if (run.initiatedBy) {
-              <span class="muted">({{ run.initiatedBy }})</span>
+            {{ run.triggerLabel }}
+            @if (run.initiator) {
+              <span class="muted">({{ run.initiator }})</span>
             }
           </td>
-          <td>{{ formatDuration(run.durationMs) }}</td>
+          <td>{{ formatSeconds(run.durationSeconds) }}</td>
           <td>
-            <span [class]="statusClass(run)">{{ 'sync.status.' + run.status | t }}</span>
-            @if (run.error) {
-              <div class="field-error">{{ run.error }}</div>
+            <span [class]="statusClass(run)">{{ run.statusLabel }}</span>
+            @for (error of run.errors; track error) {
+              <div class="field-error">{{ error }}</div>
             }
           </td>
-          <td>{{ run.newCount }}</td>
-          <td>{{ run.changedCount }}</td>
-          <td>{{ run.missingCount }}</td>
-          <td>
-            <button type="button" class="btn btn-sm" (click)="selected.set(run)">
-              {{ 'sync.diff.title' | t }}
-            </button>
-          </td>
+          <td>{{ run.fetched }}</td>
+          <td>{{ run.created }}</td>
+          <td>{{ run.updated }}</td>
+          <td>{{ run.missing }}</td>
+          <td>{{ run.conflicts }}</td>
         </tr>
       } @empty {
         <tr>
-          <td colspan="8">
+          <td colspan="9">
             <app-empty-state [message]="'sync.empty' | t" />
           </td>
         </tr>
@@ -71,71 +75,55 @@
   />
 </div>
 
-@if (selected(); as run) {
-  <app-modal [title]="'sync.diff.title' | t" (closed)="selected.set(null)">
-    <div class="diff-block">
-      <div class="diff-title">
-        {{ 'sync.diff.created' | t }} ({{ run.diff.created.length }})
-      </div>
-      @for (item of run.diff.created; track item.externalId) {
-        <div class="row">
-          <span class="mono">{{ item.externalId }}</span>
-          <span>{{ item.city }}, {{ item.address }}</span>
-          <span class="badge">{{ 'ymsStatus.not_configured' | t }}</span>
-        </div>
-      } @empty {
-        <span class="muted">{{ 'sync.diff.empty' | t }}</span>
-      }
+@if (lastReport(); as report) {
+  <app-modal [title]="'sync.report.title' | t" (closed)="lastReport.set(null)">
+    <div class="table-wrap">
+      <table class="data">
+        <tbody>
+          <tr>
+            <td>{{ 'sync.col.fetched' | t }}</td>
+            <td>{{ report.fetched }}</td>
+          </tr>
+          <tr>
+            <td>{{ 'sync.col.new' | t }}</td>
+            <td>{{ report.created }}</td>
+          </tr>
+          <tr>
+            <td>{{ 'sync.col.changed' | t }}</td>
+            <td>{{ report.updated }}</td>
+          </tr>
+          <tr>
+            <td>{{ 'sync.col.missing' | t }}</td>
+            <td>{{ report.missing }}</td>
+          </tr>
+          <tr>
+            <td>{{ 'sync.col.skipped' | t }}</td>
+            <td>{{ report.skipped }}</td>
+          </tr>
+          <tr>
+            <td>{{ 'sync.col.conflicts' | t }}</td>
+            <td>{{ report.conflicts }}</td>
+          </tr>
+          <tr>
+            <td>{{ 'sync.col.eligible' | t }}</td>
+            <td>{{ report.eligible }}</td>
+          </tr>
+          <tr>
+            <td>{{ 'sync.col.ineligible' | t }}</td>
+            <td>{{ report.ineligible }}</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
-    <div class="diff-block">
-      <div class="diff-title">
-        {{ 'sync.diff.changed' | t }} ({{ run.diff.changed.length }})
-      </div>
-      @for (item of run.diff.changed; track item.externalId) {
-        <div class="table-wrap" style="margin-bottom: 8px">
-          <table class="data">
-            <thead>
-              <tr>
-                <th>{{ item.externalId }} — {{ item.city }}</th>
-                <th>{{ 'sync.diff.old' | t }}</th>
-                <th>{{ 'sync.diff.new' | t }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (change of item.changes; track change.field) {
-                <tr>
-                  <td class="mono">{{ change.field }}</td>
-                  <td class="muted">{{ change.oldValue }}</td>
-                  <td>{{ change.newValue }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      } @empty {
-        <span class="muted">{{ 'sync.diff.empty' | t }}</span>
-      }
-    </div>
+    @for (error of report.errors; track error) {
+      <div class="field-error">{{ error }}</div>
+    }
 
-    <div class="diff-block">
-      <div class="diff-title">
-        {{ 'sync.diff.missing' | t }} ({{ run.diff.missing.length }})
-      </div>
-      @for (item of run.diff.missing; track item.externalId) {
-        <div class="row">
-          <span class="mono">{{ item.externalId }}</span>
-          <span>{{ item.city }}, {{ item.address }}</span>
-          <span class="badge badge-warn">{{
-            'sync.diff.missingCount' | t: { n: item.missingSyncCount }
-          }}</span>
-          @if (item.hasFutureBookings) {
-            <span class="badge badge-danger">{{ 'sync.diff.hasBookings' | t }}</span>
-          }
-        </div>
-      } @empty {
-        <span class="muted">{{ 'sync.diff.empty' | t }}</span>
-      }
-    </div>
+    <ng-container modalFooter>
+      <button type="button" class="btn" (click)="lastReport.set(null)">
+        {{ 'common.close' | t }}
+      </button>
+    </ng-container>
   </app-modal>
 }

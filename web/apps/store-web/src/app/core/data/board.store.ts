@@ -142,7 +142,7 @@ export class BoardStore implements OnDestroy {
 
   readonly supplierNames = computed(() => {
     const names = new Set<string>();
-    for (const b of this.bookingsSignal()) names.add(b.supplierNameSnapshot);
+    for (const b of this.bookingsSignal()) names.add(b.supplierName);
     return [...names].sort((a, b) => a.localeCompare(b, 'uk-UA'));
   });
 
@@ -166,6 +166,7 @@ export class BoardStore implements OnDestroy {
     this.gateway.getStoreConfig(store.storeId).subscribe({
       next: (config) => {
         this.configSignal.set(config);
+        this.auth.describeStore(config);
         this.reload();
       },
       error: (error: unknown) => {
@@ -284,36 +285,33 @@ export class BoardStore implements OnDestroy {
 
   // --- Дії --------------------------------------------------------------
 
+  /** ST-01: booked → arrived (магазин фіксує прибуття замість водія). */
+  markArrived(booking: Booking): void {
+    this.run(booking, (b) => this.gateway.markArrived(b.id));
+  }
+
   startUnloading(booking: Booking): void {
-    this.run(booking, (b) => this.gateway.startUnloading(b.id, b.version));
+    this.run(booking, (b) => this.gateway.startUnloading(b.id));
   }
 
   complete(booking: Booking, payload: CompleteUnloadingPayload): void {
     this.run(
       booking,
-      (b) => this.gateway.completeUnloading(b.id, b.version, payload),
+      (b) => this.gateway.completeUnloading(b.id, payload),
       'status.completed',
     );
   }
 
   markNoShow(booking: Booking): void {
-    this.run(booking, (b) => this.gateway.markNoShow(b.id, b.version));
+    this.run(booking, (b) => this.gateway.markNoShow(b.id));
   }
 
   reject(booking: Booking, payload: RejectPayload): void {
-    this.run(booking, (b) => this.gateway.reject(b.id, b.version, payload));
+    this.run(booking, (b) => this.gateway.reject(b.id, payload));
   }
 
   setDelay(booking: Booking, payload: DelayPayload): void {
-    this.run(booking, (b) => this.gateway.setDelay(b.id, b.version, payload));
-  }
-
-  clearDelay(booking: Booking): void {
-    this.run(
-      booking,
-      (b) => this.gateway.clearDelay(b.id, b.version),
-      'delay.cleared',
-    );
+    this.run(booking, (b) => this.gateway.setDelay(b.id, payload));
   }
 
   reassign(booking: Booking, payload: ReassignPayload): void {
@@ -321,17 +319,20 @@ export class BoardStore implements OnDestroy {
       this.ramps().find((r) => r.rampId === payload.rampId)?.name ?? payload.rampId;
     this.run(
       booking,
-      (b) => this.gateway.reassignRamp(b.id, b.version, payload),
+      (b) => this.gateway.reassignRamp(b.id, payload),
       'reassign.done',
       { name },
     );
   }
 
-  createWalkIn(payload: WalkInPayload, onSuccess?: () => void): void {
+  createWalkIn(
+    payload: Omit<WalkInPayload, 'storeId'>,
+    onSuccess?: () => void,
+  ): void {
     const store = this.auth.selectedStore();
     if (!store) return;
     this.busySignal.set('walk-in');
-    this.gateway.createWalkIn(store.storeId, payload).subscribe({
+    this.gateway.createWalkIn({ ...payload, storeId: store.storeId }).subscribe({
       next: (booking) => {
         this.busySignal.set(null);
         this.bookingsSignal.update((list) => [...list, booking]);
@@ -380,7 +381,8 @@ export class BoardStore implements OnDestroy {
       error: (error: unknown) => {
         this.busySignal.set(null);
         this.showError(error);
-        // STW-17: після 409 картку треба показати в актуальному стані.
+        // STW-17: після 409 INVALID_STATUS_TRANSITION картку треба показати
+        // в актуальному стані — оптимістичної версії бекенд не має.
         this.reload(true);
       },
     });

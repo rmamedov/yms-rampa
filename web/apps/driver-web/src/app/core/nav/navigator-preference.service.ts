@@ -1,7 +1,10 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { LocalStorageService, STORAGE_KEYS } from '../storage/local-storage';
-import { navigatorUrl, type NavigatorApp } from '../util/deep-links';
-import type { StoreRef } from '../models/route-sheet.model';
+import {
+  navigatorUrl,
+  type NavigatorApp,
+  type RouteDestination,
+} from '../util/deep-links';
 
 /**
  * Памʼятає останній обраний навігатор (DRV-22, NAV-04) і відкриває диплінк
@@ -25,8 +28,8 @@ export class NavigatorPreferenceService {
   }
 
   /** Побудувати URL і відкрити його. Повертає URL, який було відкрито. */
-  openRoute(app: NavigatorApp, store: StoreRef, remember = true): string {
-    const url = navigatorUrl(app, store);
+  openRoute(app: NavigatorApp, place: RouteDestination, remember = true): string {
+    const url = navigatorUrl(app, place);
     if (remember) {
       this.set(app);
     }

@@ -49,10 +49,12 @@ export class AuthService {
   ): Observable<DriverProfile> {
     const phone = normalizePhone(rawPhone);
     if (!phone) {
+      // Код збігається з PARTNER_LOGIN_INVALID бекенду (AUTH-23), щоб
+      // локальна і серверна перевірки давали водієві один і той самий текст.
       return throwError(
         () =>
           new ApiProblemError(422, {
-            code: 'VALIDATION_ERROR',
+            code: 'PARTNER_LOGIN_INVALID',
             detail: 'Невірний формат телефону',
             violations: [
               { field: 'phone', code: 'format', message: 'Невірний формат телефону' },

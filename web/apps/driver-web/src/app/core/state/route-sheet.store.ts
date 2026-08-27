@@ -3,34 +3,35 @@ import { firstValueFrom } from 'rxjs';
 import { DriverApi } from '../data/driver.api';
 import { LocalStorageService, STORAGE_KEYS } from '../storage/local-storage';
 import { NetworkService } from '../offline/network.service';
-import { ArrivalQueueService } from '../offline/arrival-queue.service';
-import { GeolocationService } from '../geo/geolocation.service';
 import { ProblemMessageService } from '../http/problem-message.service';
-import { ApiProblemError } from '../models/problem.model';
 import type {
   AvailableDate,
-  DelayPayload,
+  DayRouteSheet,
   RoutePoint,
-  RouteSheet,
 } from '../models/route-sheet.model';
-import { arriveWindowState, kyivDateKey } from '../util/time.util';
+import { kyivDateKey } from '../util/time.util';
 import { environment } from '../../../environments/environment';
 
 interface CachedSheet {
-  readonly sheet: RouteSheet;
+  readonly sheet: DayRouteSheet;
   /** Момент кешування, epoch ms. */
   readonly cachedAt: number;
 }
 
 /** Статуси, у яких точка вважається закритою (картка згортається). */
-const CLOSED_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
+const CLOSED_STATUSES = new Set<RoutePoint['status']>([
+  'completed',
+  'cancelled',
+  'no_show',
+  'rejected',
+]);
 
-/** Статуси, у яких водій може редагувати orderId (DRV-19). */
-const ORDER_EDITABLE_STATUSES = new Set(['booked', 'arrived', 'unloading']);
-
-export function canEditOrderId(point: RoutePoint): boolean {
-  return ORDER_EDITABLE_STATUSES.has(point.status);
-}
+/** Статуси, які не додаються до підсумку палет. */
+const NOT_COUNTED_STATUSES = new Set<RoutePoint['status']>([
+  'cancelled',
+  'no_show',
+  'rejected',
+]);
 
 export function isClosedPoint(point: RoutePoint): boolean {
   return CLOSED_STATUSES.has(point.status);
@@ -44,16 +45,20 @@ export function activePointIndex(points: readonly RoutePoint[]): number {
   return points.findIndex((p) => !isClosedPoint(p));
 }
 
+/**
+ * Стан маршрутного листа водія.
+ *
+ * Стор ТІЛЬКИ читає: у контурі водія бекенд не має жодного маршруту, який
+ * змінює бронювання (ані «На місці», ані orderId, ані затримки).
+ */
 @Injectable({ providedIn: 'root' })
 export class RouteSheetStore {
   private readonly api = inject(DriverApi);
   private readonly storage = inject(LocalStorageService);
   private readonly network = inject(NetworkService);
-  private readonly queue = inject(ArrivalQueueService);
-  private readonly geo = inject(GeolocationService);
   private readonly problems = inject(ProblemMessageService);
 
-  private readonly sheetSignal = signal<RouteSheet | null>(null);
+  private readonly sheetSignal = signal<DayRouteSheet | null>(null);
   private readonly datesSignal = signal<readonly AvailableDate[]>([]);
   private readonly selectedDateSignal = signal<string>(kyivDateKey());
   private readonly loadingSignal = signal(false);
@@ -78,8 +83,8 @@ export class RouteSheetStore {
   readonly activeIndex = computed(() => activePointIndex(this.points()));
   readonly totalPallets = computed(() =>
     this.points()
-      .filter((p) => p.status !== 'cancelled' && p.status !== 'no_show')
-      .reduce((sum, p) => sum + p.pallets, 0),
+      .filter((p) => !NOT_COUNTED_STATUSES.has(p.status))
+      .reduce((sum, p) => sum + p.palletsCount, 0),
   );
   readonly isToday = computed(() => this.selectedDateSignal() === kyivDateKey());
   readonly hasOtherDates = computed(() => this.datesSignal().length > 0);
@@ -92,7 +97,6 @@ export class RouteSheetStore {
     this.restoreFromCache();
     await this.loadDates();
     await this.load(this.selectedDateSignal());
-    await this.flushQueue();
   }
 
   async selectDate(date: string): Promise<void> {
@@ -160,7 +164,7 @@ export class RouteSheetStore {
       return;
     }
     this.pollTimer = setInterval(() => {
-      void this.poll();
+      void this.load(this.selectedDateSignal(), { silent: true });
     }, intervalMs);
   }
 
@@ -171,127 +175,7 @@ export class RouteSheetStore {
     }
   }
 
-  private async poll(): Promise<void> {
-    await this.load(this.selectedDateSignal(), { silent: true });
-    await this.flushQueue();
-  }
-
-  /** Відправка накопичених офлайн-відміток. */
-  async flushQueue(): Promise<void> {
-    if (this.queue.pendingCount() === 0 || !this.network.online()) {
-      return;
-    }
-    const result = await this.queue.flush();
-    for (const point of result.sent) {
-      this.patchPoint(point);
-    }
-    if (result.discarded.length > 0) {
-      // Сервер уже має актуальний стан — перечитуємо лист (DRV-35).
-      await this.load(this.selectedDateSignal(), { silent: true });
-    }
-  }
-
-  /**
-   * Відмітка «На місці». Фіксує ФАКТИЧНИЙ час натискання і, за наявності
-   * дозволу, координати водія. Без мережі — кладе в чергу (DRV-34).
-   */
-  async markArrived(
-    bookingId: string,
-    pressedAt: string = new Date().toISOString(),
-  ): Promise<{ ok: boolean; queued: boolean; message?: string }> {
-    const coords = await this.geo.current();
-
-    if (!this.network.online()) {
-      this.queue.enqueue(bookingId, pressedAt, coords);
-      return { ok: true, queued: true };
-    }
-
-    try {
-      const point = await firstValueFrom(
-        this.api.arrive(bookingId, {
-          pressedAt,
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-        }),
-      );
-      this.patchPoint(point);
-      return { ok: true, queued: false };
-    } catch (error) {
-      if (this.problems.isNetworkError(error)) {
-        this.network.setOnline(false);
-        this.queue.enqueue(bookingId, pressedAt, coords);
-        return { ok: true, queued: true };
-      }
-      if (
-        error instanceof ApiProblemError &&
-        (error.is('BOOKING_ALREADY_ARRIVED') || error.is('BOOKING_CANCELLED'))
-      ) {
-        // Стан змінився в іншому клієнті — підтягуємо серверну версію (DRV-29, DRV-30).
-        await this.load(this.selectedDateSignal(), { silent: true });
-      }
-      return {
-        ok: false,
-        queued: false,
-        message: this.problems.messageFor(error, 'arrive.error'),
-      };
-    }
-  }
-
-  /** Збереження orderId водієм (DRV-17, DRV-18). */
-  async saveOrderId(
-    bookingId: string,
-    orderId: string,
-  ): Promise<{ ok: boolean; message?: string }> {
-    try {
-      const point = await firstValueFrom(this.api.setOrderId(bookingId, orderId.trim()));
-      this.patchPoint(point);
-      return { ok: true };
-    } catch (error) {
-      return { ok: false, message: this.problems.messageFor(error, 'error.generic') };
-    }
-  }
-
-  /** Повідомлення про затримку (DRV-41). */
-  async reportDelay(
-    bookingId: string,
-    payload: DelayPayload,
-  ): Promise<{ ok: boolean; message?: string }> {
-    try {
-      const point = await firstValueFrom(this.api.setDelay(bookingId, payload));
-      this.patchPoint(point);
-      return { ok: true };
-    } catch (error) {
-      return {
-        ok: false,
-        message: this.problems.messageFor(error, 'delay.error.generic'),
-      };
-    }
-  }
-
-  /** Стан вікна відмітки для точки. */
-  windowState(point: RoutePoint, now: number = Date.now()) {
-    return arriveWindowState(point.slotStart, point.slotEnd, now);
-  }
-
-  private patchPoint(updated: RoutePoint): void {
-    const sheet = this.sheetSignal();
-    if (!sheet) {
-      return;
-    }
-    const index = sheet.points.findIndex((p) => p.bookingId === updated.bookingId);
-    if (index < 0) {
-      return;
-    }
-    const points = [...sheet.points];
-    points[index] = updated;
-    const next: RouteSheet = { ...sheet, points };
-    this.sheetSignal.set(next);
-    if (next.date === kyivDateKey()) {
-      this.cache(next);
-    }
-  }
-
-  private cache(sheet: RouteSheet): void {
+  private cache(sheet: DayRouteSheet): void {
     const payload: CachedSheet = { sheet, cachedAt: Date.now() };
     this.storage.write(STORAGE_KEYS.routeSheetCache, payload);
     this.cachedAtSignal.set(payload.cachedAt);
@@ -327,6 +211,5 @@ export class RouteSheetStore {
     this.staleSignal.set(false);
     this.cachedAtSignal.set(null);
     this.lastSyncSignal.set(null);
-    this.queue.clear();
   }
 }

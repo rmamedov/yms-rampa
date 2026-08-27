@@ -120,10 +120,10 @@
                 [class.timeline__item--risk]="isAtRisk(booking)"
                 [style.left]="placement(booking).left"
                 [style.width]="placement(booking).width"
-                [title]="booking.supplierNameSnapshot"
+                [title]="booking.supplierName"
                 (click)="onAction(booking, 'log')"
               >
-                {{ booking.supplierNameSnapshot }}
+                {{ booking.supplierName }}
               </button>
             }
           </div>

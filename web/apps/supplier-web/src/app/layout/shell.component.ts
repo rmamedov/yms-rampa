@@ -12,7 +12,7 @@ import { AuthService } from '../core/auth/auth.service';
 })
 export class ShellComponent {
   private readonly auth = inject(AuthService);
-  protected readonly user = this.auth.user;
+  protected readonly account = this.auth.account;
 
   protected logout(): void {
     this.auth.logout();

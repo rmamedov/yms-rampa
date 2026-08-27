@@ -8,7 +8,7 @@
       class="badge"
       [class.badge-success]="current.status === 'active'"
       [class.badge-danger]="current.status === 'suspended'"
-      >{{ 'suppliers.status.' + current.status | t }}</span
+      >{{ current.statusLabel }}</span
     >
   }
 </div>
@@ -56,6 +56,7 @@
           [disabled]="!canManage()"
           (input)="edrpou.set($any($event.target).value)"
         />
+        <div class="field-hint">{{ 'suppliers.field.edrpou.hint' | t }}</div>
         @if (edrpouError(); as error) {
           <div class="field-error">{{ error | t }}</div>
         }
@@ -65,10 +66,14 @@
         <input
           id="sup-person"
           type="text"
-          [value]="contactPerson()"
+          maxlength="200"
+          [value]="contactName()"
           [disabled]="!canManage()"
-          (input)="contactPerson.set($any($event.target).value)"
+          (input)="contactName.set($any($event.target).value)"
         />
+        @if (contactNameError(); as error) {
+          <div class="field-error">{{ error | t }}</div>
+        }
       </div>
       <div class="field">
         <label for="sup-phone">{{ 'common.phone' | t }}</label>
@@ -96,19 +101,15 @@
           <div class="field-error">{{ error | t }}</div>
         }
       </div>
-      <div class="field">
-        <label for="sup-st">{{ 'common.status' | t }}</label>
-        <select
-          id="sup-st"
-          [value]="status()"
-          [disabled]="!canManage()"
-          (change)="setStatus($event)"
-        >
-          <option value="active">{{ 'suppliers.status.active' | t }}</option>
-          <option value="suspended">{{ 'suppliers.status.suspended' | t }}</option>
-        </select>
-      </div>
     </div>
+
+    @if (supplier(); as current) {
+      @if (current.status === 'suspended' && current.suspendReason) {
+        <div class="notice notice-warn">
+          {{ 'suppliers.suspendReason' | t }}: {{ current.suspendReason }}
+        </div>
+      }
+    }
 
     @if (canManage()) {
       <div class="row">
@@ -120,7 +121,16 @@
         >
           {{ 'common.save' | t }}
         </button>
-        @if (!isNew()) {
+        @if (supplier(); as current) {
+          @if (current.status === 'active') {
+            <button type="button" class="btn" (click)="suspendOpen.set(true)">
+              {{ 'suppliers.suspend' | t }}
+            </button>
+          } @else {
+            <button type="button" class="btn" (click)="activate()">
+              {{ 'suppliers.activate' | t }}
+            </button>
+          }
           <button type="button" class="btn btn-danger" (click)="remove()">
             {{ 'common.delete' | t }}
           </button>
@@ -170,201 +180,25 @@
   </div>
 }
 
-@if (!isNew() && activeTab() === 'users') {
-  <div class="card">
-    <div class="card-title">
-      {{ 'suppliers.tab.users' | t }}
-      <span class="spacer"></span>
-      @if (canManage()) {
-        <button type="button" class="btn btn-sm" (click)="openUserDialog()">
-          {{ 'suppliers.user.add' | t }}
-        </button>
-      }
-    </div>
-    <div class="table-wrap">
-      <table class="data">
-        <thead>
-          <tr>
-            <th>{{ 'staff.col.fullName' | t }}</th>
-            <th>{{ 'common.email' | t }}</th>
-            <th>{{ 'common.phone' | t }}</th>
-            <th>{{ 'staff.col.role' | t }}</th>
-            <th>{{ 'staff.col.active' | t }}</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (user of users(); track user.id) {
-            <tr>
-              <td>{{ user.fullName }}</td>
-              <td>{{ user.email }}</td>
-              <td class="mono">{{ user.phone }}</td>
-              <td>{{ 'role.' + user.role | t }}</td>
-              <td>
-                <span class="badge" [class.badge-success]="user.active">{{
-                  user.active ? ('common.yes' | t) : ('common.no' | t)
-                }}</span>
-              </td>
-              <td>
-                @if (canManage()) {
-                  <button type="button" class="btn btn-sm" (click)="resetPassword(user)">
-                    {{ 'suppliers.user.resetPassword' | t }}
-                  </button>
-                }
-              </td>
-            </tr>
-          } @empty {
-            <tr>
-              <td colspan="6" class="muted">{{ 'staff.empty' | t }}</td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-  </div>
-}
-
-@if (!isNew() && activeTab() === 'vehicles') {
-  <div class="card">
-    <div class="card-title">{{ 'suppliers.tab.vehicles' | t }}</div>
-    <div class="notice notice-info">{{ 'suppliers.vehicles.readonly' | t }}</div>
-    <div class="toolbar">
-      <div style="min-width: 280px">
-        <label for="veh-search">{{ 'suppliers.vehicles.search' | t }}</label>
-        <input
-          id="veh-search"
-          type="search"
-          [value]="vehicleSearch()"
-          (input)="vehicleSearch.set($any($event.target).value)"
-          (keydown.enter)="reloadVehicles()"
-        />
-      </div>
-      <button type="button" class="btn" (click)="reloadVehicles()">
-        {{ 'common.search' | t }}
-      </button>
-    </div>
-    <div class="table-wrap">
-      <table class="data">
-        <thead>
-          <tr>
-            <th>{{ 'suppliers.vehicle.plate' | t }}</th>
-            <th>{{ 'suppliers.vehicle.model' | t }}</th>
-            <th>{{ 'suppliers.vehicle.weight' | t }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (vehicle of vehicles(); track vehicle.id) {
-            <tr>
-              <td class="mono">{{ vehicle.plate }}</td>
-              <td>{{ vehicle.model }}</td>
-              <td>{{ vehicle.weightTons }}</td>
-            </tr>
-          } @empty {
-            <tr>
-              <td colspan="3" class="muted">{{ 'analytics.noData' | t }}</td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-  </div>
-}
-
-@if (!isNew() && activeTab() === 'drivers') {
-  <div class="card">
-    <div class="card-title">{{ 'suppliers.tab.drivers' | t }}</div>
-    <div class="notice notice-info">{{ 'suppliers.drivers.readonly' | t }}</div>
-    <div class="toolbar">
-      <div style="min-width: 280px">
-        <label for="drv-search">{{ 'suppliers.drivers.search' | t }}</label>
-        <input
-          id="drv-search"
-          type="search"
-          [value]="driverSearch()"
-          (input)="driverSearch.set($any($event.target).value)"
-          (keydown.enter)="reloadDrivers()"
-        />
-      </div>
-      <button type="button" class="btn" (click)="reloadDrivers()">
-        {{ 'common.search' | t }}
-      </button>
-    </div>
-    <div class="table-wrap">
-      <table class="data">
-        <thead>
-          <tr>
-            <th>{{ 'staff.col.fullName' | t }}</th>
-            <th>{{ 'common.phone' | t }}</th>
-            <th>{{ 'staff.col.active' | t }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (driver of drivers(); track driver.id) {
-            <tr>
-              <td>{{ driver.fullName }}</td>
-              <td class="mono">{{ driver.phone }}</td>
-              <td>
-                <span class="badge" [class.badge-success]="driver.active">{{
-                  driver.active ? ('common.yes' | t) : ('common.no' | t)
-                }}</span>
-              </td>
-            </tr>
-          } @empty {
-            <tr>
-              <td colspan="3" class="muted">{{ 'analytics.noData' | t }}</td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-  </div>
-}
-
-@if (userDialogOpen()) {
-  <app-modal [title]="'suppliers.user.add' | t" (closed)="userDialogOpen.set(false)">
+@if (suspendOpen()) {
+  <app-modal [title]="'suppliers.suspend' | t" (closed)="suspendOpen.set(false)">
     <div class="field">
-      <label for="u-name">{{ 'staff.field.fullName' | t }}</label>
+      <label for="suspend-reason">{{ 'common.reason' | t }}</label>
       <input
-        id="u-name"
+        id="suspend-reason"
         type="text"
-        [value]="userFullName()"
-        (input)="userFullName.set($any($event.target).value)"
+        maxlength="200"
+        [value]="suspendReason()"
+        (input)="suspendReason.set($any($event.target).value)"
       />
+      <div class="field-hint">{{ 'suppliers.suspend.hint' | t }}</div>
     </div>
-    <div class="field">
-      <label for="u-email">{{ 'common.email' | t }}</label>
-      <input
-        id="u-email"
-        type="email"
-        [value]="userEmail()"
-        (input)="userEmail.set($any($event.target).value)"
-      />
-    </div>
-    <div class="field">
-      <label for="u-phone">{{ 'common.phone' | t }}</label>
-      <input
-        id="u-phone"
-        type="text"
-        [value]="userPhone()"
-        (input)="userPhone.set($any($event.target).value)"
-      />
-    </div>
-    <div class="field">
-      <label for="u-role">{{ 'staff.field.role' | t }}</label>
-      <select id="u-role" [value]="userRole()" (change)="setUserRole($event)">
-        <option value="supplier_admin">{{ 'role.supplier_admin' | t }}</option>
-        <option value="supplier_operator">{{ 'role.supplier_operator' | t }}</option>
-      </select>
-    </div>
-    @if (userError(); as error) {
-      <div class="field-error">{{ error | t }}</div>
-    }
     <ng-container modalFooter>
-      <button type="button" class="btn" (click)="userDialogOpen.set(false)">
+      <button type="button" class="btn" (click)="suspendOpen.set(false)">
         {{ 'common.cancel' | t }}
       </button>
-      <button type="button" class="btn btn-primary" (click)="saveUser()">
-        {{ 'common.save' | t }}
+      <button type="button" class="btn btn-danger" (click)="confirmSuspend()">
+        {{ 'common.confirm' | t }}
       </button>
     </ng-container>
   </app-modal>

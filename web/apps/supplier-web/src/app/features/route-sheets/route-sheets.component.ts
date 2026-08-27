@@ -7,8 +7,12 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { I18nService, TranslatePipe } from '../../core/i18n/i18n.service';
-import { RouteSheetApi } from '../../core/api/contracts';
-import type { RouteSheetSummary } from '../../core/models/models';
+import type { Driver, RouteSheetSummary } from '../../core/models/models';
+import { RouteSheetsService } from '../../core/services/route-sheets.service';
+import {
+  DriverDirectoryService,
+  driverLabel,
+} from '../../core/services/driver-directory.service';
 import { ToastService } from '../../shared/ui/toast.service';
 import { KyivDayPipe } from '../../shared/ui/datetime.pipes';
 
@@ -20,11 +24,13 @@ import { KyivDayPipe } from '../../shared/ui/datetime.pipes';
   styleUrl: './route-sheets.component.scss',
 })
 export class RouteSheetsComponent {
-  private readonly api = inject(RouteSheetApi);
+  private readonly sheets = inject(RouteSheetsService);
+  private readonly directory = inject(DriverDirectoryService);
   private readonly toasts = inject(ToastService);
   private readonly i18n = inject(I18nService);
 
   protected readonly all = signal<readonly RouteSheetSummary[]>([]);
+  protected readonly drivers = signal<readonly Driver[]>([]);
   protected readonly loading = signal(true);
   protected readonly tab = signal<'upcoming' | 'archive'>('upcoming');
 
@@ -40,8 +46,16 @@ export class RouteSheetsComponent {
     return this.i18n.pointsCount(count);
   }
 
+  protected driverName(driverId: string | null): string | null {
+    return driverLabel(this.drivers(), driverId);
+  }
+
   constructor() {
-    this.api.list().subscribe({
+    this.directory.list().subscribe({
+      next: (list) => this.drivers.set(list),
+      error: () => undefined,
+    });
+    this.sheets.summaries().subscribe({
       next: (list) => {
         this.all.set(list);
         this.loading.set(false);

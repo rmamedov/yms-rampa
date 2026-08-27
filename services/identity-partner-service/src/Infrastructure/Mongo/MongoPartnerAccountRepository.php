@@ -14,7 +14,9 @@ use App\Domain\Exception\LoginAlreadyTakenException;
  *
  * Індекси, які має створити `app:mongo:init-indexes`:
  *  - unique `{login:1}`     — телефон/email унікальні в межах усього контуру;
- *  - `{supplierId:1}`       — масові операції блокування постачальника (AUTH-28).
+ *  - `{supplierId:1}`       — масові операції блокування постачальника (AUTH-28);
+ *  - `{_id:1, active:1}`    — покриття перевірки активності на кожен запит
+ *                             шлюзу (`GET /internal/v1/auth/verify`).
  */
 final class MongoPartnerAccountRepository extends MongoSupport implements PartnerAccountRepository
 {
@@ -38,6 +40,24 @@ final class MongoPartnerAccountRepository extends MongoSupport implements Partne
             static fn (array $document): PartnerAccount => self::hydrate($document),
             $this->find(['supplierId' => $supplierId], ['sort' => ['login' => 1]]),
         );
+    }
+
+    /**
+     * Перевірка активності для `GET /internal/v1/auth/verify` — найгарячіший
+     * запит контуру (виконується на кожен виклик API).
+     *
+     * Проєкція `{active:1}` без `_id` робить запит покритим індексом
+     * `{_id:1, active:1}`: документ із диска не піднімається взагалі, і
+     * passwordHash не їде мережею.
+     */
+    public function isActive(string $id): ?bool
+    {
+        $document = $this->findOne(
+            ['_id' => $id],
+            ['projection' => ['_id' => 0, 'active' => 1]],
+        );
+
+        return null === $document ? null : (bool) ($document['active'] ?? true);
     }
 
     public function save(PartnerAccount $account): void

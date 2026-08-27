@@ -132,7 +132,8 @@ export class StoreReceivingTabComponent {
 
   protected addException(): void {
     const exception: CalendarException = {
-      id: `exc-${Date.now()}`,
+      // Ключ винятку в бекенді — дата, тож id формується з неї.
+      id: `exc-${this.newExceptionDate()}`,
       date: this.newExceptionDate(),
       type: this.newExceptionType(),
       intervals:

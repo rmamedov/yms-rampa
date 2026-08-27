@@ -17,18 +17,26 @@
         </p>
       </div>
       <div class="sheet-print__supplier">
-        <div class="sheet-print__supplier-name">{{ data.supplier.name }}</div>
-        <div>{{ 'print.taxCode' | t }}: {{ data.supplier.taxCode }}</div>
-        <div>{{ data.supplier.address }}</div>
-        <div>{{ data.supplier.phone }} · {{ data.supplier.email }}</div>
+        <div class="sheet-print__supplier-name">
+          {{ data.supplierName ?? ('print.supplier' | t) }}
+        </div>
+        <div class="muted small">
+          {{ 'print.sheetNo' | t: { number: data.printVersion } }}
+        </div>
       </div>
     </header>
 
     <p class="sheet-print__driver">
       {{ 'print.driver' | t }}:
-      <strong>{{ data.driverName ?? '________________________' }}</strong>
+      <strong>
+        {{
+          driver()
+            ? driver()!.lastName + ' ' + driver()!.firstName
+            : '________________________'
+        }}
+      </strong>
       &nbsp;&nbsp; {{ 'print.phone' | t }}:
-      <strong>{{ data.driverPhone ?? '______________' }}</strong>
+      <strong>{{ driver()?.phone ?? '______________' }}</strong>
     </p>
 
     <table class="sheet-print__table">
@@ -37,7 +45,6 @@
           <th>{{ 'rs.col.time' | t }}</th>
           <th>{{ 'rs.col.store' | t }}</th>
           <th>{{ 'rs.col.address' | t }}</th>
-          <th>{{ 'rs.col.ramp' | t }}</th>
           <th>{{ 'rs.col.vehicle' | t }}</th>
           <th>{{ 'rs.col.order' | t }}</th>
           <th>{{ 'rs.col.pallets' | t }}</th>
@@ -45,13 +52,12 @@
         </tr>
       </thead>
       <tbody>
-        @for (point of data.points; track point.id) {
+        @for (point of data.points; track point.bookingId) {
           <tr>
-            <td>{{ point.slotStart | kyivTime }}</td>
-            <td>{{ point.city }} · № {{ point.storeExternalId }}</td>
+            <td>{{ point.localTime }}</td>
+            <td>{{ point.city }} · {{ point.storeName }}</td>
             <td>{{ point.address }}</td>
-            <td>{{ point.rampName }}</td>
-            <td>{{ point.vehicle.plateNumber }}</td>
+            <td>{{ point.plateNumber }}</td>
             <td>{{ point.orderId ?? '' }}</td>
             <td>{{ point.palletsCount }}</td>
             <td class="sign"></td>

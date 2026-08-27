@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Tests\Controller\Admin;
 
 use App\Controller\Admin\AnalyticsController;
+use App\Domain\Access\AccessDeniedException;
+use App\Domain\Access\Actor;
 use App\Domain\Analytics\AnalyticsDashboard;
 use App\Domain\Booking\BookingStatus;
 use App\Domain\Booking\BookingType;
@@ -23,10 +25,12 @@ use Symfony\Component\HttpFoundation\Request;
 
 /**
  * HTTP API /api/admin/v1/analytics/... — фільтри ANL-10, мітка recalculatedAt
- * (ANL-14), стан «Немає даних» (ANL-13) та експорт CSV (ANL-11).
+ * (ANL-14), стан «Немає даних» (ANL-13), експорт CSV (ANL-11) і скоуп доступу
+ * за службовими заголовками ідентичності (RBAC-13/RBAC-16).
  */
 #[CoversClass(AnalyticsController::class)]
 #[CoversClass(AnalyticsDashboard::class)]
+#[CoversClass(Actor::class)]
 final class AnalyticsControllerTest extends TestCase
 {
     private AnalyticsController $controller;
@@ -197,12 +201,174 @@ final class AnalyticsControllerTest extends TestCase
         ]));
     }
 
-    /**
-     * @param array<string, string> $query
-     */
-    private function request(array $query): Request
+    // --- скоуп доступу (RBAC-13/RBAC-16) ---
+
+    #[Test]
+    public function storeRoleSeesOnlyItsOwnStoresEvenWithoutStoreFilter(): void
     {
-        return Request::create('/api/admin/v1/analytics/kpi', 'GET', $query);
+        // Ключовий регрес: раніше запит без ?storeId віддавав магазинній ролі
+        // всю мережу, бо порожній фільтр означає «без обмеження».
+        $payload = $this->json($this->controller->bookings($this->storeRequest('store-1', [
+            'from' => '2026-03-16',
+            'to' => '2026-03-16',
+        ])));
+
+        self::assertSame(1, $payload['total']);
+        self::assertSame(['b1'], array_column($payload['rows'], 'bookingId'));
+    }
+
+    #[Test]
+    public function storeRoleWithTwoStoresSeesBothAndNothingElse(): void
+    {
+        $both = $this->json($this->controller->bookings($this->storeRequest('store-1,store-2', [
+            'from' => '2026-03-16',
+            'to' => '2026-03-16',
+        ])));
+
+        self::assertSame(['b1', 'b2'], array_column($both['rows'], 'bookingId'));
+
+        // Третій магазин поза скоупом — відмова, а не тихе розширення вибірки.
+        $this->expectException(AccessDeniedException::class);
+        $this->controller->bookings($this->storeRequest('store-1,store-2', [
+            'from' => '2026-03-16',
+            'to' => '2026-03-16',
+            'storeId' => 'store-3',
+        ]));
+    }
+
+    #[Test]
+    public function storeRoleWithEmptyStoreScopeIsDeniedEverywhere(): void
+    {
+        $query = ['from' => '2026-03-16', 'to' => '2026-03-16'];
+
+        foreach (['kpi', 'breakdown', 'utilization', 'bookings', 'exportCsv'] as $endpoint) {
+            try {
+                $this->controller->{$endpoint}($this->storeRequest('', $query));
+                self::fail(sprintf('Очікувалася відмова на %s: порожній скоуп магазинів.', $endpoint));
+            } catch (AccessDeniedException $exception) {
+                self::assertSame('ANALYTICS_ACCESS_DENIED', $exception->errorCode());
+                self::assertSame(403, $exception->httpStatus());
+            }
+        }
+    }
+
+    #[Test]
+    public function networkRoleSeesEveryStore(): void
+    {
+        $payload = $this->json($this->controller->bookings($this->request([
+            'from' => '2026-03-16',
+            'to' => '2026-03-16',
+            'storeId' => 'store-2',
+        ], ['X-User-Role' => 'analyst'])));
+
+        self::assertSame(['b2'], array_column($payload['rows'], 'bookingId'));
+
+        $all = $this->json($this->controller->bookings($this->request([
+            'from' => '2026-03-16',
+            'to' => '2026-03-16',
+        ], ['X-User-Role' => 'super_admin'])));
+
+        self::assertSame(['b1', 'b2'], array_column($all['rows'], 'bookingId'));
+    }
+
+    #[Test]
+    public function supplierRoleIsDeniedAnalytics(): void
+    {
+        $this->expectException(AccessDeniedException::class);
+
+        $this->controller->kpi($this->request([
+            'from' => '2026-03-16',
+            'to' => '2026-03-16',
+        ], [
+            'X-User-Role' => 'supplier_admin',
+            'X-Supplier-Id' => 'sup-1',
+            'X-Contour' => 'partner',
+        ]));
+    }
+
+    #[Test]
+    public function supplierRoleWithEmptySupplierHeaderIsDenied(): void
+    {
+        try {
+            $this->controller->kpi($this->request([
+                'from' => '2026-03-16',
+                'to' => '2026-03-16',
+            ], [
+                'X-User-Role' => 'supplier_operator',
+                'X-Supplier-Id' => '',
+                'X-Contour' => 'partner',
+            ]));
+            self::fail('Очікувалася відмова: постачальник без X-Supplier-Id.');
+        } catch (AccessDeniedException $exception) {
+            self::assertStringContainsString('X-Supplier-Id', $exception->getMessage());
+        }
+    }
+
+    #[Test]
+    public function requestWithoutIdentityHeadersIsDenied(): void
+    {
+        $this->expectException(AccessDeniedException::class);
+
+        $this->controller->kpi(Request::create('/api/admin/v1/analytics/kpi', 'GET', [
+            'from' => '2026-03-16',
+            'to' => '2026-03-16',
+        ]));
+    }
+
+    #[Test]
+    public function storeScopeAlsoConstrainsCsvExport(): void
+    {
+        $response = $this->controller->exportCsv($this->storeRequest('store-2', [
+            'from' => '2026-03-16',
+            'to' => '2026-03-16',
+            'dataset' => 'bookings',
+        ]));
+
+        $csv = (string) $response->getContent();
+
+        self::assertStringContainsString('b2', $csv);
+        self::assertStringNotContainsString('b1', $csv);
+    }
+
+    /**
+     * За замовчуванням — мережева роль (скоуп «уся мережа»), щоб перевірки
+     * фільтрів і форматів не залежали від RBAC.
+     *
+     * @param array<string, string|list<string>> $query
+     * @param array<string, string>              $headers
+     */
+    private function request(array $query, array $headers = []): Request
+    {
+        $request = Request::create('/api/admin/v1/analytics/kpi', 'GET', $query);
+
+        $headers += [
+            'X-User-Id' => 'u-admin',
+            'X-User-Role' => 'network_manager',
+            'X-Supplier-Id' => '',
+            'X-Store-Ids' => '',
+            'X-Contour' => 'staff',
+        ];
+
+        foreach ($headers as $name => $value) {
+            $request->headers->set($name, $value);
+        }
+
+        return $request;
+    }
+
+    /**
+     * Запит від імені магазинної ролі з переліком магазинів у X-Store-Ids
+     * (порожній рядок = жодного магазину).
+     *
+     * @param array<string, string|list<string>> $query
+     */
+    private function storeRequest(string $storeIds, array $query): Request
+    {
+        return $this->request($query, [
+            'X-User-Id' => 'u-store',
+            'X-User-Role' => 'store_manager',
+            'X-Store-Ids' => $storeIds,
+        ]);
     }
 
     /**

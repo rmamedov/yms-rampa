@@ -19,7 +19,10 @@ export function validateRequiredPhone(value: string): string | null {
   return PHONE_RE.test(value.trim()) ? null : 'suppliers.error.phone';
 }
 
-export function validateEmail(value: string, errorKey = 'staff.error.email'): string | null {
+export function validateEmail(
+  value: string,
+  errorKey = 'suppliers.error.email',
+): string | null {
   return EMAIL_RE.test((value ?? '').trim()) ? null : errorKey;
 }
 
@@ -66,11 +69,25 @@ export function validateMaxWeight(value: number | null): string | null {
   return null;
 }
 
-/** Lead time у годинах: ціле 0..168. */
+/** leadTimeMinutes: ціле 0..10080 хв (7 діб) — поле бекенду в хвилинах. */
 export function validateLeadTime(value: number): string | null {
-  return Number.isInteger(value) && value >= 0 && value <= 168
+  return Number.isInteger(value) && value >= 0 && value <= 10_080
     ? null
     : 'limits.error.leadTime';
+}
+
+/** noShowGraceMinutes: ціле 0..240 хв. */
+export function validateNoShowGrace(value: number): string | null {
+  return Number.isInteger(value) && value >= 0 && value <= 240
+    ? null
+    : 'limits.error.noShowGrace';
+}
+
+/** holdMaxMinutes: ціле 1..120 хв. */
+export function validateHoldMax(value: number): string | null {
+  return Number.isInteger(value) && value >= 1 && value <= 120
+    ? null
+    : 'limits.error.holdMax';
 }
 
 /** Горизонт бронювання: ціле 1..90 днів. */

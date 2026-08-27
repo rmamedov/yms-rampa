@@ -76,16 +76,16 @@ describe('SUP-01 — реквізити постачальника', () => {
 
   it('перевіряє формат e-mail', () => {
     expect(validateEmail('user@silpo.ua')).toBeNull();
-    expect(validateEmail('user@silpo')).toBe('staff.error.email');
-    expect(validateEmail('not-an-email')).toBe('staff.error.email');
+    expect(validateEmail('user@silpo')).toBe('suppliers.error.email');
+    expect(validateEmail('not-an-email')).toBe('suppliers.error.email');
   });
 });
 
 describe('Ліміти бронювання', () => {
-  it('lead time — ціле 0..168', () => {
+  it('leadTimeMinutes — ціле 0..10080 хв', () => {
     expect(validateLeadTime(0)).toBeNull();
-    expect(validateLeadTime(168)).toBeNull();
-    expect(validateLeadTime(169)).toBe('limits.error.leadTime');
+    expect(validateLeadTime(10_080)).toBeNull();
+    expect(validateLeadTime(10_081)).toBe('limits.error.leadTime');
     expect(validateLeadTime(2.5)).toBe('limits.error.leadTime');
   });
 

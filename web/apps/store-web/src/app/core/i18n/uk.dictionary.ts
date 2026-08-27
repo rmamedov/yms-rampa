@@ -52,8 +52,15 @@ export const UK_DICTIONARY: Record<string, string> = {
   'header.today': 'Сьогодні',
   'header.week': 'Розклад тижня',
   'header.walkIn': 'Позапланове прибуття',
-  'header.role.store_manager': 'Менеджер магазину',
-  'header.role.store_operator': 'Оператор магазину',
+  // Підписи ролей — як у `Role::label()` identity-staff-service.
+  'header.role.super_admin': 'Суперадміністратор',
+  'header.role.network_manager': 'Менеджер мережі',
+  'header.role.store_manager': 'Керівник магазину',
+  'header.role.store_operator': 'Приймальник магазину',
+  'header.role.analyst': 'Аналітик',
+  'header.role.supplier_admin': 'Адміністратор постачальника',
+  'header.role.supplier_operator': 'Оператор постачальника',
+  'header.role.driver': 'Водій',
 
   // --- Дошка ---
   'board.title': 'Прибуття',
@@ -79,6 +86,7 @@ export const UK_DICTIONARY: Record<string, string> = {
   'card.orderId': 'Замовлення',
   'card.pallets': 'Палети',
   'card.driver': 'Водій',
+  'card.driverId': 'Водій {id}',
   'card.noDriver': 'Водія не призначено',
   'card.walkIn': 'Позапланове',
   'card.arrivedAt': 'Прибув о {time}',
@@ -105,12 +113,12 @@ export const UK_DICTIONARY: Record<string, string> = {
   'status.delayed': 'Затримка',
 
   // --- Дії ---
+  'action.arrived': 'На місці',
   'action.startUnloading': 'Розвантаження почалось',
   'action.complete': 'Розвантажено',
   'action.noShow': 'Не приїхав',
   'action.reject': 'Відмовити в прийомі',
   'action.delay': 'Повідомити про затримку',
-  'action.clearDelay': 'Зняти затримку',
   'action.reassign': 'Перевести на іншу рампу',
   'action.log': 'Журнал дій',
   'action.walkIn': 'Позапланове прибуття',
@@ -135,11 +143,6 @@ export const UK_DICTIONARY: Record<string, string> = {
   'complete.partialReasonRequired': 'Оберіть причину часткового розвантаження',
   'complete.commentRequired': 'Для причини «інше» коментар обовʼязковий',
   'complete.invalidCount': 'Кількість палет має бути від 0 до заявленої',
-  'partialReason.no_space': 'Немає місця',
-  'partialReason.damaged': 'Бій/брак',
-  'partialReason.order_mismatch': 'Розбіжність із замовленням',
-  'partialReason.partial_refusal': 'Відмова частини вантажу',
-  'partialReason.other': 'Інше',
 
   // --- Модалка «Не приїхав» ---
   'noShow.title': 'Позначити «Не приїхав»?',
@@ -151,10 +154,6 @@ export const UK_DICTIONARY: Record<string, string> = {
   'reject.reason': 'Причина відмови',
   'reject.reasonRequired': 'Вкажіть причину відмови з довідника',
   'reject.commentRequired': 'Для причини «інше» коментар обовʼязковий',
-  'rejectReason.weight_exceeded': 'Перевищення тоннажу',
-  'rejectReason.cargo_mismatch': 'Невідповідність вантажу',
-  'rejectReason.missing_documents': 'Відсутні документи',
-  'rejectReason.other': 'Інше',
 
   // --- Модалка затримки ---
   'delay.title': 'Повідомлення про затримку',
@@ -166,11 +165,8 @@ export const UK_DICTIONARY: Record<string, string> = {
     'Новий очікуваний час має бути пізнішим за початок слоту',
   'delay.etaOutOfDay': 'Новий час має бути в межах поточної доби',
   'delay.reasonRequired': 'Оберіть причину затримки',
+  'delay.commentRequired': 'Для причини «інше» коментар обовʼязковий',
   'delay.commentTooLong': 'Коментар задовгий (максимум 500 символів)',
-  'delay.cleared': 'Затримку скасовано',
-  'delayReason.ramp_busy': 'Рампа зайнята',
-  'delayReason.previous_vehicle': 'Попередня машина затрималась',
-  'delayReason.technical': 'Технічна причина',
 
   // --- Переведення на рампу ---
   'reassign.title': 'Переведення на іншу рампу',
@@ -247,46 +243,47 @@ export const UK_DICTIONARY: Record<string, string> = {
   // --- Журнал ---
   'log.title': 'Журнал дій',
   'log.empty': 'Записів немає',
-  'log.actor': 'Хто',
+  'log.actor': 'Хто (ID користувача)',
   'log.time': 'Коли',
-  'log.action': 'Дія',
   'log.change': 'Зміна',
-  'log.actor.system_cron': 'Система (cron)',
-  'log.actor.driver': 'Водій',
-  'log.actor.supplier': 'Постачальник',
-  'log.action.created': 'Створено бронювання',
-  'log.action.status_changed': 'Зміна статусу',
-  'log.action.delay_set': 'Зафіксовано затримку',
-  'log.action.delay_updated': 'Оновлено затримку',
-  'log.action.delay_cleared': 'Знято затримку',
-  'log.action.ramp_reassigned': 'Переведено на іншу рампу',
-  'log.action.rejected': 'Відмова в прийомі',
-  'log.action.unload_recorded': 'Зафіксовано розвантаження',
-  'log.action.slot_blocked': 'Блокування слота',
+  'log.sourceNote':
+    'Журнал побудовано з історії статусів бронювання. Окремого журналу дій із ПІБ виконавця бекенд поки не надає.',
 
-  // --- Помилки (розділ 9.11) ---
+  // --- Помилки: коди рівно ті, які повертає бекенд у problem+json ---
   'error.generic': 'Сталася помилка. Спробуйте ще раз.',
   'error.network': 'Немає звʼязку із сервером',
-  'error.BOOKING_STATUS_CONFLICT':
+  'error.INVALID_STATUS_TRANSITION':
     'Статус уже змінено іншим користувачем — картку оновлено',
-  'error.STORE_FORBIDDEN': 'Немає доступу до цього магазину',
-  'error.NO_SHOW_TOO_EARLY':
-    'Позначити «Не приїхав» можна лише після закінчення слоту',
-  'error.ETA_BEFORE_SLOT_START':
-    'Новий очікуваний час має бути пізнішим за початок слоту',
-  'error.REJECT_REASON_REQUIRED': 'Вкажіть причину відмови з довідника',
+  'error.TRANSITION_NOT_ALLOWED': 'Ваша роль не має права на цю дію',
+  'error.BOOKING_NOT_FOUND': 'Бронювання не знайдено',
+  'error.ACCESS_DENIED': 'Немає доступу до цього магазину',
+  'error.VALIDATION_FAILED': 'Перевірте заповнені дані',
   'error.SLOT_ALREADY_BOOKED':
     'Слот уже зайнятий — оберіть інший вільний слот або рампу',
+  'error.SLOT_NOT_AVAILABLE': 'Слот недоступний для бронювання',
+  'error.SLOT_RESERVED': 'Слот зарезервовано за іншим постачальником',
   'error.SLOT_HELD':
     'Слот зараз оформлює інший користувач. Спробуйте за кілька хвилин',
   'error.VEHICLE_TOO_HEAVY': 'Тоннаж авто перевищує допустимий для цього магазину',
-  'error.RAMP_SLOT_TAKEN': 'На обраній рампі немає вільного слота в цей час',
-  'error.SLOT_HAS_ACTIVE_BOOKING':
-    'На слоті є активне бронювання — оберіть спосіб розвʼязання конфлікту',
+  'error.VEHICLE_TIME_CONFLICT': 'Це авто вже зайняте в перетинному слоті',
+  'error.PALLETS_OUT_OF_RANGE': 'Кількість палет — від 1 до 33',
+  'error.INVALID_PLATE_NUMBER': 'Некоректний номер авто',
+  'error.SUPPLIER_NOT_ALLOWED': 'Постачальнику недоступна ця філія',
+  'error.STORE_NOT_FOUND': 'Магазин не знайдено або не налаштовано',
+  'error.EDIT_DEADLINE_PASSED': 'Час на редагування бронювання вичерпано',
   'error.DATE_OUT_OF_HORIZON':
     'Бронювання доступне не далі ніж на {days} днів вперед',
   'error.BOOKING_LIMIT_EXCEEDED': 'Перевищено ліміт бронювань',
   'error.AUTH_INVALID_CREDENTIALS': 'Невірний e-mail або пароль',
   'error.AUTH_TOKEN_INVALID': 'Сесія завершилась, увійдіть повторно',
-  'error.FORBIDDEN_ROLE': 'Недостатньо прав для цієї дії',
+  'error.AUTH_TOKEN_EXPIRED': 'Сесія завершилась, увійдіть повторно',
+  'error.AUTH_REFRESH_REUSED':
+    'З міркувань безпеки всі сесії завершено. Увійдіть повторно',
+  'error.AUTH_ACCOUNT_DISABLED':
+    'Обліковий запис деактивовано. Зверніться до адміністратора',
+  'error.AUTH_ACCOUNT_LOCKED':
+    'Обліковий запис тимчасово заблоковано після кількох невдалих спроб',
+  'error.ROUTE_NOT_FOUND': 'Невідомий маршрут API',
+  'error.STORE_READ_NOT_IMPLEMENTED':
+    'Бекенд ще не надає читання даних магазину — розділ тимчасово недоступний',
 };

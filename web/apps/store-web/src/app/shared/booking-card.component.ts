@@ -113,18 +113,15 @@ export class BookingCardComponent {
     if (duration !== null) {
       out.push(this.i18n.translate('card.unloadDuration', { minutes: duration }));
     }
+    // Причини приходять із бекенду вже україномовними рядками довідника.
     if (b.partialUnload?.flag) {
       out.push(
-        `${this.i18n.translate('card.partial')} — ${this.i18n.translate(
-          `partialReason.${b.partialUnload.reason}`,
-        )}`,
+        `${this.i18n.translate('card.partial')} — ${b.partialUnload.reason}`,
       );
     }
     if (b.rejectedAt) {
       out.push(
-        this.i18n.translate('card.rejected', {
-          reason: this.i18n.translate(`rejectReason.${b.rejectedAt.reason}`),
-        }),
+        this.i18n.translate('card.rejected', { reason: b.rejectedAt.reason }),
       );
     }
     return out;

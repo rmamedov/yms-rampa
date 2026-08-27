@@ -6,18 +6,22 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { PageSize, SyncRun } from '../../core/models';
+import { PageSize, SyncLogEntry, SyncReport } from '../../core/models';
 import { SyncApi } from '../../core/data/sync.api';
-import { AuditApi } from '../../core/data/audit.api';
 import { AuthService } from '../../core/auth/auth.service';
 import { ToastService } from '../../core/ui/toast.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { PaginationComponent } from '../../shared/ui/pagination.component';
 import { EmptyStateComponent } from '../../shared/ui/empty-state.component';
 import { ModalComponent } from '../../shared/ui/modal.component';
-import { formatDateTime, formatDuration } from '../../core/utils/time.util';
+import { formatDateTime, formatSeconds } from '../../core/utils/time.util';
 
-/** Розділ «Синхронізація MCP» (5.6): журнал, ручний запуск, diff. */
+/**
+ * Розділ «Синхронізація MCP» (5.6): журнал і ручний запуск.
+ *
+ * Порядкового diff (створені/змінені/відсутні філії) бекенд не віддає —
+ * SyncLogEntry несе лише лічильники, тож деталізація показує звіт запуску.
+ */
 @Component({
   selector: 'app-sync-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -31,20 +35,22 @@ import { formatDateTime, formatDuration } from '../../core/utils/time.util';
 })
 export class SyncPage {
   private readonly api = inject(SyncApi);
-  private readonly auditApi = inject(AuditApi);
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly auth = inject(AuthService);
 
-  protected readonly runs = signal<readonly SyncRun[]>([]);
+  protected readonly runs = signal<readonly SyncLogEntry[]>([]);
   protected readonly total = signal(0);
   protected readonly page = signal(1);
   protected readonly pageSize = signal<PageSize>(20);
   protected readonly busy = signal(false);
-  protected readonly selected = signal<SyncRun | null>(null);
+  /** INT-13: банер «дані станом на …», коли остання синхронізація не успішна. */
+  protected readonly lastSuccessfulAt = signal<string | null>(null);
+  protected readonly running = signal(false);
+  protected readonly lastReport = signal<SyncReport | null>(null);
 
   protected readonly formatDateTime = formatDateTime;
-  protected readonly formatDuration = formatDuration;
+  protected readonly formatSeconds = formatSeconds;
 
   constructor() {
     this.load();
@@ -52,12 +58,14 @@ export class SyncPage {
 
   protected load(): void {
     this.api
-      .list({ page: this.page(), pageSize: this.pageSize(), direction: 'desc' })
+      .log(this.page(), this.pageSize())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (page) => {
-          this.runs.set(page.items);
-          this.total.set(page.total);
+        next: (log) => {
+          this.runs.set(log.items);
+          this.total.set(log.total);
+          this.lastSuccessfulAt.set(log.lastSuccessfulAt);
+          this.running.set(log.running);
         },
         error: (error: unknown) => this.toast.error(error),
       });
@@ -74,31 +82,24 @@ export class SyncPage {
     this.load();
   }
 
-  /** SYNC-02: ручний запуск доступний super_admin і network_manager. */
+  /**
+   * SYNC-02: ручний запуск доступний super_admin і network_manager.
+   * Ініціатора підставляє бекенд із заголовків ідентичності — тіло порожнє.
+   */
   protected run(): void {
     if (this.busy()) {
       this.toast.errorKey('sync.running');
       return;
     }
     this.busy.set(true);
-    const initiator = this.auth.user()?.fullName ?? '';
     this.api
-      .run(initiator)
+      .run()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (run) => {
+        next: (report) => {
           this.busy.set(false);
+          this.lastReport.set(report);
           this.toast.success('sync.started');
-          this.auditApi
-            .write({
-              objectType: 'sync',
-              objectId: run.id,
-              objectLabel: run.id,
-              action: 'sync_run',
-              changes: [],
-            })
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe({ error: () => undefined });
           this.page.set(1);
           this.load();
         },
@@ -109,12 +110,14 @@ export class SyncPage {
       });
   }
 
-  protected statusClass(run: SyncRun): string {
-    switch (run.status) {
+  protected statusClass(entry: SyncLogEntry): string {
+    switch (entry.status) {
       case 'success':
         return 'badge badge-success';
-      case 'error':
+      case 'failed':
         return 'badge badge-danger';
+      case 'partial':
+        return 'badge badge-warn';
       default:
         return 'badge badge-info';
     }

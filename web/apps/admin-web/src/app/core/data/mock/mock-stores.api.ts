@@ -1,55 +1,76 @@
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
-  Booking,
   BulkResultRow,
-  ConfigChangeRequest,
-  ConfigConflict,
+  CityOption,
+  DayOfWeek,
   Page,
   PageQuery,
+  ReservedSlotRule,
+  SlotBlock,
+  STORE_SORT_COLUMNS,
   Store,
-  StoreConfig,
+  StoreConfiguration,
   StoreGeneralPatch,
   StoreListFilter,
   StoreListRow,
   YmsStatus,
 } from '../../models';
 import {
-  ConfigTemplateId,
-  StoreConfigDraft,
+  ReservedSlotRuleDraft,
+  SlotBlockDraft,
+  StoreConfigurationDraft,
   StoresApi,
 } from '../stores.api';
-import { MockDb } from './mock-db';
+import {
+  ALLOWED_TRANSITIONS,
+  MockDb,
+  MockStore,
+  readinessOf,
+  StoreCard,
+  YMS_STATUS_LABELS,
+} from './mock-db';
 import {
   compareValues,
   fail,
+  isAllowedPerPage,
   MOCK_LATENCY,
   normalize,
   paginate,
+  PER_PAGE_PROBLEM,
   respond,
   sortItems,
 } from './mock-support';
-import {
-  emptyReceivingWindows,
-  isStoreConfigured,
-} from '../../utils/store-config.util';
-import { detectConflicts } from '../../utils/conflicts.util';
 import { AuthService } from '../../auth/auth.service';
+import { dayOfWeek, isValidTime, timeToMinutes } from '../../utils/time.util';
 
-export function toListRow(store: Store): StoreListRow {
+/** STL-06: текст порожньої вибірки формує store-service. */
+export const EMPTY_STORES_MESSAGE = 'Магазинів за заданими умовами не знайдено';
+
+export function toListRow(store: MockStore): StoreListRow {
+  const config = activeConfig(store);
   return {
-    id: store.id,
-    externalId: store.externalId,
-    displayName: store.displayName,
-    city: store.city,
-    address: store.addressOverride ?? store.address,
-    ymsStatus: store.ymsStatus,
-    isConfigured: store.isConfigured,
-    rampCount: store.ramps.filter((r) => r.enabled).length,
-    maxVehicleWeightTons: store.maxVehicleWeightTons,
-    lastSyncedAt: store.lastSyncedAt,
-    visibleToSuppliers: store.visibleToSuppliers,
+    id: store.card.id,
+    externalId: store.card.externalId,
+    displayName: store.card.effectiveDisplayName,
+    city: store.card.city,
+    address: store.card.effectiveAddress,
+    ymsStatus: store.card.ymsStatus,
+    ymsStatusLabel: store.card.ymsStatusLabel,
+    isConfigured: store.card.isConfigured,
+    missingSettings: store.card.missingSettings,
+    rampCount: config ? config.ramps.filter((r) => r.enabled).length : 0,
+    maxVehicleWeightTons: config?.maxVehicleWeightTons ?? null,
+    visibleToSuppliers: store.card.visibleToSuppliers,
+    eligible: store.card.eligible,
+    lastSyncedAt: store.card.lastSyncedAt,
   };
+}
+
+function activeConfig(store: MockStore): StoreConfiguration | null {
+  return store.configurations.length === 0
+    ? null
+    : store.configurations[store.configurations.length - 1];
 }
 
 /**
@@ -75,8 +96,7 @@ export function matchesStoreFilter(
   }
   const byExternalId = row.externalId.toLowerCase().startsWith(search);
   const byAddress = normalize(row.address).includes(search);
-  const byName = normalize(row.displayName).includes(search);
-  return byExternalId || byAddress || byName;
+  return byExternalId || byAddress;
 }
 
 export function filterStoreRows(
@@ -86,29 +106,13 @@ export function filterStoreRows(
   return rows.filter((row) => matchesStoreFilter(row, filter));
 }
 
-const TEMPLATES: Readonly<Record<ConfigTemplateId, Partial<StoreConfig>>> = {
-  standard: {
-    slotSizeMinutes: 30,
-    maxVehicleWeightTons: 20,
-    leadTimeHours: 4,
-    bookingHorizonDays: 21,
-    receivingWindows: emptyReceivingWindows().map((w) =>
-      w.dayOfWeek === 7
-        ? w
-        : { dayOfWeek: w.dayOfWeek, intervals: [{ from: '08:00', to: '18:00' }] },
-    ),
-  },
-  short: {
-    slotSizeMinutes: 60,
-    maxVehicleWeightTons: 10,
-    leadTimeHours: 12,
-    bookingHorizonDays: 14,
-    receivingWindows: emptyReceivingWindows().map((w) =>
-      w.dayOfWeek <= 5
-        ? { dayOfWeek: w.dayOfWeek, intervals: [{ from: '09:00', to: '15:00' }] }
-        : w,
-    ),
-  },
+/** Колонки списку → поля рядка, як у BranchCriteria::sortBy. */
+const SORT_FIELD: Readonly<Record<string, keyof StoreListRow>> = {
+  city: 'city',
+  externalId: 'externalId',
+  ymsStatus: 'ymsStatus',
+  address: 'address',
+  syncedAt: 'lastSyncedAt',
 };
 
 @Injectable()
@@ -121,58 +125,76 @@ export class MockStoresApi extends StoresApi {
    * RBAC-17: скоуп-фільтр застосовує сервер, а не клієнт.
    * RBAC-13: для store_manager/store_operator порожній storeIds = нуль доступу.
    */
-  private scopedStores(): readonly Store[] {
+  private scopedStores(): readonly MockStore[] {
     if (this.auth.grant('store.read') !== 'scoped') {
       return this.db.state.stores;
     }
     const allowed = this.auth.storeIds();
-    return this.db.state.stores.filter((s) => allowed.includes(s.id));
+    return this.db.state.stores.filter((s) => allowed.includes(s.card.id));
   }
 
   list(filter: StoreListFilter, query: PageQuery): Observable<Page<StoreListRow>> {
+    if (!isAllowedPerPage(query.pageSize)) {
+      return fail(422, PER_PAGE_PROBLEM, this.latency);
+    }
     return respond(() => {
       const rows = this.scopedStores().map(toListRow);
       const filtered = filterStoreRows(rows, filter);
-      // STL-05: за замовчуванням — місто, потім externalId
+      const column =
+        query.sort && STORE_SORT_COLUMNS.includes(query.sort) ? query.sort : 'city';
       const sorted = sortItems(
         filtered as unknown as Array<Record<string, unknown>>,
-        query.sort ?? 'city',
+        SORT_FIELD[column],
         query.direction ?? 'asc',
         (a, b) => compareValues(a['externalId'], b['externalId']),
       ) as unknown as StoreListRow[];
-      return paginate(sorted, query);
+      return paginate(sorted, query, EMPTY_STORES_MESSAGE);
     }, this.latency);
   }
 
-  cities(): Observable<readonly string[]> {
-    return respond(
-      () =>
-        [...new Set(this.scopedStores().map((s) => s.city))]
-          .filter((c) => c.trim().length > 0)
-          .sort((a, b) => a.localeCompare(b, 'uk')),
-      this.latency,
-    );
+  cities(): Observable<readonly CityOption[]> {
+    return respond(() => {
+      const counts = new Map<string, number>();
+      for (const store of this.scopedStores()) {
+        const city = store.card.city.trim();
+        if (city.length === 0) {
+          continue;
+        }
+        counts.set(city, (counts.get(city) ?? 0) + 1);
+      }
+      return [...counts.entries()]
+        .map(([city, storeCount]) => ({ city, storeCount }))
+        .sort((a, b) => a.city.localeCompare(b.city, 'uk'));
+    }, this.latency);
   }
 
   /** RBAC-18: читання одиничного ресурсу поза скоупом — 404, а не 403. */
   get(id: string): Observable<Store> {
-    const store = this.scopedStores().find((s) => s.id === id);
+    const store = this.scopedStores().find((s) => s.card.id === id);
     if (!store) {
-      return fail(404, { code: 'RESOURCE_NOT_FOUND' }, this.latency);
+      return fail(404, { code: 'STORE_NOT_FOUND' }, this.latency);
     }
-    return respond(() => structuredCopy(store), this.latency);
+    return respond(() => this.assemble(store), this.latency);
+  }
+
+  private assemble(store: MockStore): Store {
+    return copy({
+      ...store.card,
+      configuration: activeConfig(store),
+      reservedRules: store.reservedRules,
+      slotBlocks: store.slotBlocks,
+    });
   }
 
   updateGeneral(id: string, patch: StoreGeneralPatch): Observable<Store> {
-    const index = this.db.state.stores.findIndex((s) => s.id === id);
-    if (index < 0) {
-      return fail(404, { code: 'RESOURCE_NOT_FOUND' }, this.latency);
+    const store = this.db.store(id);
+    if (!store) {
+      return fail(404, { code: 'STORE_NOT_FOUND' }, this.latency);
     }
-    const current = this.db.state.stores[index];
     // STC-03: активувати можна лише налаштований магазин
-    if (patch.ymsStatus === 'active' && !isStoreConfigured(current)) {
+    if (patch.ymsStatus === 'active' && !store.card.isConfigured) {
       return fail(
-        422,
+        409,
         {
           code: 'STORE_NOT_CONFIGURED',
           detail: 'Неможливо активувати: не завершено налаштування магазину',
@@ -180,90 +202,78 @@ export class MockStoresApi extends StoresApi {
         this.latency,
       );
     }
-    const updated: Store = { ...current, ...patch };
-    this.db.state.stores[index] = updated;
-    return respond(() => structuredCopy(updated), this.latency);
-  }
-
-  checkConflicts(
-    id: string,
-    draft: StoreConfigDraft,
-    effectiveFrom: string,
-    nextYmsStatus?: YmsStatus,
-  ): Observable<readonly ConfigConflict[]> {
-    const store = this.db.state.stores.find((s) => s.id === id);
-    if (!store) {
-      return fail(404, { code: 'RESOURCE_NOT_FOUND' }, this.latency);
-    }
     return respond(() => {
-      const nextConfig = mergeConfig(store, draft);
-      const rampLabels = Object.fromEntries(
-        nextConfig.ramps.map((r) => [r.id, r.name ?? `№${r.number}`]),
+      store.card = withStatus(
+        {
+          ...store.card,
+          displayName: patch.displayName,
+          effectiveDisplayName:
+            patch.displayName ?? `Сільпо ${store.card.externalId}`,
+          phone: patch.phone,
+          addressOverride: patch.addressOverride,
+          effectiveAddress: patch.addressOverride ?? store.card.address,
+          visibleToSuppliers: patch.visibleToSuppliers,
+        },
+        patch.ymsStatus,
       );
-      return detectConflicts({
-        bookings: this.db.state.bookings.filter((b) => b.storeId === id),
-        nextConfig,
-        effectiveFrom,
-        nextYmsStatus,
-        rampLabels,
-      });
+      return this.assemble(store);
     }, this.latency);
   }
 
-  saveConfig(request: ConfigChangeRequest): Observable<Store> {
-    const index = this.db.state.stores.findIndex((s) => s.id === request.storeId);
-    if (index < 0) {
-      return fail(404, { code: 'RESOURCE_NOT_FOUND' }, this.latency);
+  configurations(storeId: string): Observable<readonly StoreConfiguration[]> {
+    const store = this.db.store(storeId);
+    if (!store) {
+      return fail(404, { code: 'STORE_NOT_FOUND' }, this.latency);
     }
-    const current = this.db.state.stores[index];
-    const merged = mergeConfig(current, request.config);
-    const general = request.general ?? {
-      displayName: current.displayName,
-      phone: current.phone,
-      addressOverride: current.addressOverride,
-      ymsStatus: current.ymsStatus,
-      visibleToSuppliers: current.visibleToSuppliers,
-    };
-    if (general.ymsStatus === 'active' && !isStoreConfigured(merged)) {
-      return fail(
-        422,
-        {
-          code: 'STORE_NOT_CONFIGURED',
-          detail: 'Неможливо активувати: не завершено налаштування магазину',
-        },
-        this.latency,
-      );
-    }
-    const updated: Store = {
-      ...current,
-      ...general,
-      ...merged,
-      isConfigured: isStoreConfigured(merged),
-    };
-    this.db.state.stores[index] = updated;
-
-    // STC-63: «Скасувати з нотифікацією» — booking-service скасовує бронювання
-    for (const decision of request.decisions ?? []) {
-      if (decision.resolution !== 'cancel_notify') {
-        continue;
-      }
-      const bookingId = decision.conflictId.replace(/^cf-/, '');
-      const bIndex = this.db.state.bookings.findIndex((b) => b.id === bookingId);
-      if (bIndex >= 0) {
-        this.db.state.bookings[bIndex] = {
-          ...this.db.state.bookings[bIndex],
-          status: 'cancelled',
-        };
-      }
-    }
-    return respond(() => structuredCopy(updated), this.latency);
+    return respond(() => copy(store.configurations), this.latency);
   }
 
-  bookings(id: string): Observable<readonly Booking[]> {
-    return respond(
-      () => this.db.state.bookings.filter((b) => b.storeId === id),
-      this.latency,
-    );
+  /** DATA-09: створення НОВОЇ версії; наявна версія ніколи не оновлюється. */
+  createConfiguration(
+    storeId: string,
+    draft: StoreConfigurationDraft,
+  ): Observable<StoreConfiguration> {
+    const store = this.db.store(storeId);
+    if (!store) {
+      return fail(404, { code: 'STORE_NOT_FOUND' }, this.latency);
+    }
+    const version = store.configurations.length + 1;
+    const config: StoreConfiguration = {
+      id: this.db.nextId('cfg'),
+      storeId,
+      version,
+      effectiveFrom: `${draft.effectiveFrom}T00:00:00+00:00`,
+      receivingWindows: draft.receivingWindows,
+      slotSizeMinutes: draft.slotSizeMinutes,
+      ramps: draft.ramps,
+      maxVehicleWeightTons: draft.maxVehicleWeightTons,
+      leadTimeMinutes: draft.leadTimeMinutes,
+      bookingHorizonDays: draft.bookingHorizonDays,
+      noShowGraceMinutes: draft.noShowGraceMinutes,
+      holdMaxMinutes: draft.holdMaxMinutes,
+      calendarExceptions: draft.calendarExceptions,
+      configured: true,
+      missingSettings: [],
+      createdBy: this.auth.user()?.id ?? null,
+      createdAt: new Date().toISOString(),
+      schemaVersion: 1,
+    };
+    const readiness = readinessOf(config);
+    return respond(() => {
+      const stored: StoreConfiguration = {
+        ...config,
+        configured: readiness.configured,
+        missingSettings: readiness.missing,
+      };
+      store.configurations = [...store.configurations, stored];
+      store.card = {
+        ...store.card,
+        isConfigured: readiness.configured,
+        missingSettings: readiness.missing,
+        activeConfigurationVersion: version,
+      };
+      return copy(stored);
+    }, this.latency);
   }
 
   bulkStatus(
@@ -273,26 +283,20 @@ export class MockStoresApi extends StoresApi {
     return respond(
       () =>
         ids.map((id) => {
-          const index = this.db.state.stores.findIndex((s) => s.id === id);
-          if (index < 0) {
-            return { id, label: id, ok: false, message: 'error.RESOURCE_NOT_FOUND' };
+          const store = this.db.store(id);
+          if (!store) {
+            return { id, label: id, ok: false, message: 'Магазин не знайдено' };
           }
-          const store = this.db.state.stores[index];
-          if (status === 'active' && !store.isConfigured) {
+          if (status === 'active' && !store.card.isConfigured) {
             return {
               id,
-              label: store.externalId,
+              label: store.card.externalId,
               ok: false,
-              message: 'store.error.activate',
+              message: 'Неможливо активувати: не завершено налаштування магазину',
             };
           }
-          this.db.state.stores[index] = {
-            ...store,
-            ymsStatus: status,
-            visibleToSuppliers:
-              status === 'active' ? store.visibleToSuppliers : false,
-          };
-          return { id, label: store.externalId, ok: true };
+          store.card = withStatus(store.card, status);
+          return { id, label: store.card.externalId, ok: true };
         }),
       this.latency,
     );
@@ -305,79 +309,252 @@ export class MockStoresApi extends StoresApi {
     return respond(
       () =>
         ids.map((id) => {
-          const index = this.db.state.stores.findIndex((s) => s.id === id);
-          if (index < 0) {
-            return { id, label: id, ok: false, message: 'error.RESOURCE_NOT_FOUND' };
+          const store = this.db.store(id);
+          if (!store) {
+            return { id, label: id, ok: false, message: 'Магазин не знайдено' };
           }
-          const store = this.db.state.stores[index];
-          this.db.state.stores[index] = { ...store, visibleToSuppliers: visible };
-          return { id, label: store.externalId, ok: true };
+          store.card = { ...store.card, visibleToSuppliers: visible };
+          return { id, label: store.card.externalId, ok: true };
         }),
       this.latency,
     );
   }
 
-  applyTemplate(
-    ids: readonly string[],
-    template: ConfigTemplateId,
-  ): Observable<readonly BulkResultRow[]> {
-    return respond(
-      () =>
-        ids.map((id) => {
-          const index = this.db.state.stores.findIndex((s) => s.id === id);
-          if (index < 0) {
-            return { id, label: id, ok: false, message: 'error.RESOURCE_NOT_FOUND' };
-          }
-          const store = this.db.state.stores[index];
-          const ramps =
-            store.ramps.length > 0
-              ? store.ramps
-              : [
-                  {
-                    id: `${store.id}-ramp-1`,
-                    number: 1,
-                    name: 'Основна',
-                    enabled: true,
-                    disabledFrom: null,
-                    hasBookings: false,
-                  },
-                ];
-          const merged = mergeConfig(store, { ...TEMPLATES[template], ramps });
-          this.db.state.stores[index] = {
-            ...store,
-            ...merged,
-            isConfigured: isStoreConfigured(merged),
-          };
-          return { id, label: store.externalId, ok: true };
-        }),
-      this.latency,
+  reservedRules(storeId: string): Observable<readonly ReservedSlotRule[]> {
+    const store = this.db.store(storeId);
+    if (!store) {
+      return fail(404, { code: 'STORE_NOT_FOUND' }, this.latency);
+    }
+    return respond(() => copy(store.reservedRules), this.latency);
+  }
+
+  /** STC-42: резерв лише у вікні прийому, на увімкнену рампу, без перетину. */
+  createReservedRule(
+    storeId: string,
+    draft: ReservedSlotRuleDraft,
+  ): Observable<ReservedSlotRule> {
+    const store = this.db.store(storeId);
+    if (!store) {
+      return fail(404, { code: 'STORE_NOT_FOUND' }, this.latency);
+    }
+    const rule: ReservedSlotRule = {
+      id: this.db.nextId('res'),
+      storeId,
+      supplierId: draft.supplierId,
+      rampId: draft.rampId,
+      slotStartTime: draft.slotStartTime,
+      dayOfWeek: draft.dayOfWeek,
+      date: draft.date,
+      validFrom: `${draft.validFrom}T00:00:00+00:00`,
+      validTo: draft.validTo ? `${draft.validTo}T00:00:00+00:00` : null,
+      active: draft.active,
+    };
+    const problem = this.reserveProblem(store, rule);
+    if (problem) {
+      return fail(problem.status, problem.body, this.latency);
+    }
+    return respond(() => {
+      store.reservedRules = [...store.reservedRules, rule];
+      return copy(rule);
+    }, this.latency);
+  }
+
+  updateReservedRule(
+    storeId: string,
+    ruleId: string,
+    patch: Partial<ReservedSlotRuleDraft>,
+  ): Observable<ReservedSlotRule> {
+    const store = this.db.store(storeId);
+    const existing = store?.reservedRules.find((r) => r.id === ruleId);
+    if (!store || !existing) {
+      return fail(404, { code: 'RESERVED_RULE_NOT_FOUND' }, this.latency);
+    }
+    const updated: ReservedSlotRule = {
+      ...existing,
+      supplierId: patch.supplierId ?? existing.supplierId,
+      rampId: patch.rampId ?? existing.rampId,
+      slotStartTime: patch.slotStartTime ?? existing.slotStartTime,
+      dayOfWeek: patch.dayOfWeek === undefined ? existing.dayOfWeek : patch.dayOfWeek,
+      date: patch.date === undefined ? existing.date : patch.date,
+      active: patch.active ?? existing.active,
+    };
+    const problem = this.reserveProblem(store, updated);
+    if (problem) {
+      return fail(problem.status, problem.body, this.latency);
+    }
+    return respond(() => {
+      store.reservedRules = store.reservedRules.map((r) =>
+        r.id === ruleId ? updated : r,
+      );
+      return copy(updated);
+    }, this.latency);
+  }
+
+  private reserveProblem(
+    store: MockStore,
+    rule: ReservedSlotRule,
+  ): { status: number; body: { code: string; detail: string } } | null {
+    const config = activeConfig(store);
+    if (!config) {
+      return {
+        status: 409,
+        body: {
+          code: 'STORE_NOT_CONFIGURED',
+          detail: 'Резерв неможливий: для магазину ще не задано конфігурацію прийому',
+        },
+      };
+    }
+    const ramp = config.ramps.find((r) => r.id === rule.rampId);
+    if (!ramp || !ramp.enabled) {
+      return {
+        status: 422,
+        body: {
+          code: 'CONFIG_VALIDATION_FAILED',
+          detail: 'Резерв не можна створити на вимкнену рампу',
+        },
+      };
+    }
+    const day =
+      rule.dayOfWeek ??
+      (rule.date ? (dayOfWeek(rule.date) as DayOfWeek) : null);
+    const intervals =
+      day === null
+        ? []
+        : (config.receivingWindows.find((w) => w.dayOfWeek === day)?.intervals ?? []);
+    const start = isValidTime(rule.slotStartTime)
+      ? timeToMinutes(rule.slotStartTime)
+      : -1;
+    const inWindow = intervals.some(
+      (i) => start >= timeToMinutes(i.from) && start < timeToMinutes(i.to),
     );
+    if (!inWindow) {
+      return {
+        status: 422,
+        body: {
+          code: 'CONFIG_VALIDATION_FAILED',
+          detail: 'Час резерву не потрапляє в жодне вікно прийому',
+        },
+      };
+    }
+    const overlap = store.reservedRules.some(
+      (other) =>
+        other.id !== rule.id &&
+        other.active &&
+        other.rampId === rule.rampId &&
+        other.slotStartTime === rule.slotStartTime &&
+        (other.dayOfWeek === rule.dayOfWeek || other.date === rule.date),
+    );
+    if (overlap) {
+      return {
+        status: 409,
+        body: {
+          code: 'RESERVED_RULE_OVERLAP',
+          detail: 'Правила резерву перетинаються на одному слоті',
+        },
+      };
+    }
+    return null;
+  }
+
+  deleteReservedRule(storeId: string, ruleId: string): Observable<void> {
+    const store = this.db.store(storeId);
+    if (!store || !store.reservedRules.some((r) => r.id === ruleId)) {
+      return fail(404, { code: 'RESERVED_RULE_NOT_FOUND' }, this.latency);
+    }
+    return respond(() => {
+      store.reservedRules = store.reservedRules.filter((r) => r.id !== ruleId);
+      return undefined;
+    }, this.latency);
+  }
+
+  slotBlocks(storeId: string): Observable<readonly SlotBlock[]> {
+    const store = this.db.store(storeId);
+    if (!store) {
+      return fail(404, { code: 'STORE_NOT_FOUND' }, this.latency);
+    }
+    return respond(() => copy(store.slotBlocks), this.latency);
+  }
+
+  createSlotBlock(storeId: string, draft: SlotBlockDraft): Observable<SlotBlock> {
+    const store = this.db.store(storeId);
+    if (!store) {
+      return fail(404, { code: 'STORE_NOT_FOUND' }, this.latency);
+    }
+    // STC-60: блокування не можна створити на минулий період
+    if (new Date(draft.blockTo).getTime() <= Date.now()) {
+      return fail(
+        422,
+        {
+          code: 'CONFIG_VALIDATION_FAILED',
+          detail: 'Блокування не можна створити на минулий період',
+        },
+        this.latency,
+      );
+    }
+    const block: SlotBlock = {
+      id: this.db.nextId('blk'),
+      storeId,
+      rampIds: [...draft.rampIds],
+      coversAllRamps: draft.rampIds.length === 0,
+      blockFrom: draft.blockFrom,
+      blockTo: draft.blockTo,
+      reason: draft.reason,
+      releasedAt: null,
+      createdAt: new Date().toISOString(),
+    };
+    return respond(() => {
+      store.slotBlocks = [block, ...store.slotBlocks];
+      return copy(block);
+    }, this.latency);
+  }
+
+  /** STC-52: дострокове зняття блокування (подія SlotReleased). */
+  releaseSlotBlock(storeId: string, blockId: string): Observable<SlotBlock> {
+    const store = this.db.store(storeId);
+    const block = store?.slotBlocks.find((b) => b.id === blockId);
+    if (!store || !block) {
+      return fail(404, { code: 'SLOT_BLOCK_NOT_FOUND' }, this.latency);
+    }
+    if (block.releasedAt !== null) {
+      return fail(
+        422,
+        { code: 'CONFIG_VALIDATION_FAILED', detail: 'Блокування вже знято' },
+        this.latency,
+      );
+    }
+    return respond(() => {
+      const released: SlotBlock = { ...block, releasedAt: new Date().toISOString() };
+      store.slotBlocks = store.slotBlocks.map((b) =>
+        b.id === blockId ? released : b,
+      );
+      return copy(released);
+    }, this.latency);
+  }
+
+  deleteSlotBlock(storeId: string, blockId: string): Observable<void> {
+    const store = this.db.store(storeId);
+    if (!store || !store.slotBlocks.some((b) => b.id === blockId)) {
+      return fail(404, { code: 'SLOT_BLOCK_NOT_FOUND' }, this.latency);
+    }
+    return respond(() => {
+      store.slotBlocks = store.slotBlocks.filter((b) => b.id !== blockId);
+      return undefined;
+    }, this.latency);
   }
 }
 
-export function mergeConfig(
-  store: StoreConfig,
-  draft: StoreConfigDraft | Partial<StoreConfig>,
-): StoreConfig {
+function withStatus(card: StoreCard, status: YmsStatus): StoreCard {
   return {
-    slotSizeMinutes:
-      draft.slotSizeMinutes !== undefined
-        ? draft.slotSizeMinutes
-        : store.slotSizeMinutes,
-    ramps: draft.ramps ?? store.ramps,
-    maxVehicleWeightTons:
-      draft.maxVehicleWeightTons !== undefined
-        ? draft.maxVehicleWeightTons
-        : store.maxVehicleWeightTons,
-    leadTimeHours: draft.leadTimeHours ?? store.leadTimeHours,
-    bookingHorizonDays: draft.bookingHorizonDays ?? store.bookingHorizonDays,
-    receivingWindows: draft.receivingWindows ?? store.receivingWindows,
-    exceptions: draft.exceptions ?? store.exceptions,
-    reservedRules: draft.reservedRules ?? store.reservedRules,
-    slotBlocks: draft.slotBlocks ?? store.slotBlocks,
+    ...card,
+    ymsStatus: status,
+    ymsStatusLabel: YMS_STATUS_LABELS[status],
+    allowedTransitions: ALLOWED_TRANSITIONS[status],
+    visibleToSuppliers: status === 'active' ? card.visibleToSuppliers : false,
+    eligible: status === 'active' && card.isConfigured && card.open,
+    archivedAt: status === 'archived' ? new Date().toISOString() : null,
   };
 }
 
-function structuredCopy<T>(value: T): T {
+function copy<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }

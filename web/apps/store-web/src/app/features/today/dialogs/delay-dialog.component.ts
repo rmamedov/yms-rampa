@@ -32,7 +32,7 @@ import {
   template: `
     <app-modal titleKey="delay.title" (closed)="closed.emit()">
       <p class="muted">
-        {{ booking().supplierNameSnapshot }} ·
+        {{ booking().supplierName }} ·
         {{ slotStartLabel() }}
       </p>
 
@@ -48,7 +48,8 @@ import {
         >
           <option [ngValue]="null">—</option>
           @for (item of reasons; track item) {
-            <option [ngValue]="item">{{ 'delayReason.' + item | t }}</option>
+            <!-- Значення довідника бекенду вже україномовні (DelayReason). -->
+            <option [ngValue]="item">{{ item }}</option>
           }
         </select>
       </div>
@@ -132,8 +133,8 @@ export class DelayDialogComponent {
     if (!this.errors().valid) return;
     this.confirmed.emit({
       reason: this.reason() as DelayReason,
-      comment: this.comment().trim() || null,
       eta: this.etaIso() as string,
+      comment: this.comment().trim() || null,
     });
   }
 }

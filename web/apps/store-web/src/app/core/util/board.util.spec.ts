@@ -24,14 +24,14 @@ describe('Фільтри дошки (STW-23)', () => {
       id: 'b',
       rampId: 'r2',
       status: 'arrived',
-      supplierNameSnapshot: 'ПрАТ «Оболонь»',
+      supplierName: 'ПрАТ «Оболонь»',
     }),
     makeBooking({
       id: 'c',
       rampId: 'r1',
       status: 'completed',
       type: 'walk_in',
-      supplierNameSnapshot: 'ФОП Гуменюк',
+      supplierName: 'ФОП Гуменюк',
     }),
     makeBooking({
       id: 'd',
@@ -39,9 +39,8 @@ describe('Фільтри дошки (STW-23)', () => {
       status: 'booked',
       delayed: {
         flag: true,
-        reason: 'ramp_busy',
+        reason: 'затори',
         eta: '2026-08-27T09:00:00.000Z',
-        comment: null,
       },
     }),
   ];
