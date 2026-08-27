@@ -37,16 +37,24 @@ final readonly class RouteSheetController
             throw new AccessDeniedException('Маршрутний лист доступний лише водію');
         }
 
+        if (!$actor->hasDriverProfile()) {
+            throw AccessDeniedException::driverWithoutProfile();
+        }
+
         $date = (string) $request->query->get('date', SlotGridService::localDate($this->clock->now()));
 
         if (1 !== preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
             throw new ValidationFailedException('Параметр «date» має бути у форматі YYYY-MM-DD');
         }
 
+        // DRV: листи шукаються за ПРОФІЛЕМ водія (X-Driver-Profile-Id) —
+        // саме він лежить у booking.driverId, а не обліковий запис із `sub`.
+        $driverProfileId = (string) $actor->driverProfileId;
+
         return new JsonResponse([
-            'driverId' => $actor->userId,
+            'driverId' => $driverProfileId,
             'date' => $date,
-            'routeSheets' => $this->routeSheets->forDriver($actor->userId, $date),
+            'routeSheets' => $this->routeSheets->forDriver($driverProfileId, $date),
         ]);
     }
 }

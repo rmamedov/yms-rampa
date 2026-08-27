@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Booking;
 
+use App\Domain\Access\AccessDeniedException;
 use App\Domain\Access\Actor;
 use App\Domain\Access\Role;
 use App\Domain\Booking\Exception\EditDeadlinePassedException;
@@ -771,6 +772,40 @@ final class Booking
         $this->touch($now);
     }
 
+    /**
+     * DRV: бронювання має входити до маршрутного листа саме цього водія.
+     *
+     * Єдина точка перевірки належності для всіх дій контуру водія —
+     * відмітки «На місці», повідомлення про затримку і дописування orderId.
+     */
+    public function assertDriverOwnsPoint(Actor $actor): void
+    {
+        if (!$actor->canActOnOwnRouteSheet($this->driverId)) {
+            throw AccessDeniedException::foreignRouteSheet();
+        }
+    }
+
+    /**
+     * DRV: водій дописує номер замовлення, якщо його не вказав постачальник
+     * (розділ 6.4). Це ЄДИНЕ поле бронювання, яке водій змінює: ані палети,
+     * ані авто, ані слот через цей шлях недосяжні.
+     *
+     * Дозволено до початку розвантаження — після нього номер уже потрібен
+     * магазину для приймання.
+     */
+    public function setOrderIdByDriver(Actor $actor, ?string $orderId, DateTimeImmutable $now): void
+    {
+        $this->assertDriverOwnsPoint($actor);
+
+        if (BookingStatus::Booked !== $this->status && BookingStatus::Arrived !== $this->status) {
+            throw new ValidationFailedException(
+                'Номер замовлення можна вказати лише до початку розвантаження'
+            );
+        }
+
+        $this->setOrderId($orderId, $now);
+    }
+
     public function assignDriver(?string $driverId, DateTimeImmutable $now): void
     {
         $this->driverId = $driverId;
@@ -837,7 +872,9 @@ final class Booking
 
         $store = $actor->canOperateStore($this->storeId);
         $supplier = $actor->role->isSupplier() && $actor->belongsToSupplier((string) $this->supplierId);
-        $driver = Role::Driver === $actor->role && null !== $this->driverId && $this->driverId === $actor->userId;
+        // Належність точки водієві визначає ПРОФІЛЬ (X-Driver-Profile-Id),
+        // а не обліковий запис із `sub` — єдина реалізація в Actor.
+        $driver = $actor->canActOnOwnRouteSheet($this->driverId);
 
         $allowed = match ($to) {
             // ST-01: водій цього бронювання або співробітник магазину.

@@ -19,6 +19,17 @@
   <h2 class="store">{{ point().storeName }}</h2>
   <p class="address">{{ point().city }}, {{ point().address }}</p>
 
+  @if (delay()?.flag) {
+    <p class="delay" role="status">
+      {{ 'point.delayed' | t }}
+      @if (delayEta(); as eta) {
+        <span class="delay-reason">
+          · {{ 'point.delayedEta' | t: { time: eta } }}
+        </span>
+      }
+    </p>
+  }
+
   <dl class="meta">
     <div class="meta-item">
       <dt>{{ 'point.ramp' | t }}</dt>
@@ -38,7 +49,22 @@
     </div>
   </dl>
 
+  @if (queued()) {
+    <p class="queued" role="status">{{ 'point.arriveQueued' | t }}</p>
+  }
+
   @if (!closed()) {
+    @if (canArrive()) {
+      <button
+        type="button"
+        class="btn arrive tall"
+        [disabled]="pending() || queued()"
+        (click)="onArrive()"
+      >
+        {{ (pending() ? 'point.arriveSending' : 'point.arrive') | t }}
+      </button>
+    }
+
     <button
       type="button"
       class="btn primary tall"
@@ -47,6 +73,47 @@
     >
       {{ 'point.route' | t }}
     </button>
+
+    @if (canEdit()) {
+      @if (editingOrder()) {
+        <div class="order-edit">
+          <label class="hint" [attr.for]="'order-' + point().bookingId">
+            {{ 'point.orderId' | t }}
+          </label>
+          <input
+            class="order-input"
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+            [id]="'order-' + point().bookingId"
+            [value]="orderDraft()"
+            [attr.placeholder]="'point.orderPlaceholder' | t"
+            (input)="onOrderInput($event)"
+          />
+          <div class="order-actions">
+            <button
+              type="button"
+              class="btn secondary small"
+              [disabled]="pending()"
+              (click)="submitOrder()"
+            >
+              {{ 'point.orderSave' | t }}
+            </button>
+            <button type="button" class="btn ghost small" (click)="cancelOrderEdit()">
+              {{ 'common.cancel' | t }}
+            </button>
+          </div>
+        </div>
+      } @else {
+        <button type="button" class="btn ghost" (click)="startOrderEdit()">
+          {{ (point().orderId ? 'point.orderEdit' : 'point.orderAdd') | t }}
+        </button>
+      }
+
+      <button type="button" class="btn ghost" (click)="onDelay()">
+        {{ 'point.delay' | t }}
+      </button>
+    }
   }
 </article>
 }

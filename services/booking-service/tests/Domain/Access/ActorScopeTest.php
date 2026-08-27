@@ -78,10 +78,101 @@ final class ActorScopeTest extends TestCase
     public function testPartnerRolesNeverOperateStores(): void
     {
         $supplier = new Actor('pu-1', Role::SupplierAdmin, supplierId: Scenario::SUPPLIER_ID, storeIds: [Scenario::STORE_ID]);
-        $driver = new Actor('du-1', Role::Driver, storeIds: [Scenario::STORE_ID]);
+        $driver = new Actor('acc-du-1', Role::Driver, storeIds: [Scenario::STORE_ID], driverProfileId: 'du-1');
 
         self::assertFalse($supplier->canOperateStore(Scenario::STORE_ID));
         self::assertFalse($driver->canOperateStore(Scenario::STORE_ID));
+    }
+
+    /** DRV: водій діє лише щодо точок, закріплених саме за його ПРОФІЛЕМ. */
+    public function testDriverActsOnlyOnOwnRouteSheetPoints(): void
+    {
+        $driver = new Actor('acc-du-1', Role::Driver, driverProfileId: 'du-1');
+
+        self::assertTrue($driver->canActOnOwnRouteSheet('du-1'));
+        self::assertFalse($driver->canActOnOwnRouteSheet('du-2'));
+        self::assertFalse($driver->canActOnOwnRouteSheet(null));
+        self::assertFalse($driver->canActOnOwnRouteSheet(''));
+        self::assertFalse($driver->canActOnOwnRouteSheet('  '));
+    }
+
+    /**
+     * DRV, головна регресія: обліковий запис із клейму `sub` НЕ є
+     * підставою для доступу. Бронювання, driverId якого випадково збігся
+     * з обліковим записом, водієві все одно не належить — належність
+     * визначає лише профіль.
+     */
+    public function testAccountIdIsNeverAcceptedInsteadOfDriverProfile(): void
+    {
+        $driver = new Actor('acc-du-1', Role::Driver, driverProfileId: 'du-1');
+
+        self::assertNotSame($driver->userId, $driver->driverProfileId);
+        self::assertFalse($driver->canActOnOwnRouteSheet('acc-du-1'));
+        self::assertFalse($driver->canActOnOwnRouteSheet($driver->userId));
+        self::assertTrue($driver->canActOnOwnRouteSheet($driver->driverProfileId));
+    }
+
+    /**
+     * DRV: водій без привʼязаного профілю (порожній X-Driver-Profile-Id)
+     * не має доступу НІ ДО ЧОГО — порожнє значення не «підходить будь-чому»
+     * і не відкочується на порівняння з обліковим записом.
+     */
+    #[DataProvider('emptyDriverProfileIds')]
+    public function testDriverWithoutProfileHasZeroRouteSheetAccess(?string $driverProfileId): void
+    {
+        $driver = new Actor('acc-du-1', Role::Driver, driverProfileId: $driverProfileId);
+
+        self::assertNull($driver->driverProfileId);
+        self::assertFalse($driver->hasDriverProfile());
+
+        foreach (['du-1', 'du-2', 'acc-du-1', '', null] as $bookingDriverId) {
+            self::assertFalse(
+                $driver->canActOnOwnRouteSheet($bookingDriverId),
+                'Водій без профілю не має доступу до жодного бронювання',
+            );
+        }
+    }
+
+    /**
+     * Перевірка маршрутного листа — ДОДАТКОВА, а не альтернативна: жодна інша
+     * роль (включно з системним актором) не отримує через неї повноважень.
+     */
+    #[DataProvider('nonDriverActors')]
+    public function testOnlyDriverRoleCanActOnRouteSheetPoints(Actor $actor): void
+    {
+        self::assertFalse($actor->hasDriverProfile());
+        self::assertFalse($actor->canActOnOwnRouteSheet($actor->userId));
+        self::assertFalse($actor->canActOnOwnRouteSheet('du-1'));
+    }
+
+    /**
+     * Профіль водія у не-водія не додає повноважень: роль лишається
+     * єдиним ключем до контуру.
+     */
+    #[DataProvider('nonDriverActorsWithDriverProfile')]
+    public function testDriverProfileGrantsNothingToNonDriverRoles(Actor $actor): void
+    {
+        self::assertFalse($actor->hasDriverProfile());
+        self::assertFalse($actor->canActOnOwnRouteSheet('du-1'));
+    }
+
+    /** Повноважень магазину перевірка маршрутного листа водієві не додає. */
+    public function testRouteSheetOwnershipGrantsNoStorePowers(): void
+    {
+        $driver = new Actor('acc-du-1', Role::Driver, storeIds: [Scenario::STORE_ID], driverProfileId: 'du-1');
+
+        self::assertTrue($driver->canActOnOwnRouteSheet('du-1'));
+        self::assertFalse($driver->canOperateStore(Scenario::STORE_ID));
+    }
+
+    /** Профіль нормалізується так само, як решта ідентифікаторів. */
+    public function testDriverProfileIdIsTrimmed(): void
+    {
+        $driver = new Actor('acc-du-1', Role::Driver, driverProfileId: '  du-1  ');
+
+        self::assertSame('du-1', $driver->driverProfileId);
+        self::assertTrue($driver->canActOnOwnRouteSheet('du-1'));
+        self::assertFalse($driver->canActOnOwnRouteSheet('  du-1  '));
     }
 
     /** NOSH-01: системний актор cron працює в будь-якій філії. */
@@ -185,11 +276,47 @@ final class ActorScopeTest extends TestCase
     }
 
     /**
+     * @return iterable<string, array{Actor}>
+     */
+    public static function nonDriverActors(): iterable
+    {
+        yield 'store_manager' => [new Actor('su-1', Role::StoreManager, storeIds: [Scenario::STORE_ID])];
+        yield 'store_operator' => [new Actor('su-2', Role::StoreOperator, storeIds: [Scenario::STORE_ID])];
+        yield 'network_manager' => [new Actor('ad-1', Role::NetworkManager)];
+        yield 'super_admin' => [new Actor('ad-2', Role::SuperAdmin)];
+        yield 'analyst' => [new Actor('an-1', Role::Analyst)];
+        yield 'supplier_admin' => [new Actor('pu-1', Role::SupplierAdmin, supplierId: Scenario::SUPPLIER_ID)];
+        yield 'supplier_operator' => [new Actor('pu-2', Role::SupplierOperator, supplierId: Scenario::SUPPLIER_ID)];
+        yield 'system' => [Actor::system()];
+    }
+
+    /**
+     * @return iterable<string, array{Actor}>
+     */
+    public static function nonDriverActorsWithDriverProfile(): iterable
+    {
+        yield 'store_manager' => [new Actor('su-1', Role::StoreManager, storeIds: [Scenario::STORE_ID], driverProfileId: 'du-1')];
+        yield 'network_manager' => [new Actor('ad-1', Role::NetworkManager, driverProfileId: 'du-1')];
+        yield 'analyst' => [new Actor('an-1', Role::Analyst, driverProfileId: 'du-1')];
+        yield 'supplier_admin' => [new Actor('pu-1', Role::SupplierAdmin, supplierId: Scenario::SUPPLIER_ID, driverProfileId: 'du-1')];
+    }
+
+    /**
      * @return iterable<string, array{?string}>
      */
     public static function emptySupplierIds(): iterable
     {
         yield 'null' => [null];
         yield 'порожній рядок' => [''];
+    }
+
+    /**
+     * @return iterable<string, array{?string}>
+     */
+    public static function emptyDriverProfileIds(): iterable
+    {
+        yield 'null' => [null];
+        yield 'порожній рядок' => [''];
+        yield 'самі пробіли' => ['   '];
     }
 }

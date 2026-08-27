@@ -6,6 +6,7 @@ namespace App\Tests\Support;
 
 use App\Application\Booking\BookingCreationService;
 use App\Application\Booking\BookingLifecycleService;
+use App\Application\Booking\DriverBookingService;
 use App\Application\Booking\NewBookingRequest;
 use App\Application\Booking\NoShowSweeper;
 use App\Application\Booking\WalkInRequest;
@@ -65,6 +66,7 @@ final class Scenario
     public RouteSheetService $routeSheets;
     public BookingCreationService $creation;
     public BookingLifecycleService $lifecycle;
+    public DriverBookingService $driverBookings;
     public NoShowSweeper $sweeper;
 
     public function __construct(string $now = '2026-08-27T06:00:00Z', ?StoreSettings $settings = null)
@@ -110,6 +112,7 @@ final class Scenario
         );
 
         $this->lifecycle = new BookingLifecycleService($this->bookings, $this->grid, $this->routeSheets);
+        $this->driverBookings = new DriverBookingService($this->lifecycle, $this->bookings);
         $this->sweeper = new NoShowSweeper($this->bookings, $this->stores, $this->routeSheets);
     }
 
@@ -169,9 +172,33 @@ final class Scenario
         return new Actor('su-1', $role, storeIds: $storeIds);
     }
 
-    public function driver(string $driverId = 'du-1'): Actor
+    /**
+     * Водій контуру partner.
+     *
+     * DRV: обліковий запис (X-User-Id, клейм `sub`) і профіль водія
+     * (X-Driver-Profile-Id) — РІЗНІ ідентифікатори, тому за замовчуванням
+     * акаунт свідомо не дорівнює профілю: тести мають ловити будь-яку
+     * спробу порівняти booking.driverId з обліковим записом.
+     */
+    public function driver(string $driverProfileId = 'du-1', ?string $userId = null): Actor
     {
-        return new Actor($driverId, Role::Driver);
+        return new Actor(
+            $userId ?? self::accountOf($driverProfileId),
+            Role::Driver,
+            driverProfileId: $driverProfileId,
+        );
+    }
+
+    /** Водій, обліковий запис якого не привʼязаний до профілю — нуль доступу. */
+    public function driverWithoutProfile(string $userId = 'acc-du-1'): Actor
+    {
+        return new Actor($userId, Role::Driver);
+    }
+
+    /** Обліковий запис identity-partner-service для профілю partner-service. */
+    public static function accountOf(string $driverProfileId): string
+    {
+        return 'acc-'.$driverProfileId;
     }
 
     public function networkAdmin(): Actor

@@ -19,6 +19,14 @@
   <p class="banner offline" role="status">{{ banner }}</p>
 }
 
+@if (queueBanner(); as banner) {
+  <p class="banner queued" role="status">{{ banner }}</p>
+}
+
+@if (store.actionError(); as message) {
+  <p class="banner action-error" role="alert">{{ message }}</p>
+}
+
 @if (install.available()) {
   <aside class="install">
     <div>
@@ -77,8 +85,14 @@
         <app-point-card
           [point]="point"
           [active]="isActive(i)"
+          [pending]="store.isPending(point.bookingId)"
+          [queued]="store.isQueued(point.bookingId)"
+          [delay]="store.delayOf(point.bookingId)"
           (routeRequested)="onRouteRequested($event)"
           (routeOptionsRequested)="openNavigatorSheet($event)"
+          (arriveRequested)="onArrive($event)"
+          (delayRequested)="openDelaySheet($event)"
+          (orderIdSubmitted)="onOrderIdSubmitted($event)"
         />
       </li>
     }
@@ -118,4 +132,70 @@
       {{ 'common.cancel' | t }}
     </button>
   </app-bottom-sheet>
+}
+
+@if (openSheet() === 'delay') {
+  <app-bottom-sheet [heading]="'delay.title' | t" (dismiss)="closeSheet()">
+    <p class="sheet-legend">{{ 'delay.reasonLegend' | t }}</p>
+    @for (reason of delayReasons; track reason) {
+      <button
+        type="button"
+        class="sheet-item"
+        [class.selected]="delayReason() === reason"
+        [attr.aria-pressed]="delayReason() === reason"
+        (click)="chooseReason(reason)"
+      >
+        {{ reasonLabelKey(reason) | t }}
+      </button>
+    }
+
+    @if (commentRequired()) {
+      <label class="sheet-legend" for="delay-comment">
+        {{ 'delay.commentLabel' | t }}
+      </label>
+      <textarea
+        id="delay-comment"
+        class="sheet-input"
+        rows="2"
+        [value]="delayComment()"
+        [attr.placeholder]="'delay.commentPlaceholder' | t"
+        (input)="onCommentInput($event)"
+      ></textarea>
+    }
+
+    <p class="sheet-legend">{{ 'delay.etaLegend' | t }}</p>
+    <div class="eta-options">
+      @for (option of delayOptions; track option.minutes) {
+        <button
+          type="button"
+          class="chip"
+          [class.selected]="delayMinutes() === option.minutes"
+          [attr.aria-pressed]="delayMinutes() === option.minutes"
+          (click)="chooseDelayMinutes(option.minutes)"
+        >
+          {{ option.labelKey | t }}
+        </button>
+      }
+    </div>
+
+    @if (store.actionError(); as message) {
+      <p class="sheet-error" role="alert">{{ message }}</p>
+    }
+
+    <button
+      type="button"
+      class="sheet-item primary"
+      [disabled]="!canSubmitDelay() || delaySubmitting()"
+      (click)="submitDelay()"
+    >
+      {{ (delaySubmitting() ? 'delay.sending' : 'delay.submit') | t }}
+    </button>
+    <button type="button" class="sheet-item ghost" (click)="closeSheet()">
+      {{ 'common.cancel' | t }}
+    </button>
+  </app-bottom-sheet>
+}
+
+@if (toast(); as message) {
+  <p class="toast" role="status">{{ message }}</p>
 }

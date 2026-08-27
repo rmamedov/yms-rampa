@@ -13,8 +13,14 @@ export class ProblemMessageService {
   /**
    * Лише коди, які реально можуть прийти у контурі водія:
    * identity-partner-service (AuthException::errorCode) і booking-service
-   * (DomainProblem::errorCode) на маршруті route-sheet. Коди контуру
-   * постачальника (SLOT_*, VEHICLE_TOO_HEAVY тощо) сюди не долітають.
+   * (DomainProblem::errorCode) на маршруті route-sheet та трьох маршрутах
+   * дій водія. Коди контуру постачальника (SLOT_*, VEHICLE_TOO_HEAVY тощо)
+   * сюди не долітають.
+   *
+   * VALIDATION_FAILED свідомо НЕ мапиться: бекенд віддає в `detail`
+   * готове українське пояснення («ETA має бути в майбутньому», «Номер
+   * замовлення можна вказати лише до початку розвантаження»), і воно
+   * точніше за будь-який загальний текст.
    */
   private readonly byCode: Record<string, string> = {
     AUTH_INVALID_CREDENTIALS: 'login.error.invalidCredentials',
@@ -30,6 +36,7 @@ export class ProblemMessageService {
     NOT_FOUND: 'error.notFound',
     ROUTE_NOT_FOUND: 'error.notFound',
     BOOKING_NOT_FOUND: 'error.notFound',
+    INVALID_STATUS_TRANSITION: 'error.invalidTransition',
     UPSTREAM_UNAVAILABLE: 'error.upstreamUnavailable',
     INTERNAL_ERROR: 'error.generic',
   };

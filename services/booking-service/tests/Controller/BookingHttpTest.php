@@ -10,10 +10,12 @@ use App\Controller\Store\WalkInController;
 use App\Controller\Supplier\BookingController;
 use App\Controller\Supplier\SlotGridController;
 use App\Controller\Supplier\SlotHoldController;
+use App\Domain\Access\AccessDeniedException;
 use App\Domain\Exception\ValidationFailedException;
 use App\Infrastructure\Http\ActorResolver;
 use App\Tests\Support\Scenario;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -236,15 +238,71 @@ final class BookingHttpTest extends TestCase
 
         $controller = new DriverRouteSheetController($scenario->routeSheets, new ActorResolver(), $scenario->clock);
 
+        // DRV: обліковий запис у X-User-Id, профіль у X-Driver-Profile-Id.
         $request = Request::create('/api/driver/v1/route-sheet?date=2026-08-28', 'GET');
-        $request->headers->set(ActorResolver::USER_HEADER, 'du-7');
+        $request->headers->set(ActorResolver::USER_HEADER, Scenario::accountOf('du-7'));
         $request->headers->set(ActorResolver::ROLE_HEADER, 'driver');
+        $request->headers->set(ActorResolver::DRIVER_PROFILE_HEADER, 'du-7');
 
         $payload = $this->decode($controller($request));
 
         self::assertSame('du-7', $payload['driverId']);
         self::assertCount(1, $payload['routeSheets']);
         self::assertSame($booking->id, $payload['routeSheets'][0]['points'][0]['bookingId']);
+    }
+
+    /** Маршрутний лист шукається за профілем — обліковий запис не підходить. */
+    public function testDriverRouteSheetIsEmptyForAccountIdInsteadOfProfileId(): void
+    {
+        $scenario = new Scenario();
+        $booking = $scenario->book('2026-08-28 10:00');
+        $scenario->routeSheets->assignDriverToBooking($scenario->supplier(), $booking->id, 'du-7', $scenario->now());
+
+        $controller = new DriverRouteSheetController($scenario->routeSheets, new ActorResolver(), $scenario->clock);
+
+        $request = Request::create('/api/driver/v1/route-sheet?date=2026-08-28', 'GET');
+        $request->headers->set(ActorResolver::USER_HEADER, Scenario::accountOf('du-7'));
+        $request->headers->set(ActorResolver::ROLE_HEADER, 'driver');
+        $request->headers->set(ActorResolver::DRIVER_PROFILE_HEADER, 'du-8');
+
+        $payload = $this->decode($controller($request));
+
+        self::assertSame('du-8', $payload['driverId']);
+        self::assertSame([], $payload['routeSheets']);
+    }
+
+    /** Водій без привʼязаного профілю не отримує навіть перегляду листа. */
+    #[DataProvider('emptyDriverProfileHeaders')]
+    public function testDriverRouteSheetIsDeniedWithoutDriverProfile(?string $header): void
+    {
+        $scenario = new Scenario();
+        $booking = $scenario->book('2026-08-28 10:00');
+        $scenario->routeSheets->assignDriverToBooking($scenario->supplier(), $booking->id, 'acc-du-7', $scenario->now());
+
+        $controller = new DriverRouteSheetController($scenario->routeSheets, new ActorResolver(), $scenario->clock);
+
+        $request = Request::create('/api/driver/v1/route-sheet?date=2026-08-28', 'GET');
+        $request->headers->set(ActorResolver::USER_HEADER, 'acc-du-7');
+        $request->headers->set(ActorResolver::ROLE_HEADER, 'driver');
+
+        if (null !== $header) {
+            $request->headers->set(ActorResolver::DRIVER_PROFILE_HEADER, $header);
+        }
+
+        $this->expectException(AccessDeniedException::class);
+        $this->expectExceptionMessage('Обліковий запис водія не привʼязаний до профілю водія');
+
+        $controller($request);
+    }
+
+    /**
+     * @return iterable<string, array{?string}>
+     */
+    public static function emptyDriverProfileHeaders(): iterable
+    {
+        yield 'заголовка немає' => [null];
+        yield 'порожній рядок' => [''];
+        yield 'самі пробіли' => ['   '];
     }
 
     private function bookingController(Scenario $scenario): BookingController

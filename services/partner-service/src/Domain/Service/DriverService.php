@@ -52,6 +52,13 @@ final readonly class DriverService
      * унікальність серед активних водіїв (DATA-17) — саме він стає логіном.
      * Пароль генерується сервером, повертається рівно один раз і
      * публікується в події DriverCreated для SMS.
+     *
+     * ПОРЯДОК КРОКІВ — це і є захист від «осиротілого» профілю: облікові дані
+     * створюються ПЕРШИМИ, і лише після підтвердження від контуру ідентичності
+     * зʼявляється запис у `partner_users`. Якщо сусід недоступний або відмовив,
+     * виняток летить ще до `users->save()`, тож водія, який існує в довіднику,
+     * але не може увійти, не буває. Компенсація нижче закриває дзеркальний
+     * випадок: акаунт створено, а профіль записати не вдалося.
      */
     public function createDriver(
         string $supplierId,
@@ -96,7 +103,15 @@ final readonly class DriverService
         } catch (\Throwable $e) {
             // Компенсація: акаунт уже створено в контурі ідентичності,
             // але профілю немає — блокуємо логін, щоб не лишити «сироту».
-            $this->accounts->setAccountActive($accountId, false);
+            try {
+                $this->accounts->setAccountActive($accountId, false);
+            } catch (\Throwable) {
+                // Компенсація теж не вдалася (сусід недоступний). Ковтаємо саме
+                // цю помилку, а не первісну: користувач має побачити ПРИЧИНУ
+                // збою запису профілю, інакше справжня аварія загубиться за
+                // «сервіс облікових записів недоступний». Слід невдалої
+                // компенсації лишається в журналі шлюзу.
+            }
 
             throw $e;
         }
@@ -120,15 +135,19 @@ final readonly class DriverService
      * SUP-DRV-04: перегенерація пароля. Старий пароль інвалідовується,
      * активні сесії водія завершуються (це робить identity-partner-service),
      * новий пароль показується одноразово і дублюється SMS.
+     *
+     * У SMS і в модалку йде пароль, який ПОВЕРНУВ шлюз, а не той, що ми
+     * запропонували: паролем водія володіє контур ідентичності (AUTH-25) і
+     * може згенерувати власний. Показати одне, а зберегти інше — це той самий
+     * «водій не може увійти», лише на крок пізніше.
      */
     public function regeneratePassword(string $supplierId, string $driverId): DriverCredentials
     {
         $driver = $this->getDriver($supplierId, $driverId);
         $supplier = $this->requireSupplier($supplierId);
         $now = $this->clock->now();
-        $password = $this->passwords->generate();
 
-        $this->accounts->resetPassword($driver->accountId(), $password);
+        $password = $this->accounts->resetPassword($driver->accountId(), $this->passwords->generate());
 
         $this->events->publish(new DriverCreated(
             driverProfileId: $driver->id(),

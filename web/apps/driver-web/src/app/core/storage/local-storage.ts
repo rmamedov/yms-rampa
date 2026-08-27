@@ -8,6 +8,7 @@ export const STORAGE_KEYS = {
   session: 'yms.driver.session',
   navigatorApp: 'yms.driver.navigator',
   routeSheetCache: 'yms.driver.routeSheetCache',
+  arrivalQueue: 'yms.driver.arrivalQueue',
   installPromptDismissed: 'yms.driver.installPromptDismissed',
 } as const;
 

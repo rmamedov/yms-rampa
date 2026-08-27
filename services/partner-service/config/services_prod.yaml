@@ -1,0 +1,19 @@
+# Порядок імпорту в MicroKernelTrait::configureContainer такий:
+#
+#   config/packages/*.yaml → config/packages/prod/*.yaml → config/services.yaml
+#   → config/services_prod.yaml
+#
+# Тобто config/services.yaml завантажується ПІСЛЯ config/packages/prod/ і
+# затирає прод-профіль двічі: глоб `App\` перереєстровує класи src/ на чисте
+# автовайрингове визначення (гублячи явні аргументи — базовий URL сусіда), а
+# кореневі аліаси портів повертають домен на InMemory-заглушки. Тому прод-
+# профіль міжсервісних залежностей (єдине джерело правди —
+# config/packages/prod/upstream.yaml) імпортуємо ще раз, останнім: тепер порт
+# PartnerAccountGateway вказує саме на HTTP-реалізацію.
+#
+# Сховища (MongoDB) такого повтору не потребують: їхні прод-аліаси оголошені
+# в блоці `when@prod` самого config/services.yaml, тобто вже після глоба.
+#
+# Файл діє лише при APP_ENV=prod, тож dev і тести лишаються на InMemory.
+imports:
+    - { resource: packages/prod/upstream.yaml }

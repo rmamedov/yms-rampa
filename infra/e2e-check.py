@@ -11,10 +11,11 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 IP = "104.248.132.130"
 SUPPLIER = f"https://yms.{IP}.sslip.io"
+DRIVER = f"https://driver.{IP}.sslip.io"
 STORE = f"https://store.{IP}.sslip.io"
 ADMIN = f"https://admin.{IP}.sslip.io"
 
@@ -22,6 +23,9 @@ SUPPLIER_LOGIN = {"login": "supplier@rampa.ua", "password": "${YMS_SUPPLIER_PASS
 STAFF_LOGIN = {"email": "admin@rampa.ua", "password": "${YMS_ADMIN_PASSWORD}"}
 
 passed, failed = [], []
+
+with open("/tmp/driver.json") as f:
+    DRIVER_PROFILE = json.load(f)
 
 
 def call(method, base, path, token=None, body=None, headers=None):
@@ -115,8 +119,11 @@ def main():
     check("авто понад тоннаж філії не бронює", st == 422 and res.get("code") == "VEHICLE_TOO_HEAVY",
           f"{st} {res.get('code')}")
 
+    # Номер унікальний на кожен запуск: інакше спрацює BOOK-04 (перетин за
+    # часом для того самого авто) і перевірка стане одноразовою.
+    plate = "AA" + datetime.now().strftime("%H%M") + "BC"
     booking = dict(key, holdToken=hold["holdToken"], palletsCount=14, orderId="ORD-2026-0001",
-                   vehicle={"plateNumber": "AA1234BC", "weightTons": 12.5, "brand": "Mercedes Actros"})
+                   vehicle={"plateNumber": plate, "weightTons": 12.5, "brand": "Mercedes Actros"})
     st, res = call("POST", SUPPLIER, "/api/supplier/v1/bookings", stoken, booking)
     if not check("бронювання створено", st in (200, 201), f"{st} {res.get('code')} {res.get('detail','')}"):
         return report()
@@ -133,15 +140,48 @@ def main():
     st, res = call("GET", SUPPLIER, f"/api/supplier/v1/route-sheets?date={day}", stoken)
     check("маршрутний лист сформовано", st == 200, f"{st} {res.get('detail','')}")
 
-    print("\n7. Дії магазину")
-    for action, label in [("arrived", "машина на місці"),
-                          ("unloading", "розвантаження почалось"),
-                          ("completed", "розвантажено")]:
-        body = {"unloadedPalletsCount": 14} if action == "completed" else {}
-        st, res = call("POST", STORE, f"/api/store/v1/bookings/{booking_id}/{action}", ktoken, body)
-        check(label, st in (200, 204), f"{st} {res.get('code')} {res.get('detail','')}")
+    print("\n7. Призначення водія")
+    st, res = call("POST", SUPPLIER, "/api/supplier/v1/route-sheets/driver", stoken,
+                   {"date": day, "bookingId": booking_id, "driverId": DRIVER_PROFILE["id"]})
+    check("водія призначено на бронювання", st in (200, 204), f"{st} {res.get('code')} {res.get('detail','')}")
 
+    driver_flow(stoken, ktoken, store_id, day, booking_id, DRIVER_PROFILE)
     return report()
+
+
+
+def driver_flow(stoken, ktoken, store_id, day, booking_id, driver):
+    """Сценарій водія: вхід за телефоном, маршрутний лист, відмітка «На місці»."""
+    print("\n8. Водій")
+    st, res = call("POST", DRIVER, "/api/driver/v1/auth/login",
+                   body={"phone": driver["phone"], "password": driver["password"]})
+    if not check("водій входить за телефоном", st == 200, f"{st} {res.get('detail','')}"):
+        return
+    dtoken = res["accessToken"]
+
+    st, res = call("POST", DRIVER, "/api/driver/v1/auth/login",
+                   body={"phone": "0" + driver["phone"][4:], "password": driver["password"]})
+    check("телефон у форматі 0XX теж приймається", st == 200, f"отримано {st}")
+
+    st, sheet = call("GET", DRIVER, f"/api/driver/v1/route-sheet?date={day}", dtoken)
+    check("водій бачить свій маршрутний лист", st == 200, f"{st} {sheet.get('detail','')}")
+
+    st, res = call("POST", DRIVER, f"/api/driver/v1/bookings/{booking_id}/arrived", dtoken, {})
+    check("водій відмічає «На місці»", st in (200, 204), f"{st} {res.get('code')} {res.get('detail','')}")
+
+    st, res = call("POST", DRIVER, f"/api/driver/v1/bookings/{booking_id}/arrived", dtoken, {})
+    check("повторне «На місці» не ламає стан", st in (200, 204), f"отримано {st}")
+
+    st, res = call("POST", STORE, f"/api/store/v1/bookings/{booking_id}/unloading", ktoken, {})
+    check("магазин починає розвантаження", st in (200, 204), f"{st} {res.get('detail','')}")
+
+    st, res = call("POST", DRIVER, f"/api/driver/v1/bookings/{booking_id}/unloading", dtoken, {})
+    check("водій НЕ може керувати розвантаженням", st in (403, 404, 405), f"отримано {st}")
+
+    st, res = call("POST", STORE, f"/api/store/v1/bookings/{booking_id}/completed", ktoken,
+                   {"unloadedPalletsCount": 14})
+    check("магазин фіксує розвантаження", st in (200, 204), f"{st} {res.get('detail','')}")
+
 
 
 def report():

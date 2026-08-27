@@ -58,6 +58,43 @@ final readonly class RequestPayload
         return \array_key_exists($key, $this->data);
     }
 
+    /**
+     * Поля, які фактично надіслав клієнт. Потрібні там, де контур має
+     * ЗАКРИТИЙ перелік дозволених полів (контур водія змінює лише orderId).
+     *
+     * @return list<string>
+     */
+    public function keys(): array
+    {
+        return array_map(strval(...), array_keys($this->data));
+    }
+
+    /**
+     * Значення поля як елемент довідника з українським переліком допустимих
+     * варіантів у повідомленні про помилку.
+     *
+     * @template T of \BackedEnum
+     *
+     * @param class-string<T> $enum
+     *
+     * @return T
+     */
+    public function requiredEnum(string $enum, string $key): \BackedEnum
+    {
+        $value = $this->requiredString($key);
+        $case = $enum::tryFrom($value);
+
+        if (null === $case) {
+            throw new ValidationFailedException(\sprintf(
+                'Значення «%s» відсутнє в довіднику. Допустимі: %s',
+                $value,
+                implode(', ', array_map(static fn (\BackedEnum $c) => (string) $c->value, $enum::cases())),
+            ));
+        }
+
+        return $case;
+    }
+
     public function requiredString(string $key): string
     {
         $value = $this->data[$key] ?? null;

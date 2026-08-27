@@ -24,11 +24,25 @@ use Symfony\Component\Routing\Attribute\Route;
  *   Authorization: Bearer <access-токен>
  *
  *   204 No Content, без тіла:
- *     X-User-Id     — sub токена
- *     X-User-Role   — клейм role (однина)
- *     X-Supplier-Id — постачальник або порожній рядок
- *     X-Store-Ids   — магазини у скоупі через кому або порожній рядок
- *     X-Contour     — staff | partner
+ *     X-User-Id           — sub токена (обліковий запис)
+ *     X-User-Role         — клейм role (однина)
+ *     X-Supplier-Id       — постачальник або порожній рядок
+ *     X-Store-Ids         — магазини у скоупі через кому або порожній рядок
+ *     X-Contour           — staff | partner
+ *     X-Driver-Profile-Id — профіль водія або порожній рядок
+ *
+ * ЧОМУ ШОСТИЙ ЗАГОЛОВОК. У водія дві ідентичності: обліковий запис
+ * (`partner_accounts`, він же `sub`) і бізнес-профіль (`partner_users` у
+ * partner-service). Ідентифікатори різні, а booking-service зберігає в
+ * `booking.driverId` саме ПРОФІЛЬ. Поки шлюз передавав лише `sub`, перевірка
+ * «це бронювання мого маршрутного листа» не проходила ніколи — кожен водій
+ * отримував 403 на «На місці». X-Driver-Profile-Id віддає сервісам ту саму
+ * ідентичність, якою вони оперують.
+ *
+ * ЗАГОЛОВОК ПРИСУТНІЙ ЗАВЖДИ, навіть порожній: шлюз підставляє всі шість
+ * заголовків примусово, і йому потрібне значення, яким можна ЗАТЕРТИ те, що
+ * підклав клієнт. Відсутній заголовок затерти нічим — клієнтський пройшов би
+ * наскрізь і дозволив би видати себе за чужого водія.
  *
  *   401 application/problem+json, code=AUTH_TOKEN_INVALID — будь-яка невдача:
  *     підпис, iss/aud, чужий контур, exp, denylist jti, деактивований акаунт,
@@ -46,6 +60,7 @@ final readonly class InternalAuthVerifyController
     public const string SUPPLIER_HEADER = 'X-Supplier-Id';
     public const string STORE_IDS_HEADER = 'X-Store-Ids';
     public const string CONTOUR_HEADER = 'X-Contour';
+    public const string DRIVER_PROFILE_HEADER = 'X-Driver-Profile-Id';
 
     public function __construct(private AccessTokenIntrospector $introspector)
     {
@@ -65,6 +80,9 @@ final readonly class InternalAuthVerifyController
             // Магазини у скоуп партнера не входять — завжди порожній рядок.
             self::STORE_IDS_HEADER => $identity->storeIdsHeaderValue(),
             self::CONTOUR_HEADER => $identity->contour->value,
+            // Порожній рядок для всіх ролей, крім driver, і для водія без
+            // привʼязаного профілю — але сам заголовок є завжди.
+            self::DRIVER_PROFILE_HEADER => $identity->driverProfileIdHeaderValue(),
         ]);
     }
 

@@ -9,7 +9,6 @@ use App\Domain\Booking\DelayReason;
 use App\Domain\Booking\PartialUnload;
 use App\Domain\Booking\PartialUnloadReason;
 use App\Domain\Booking\RejectionReason;
-use App\Domain\Exception\ValidationFailedException;
 use App\Domain\Shared\Clock;
 use App\Infrastructure\Http\ActorResolver;
 use App\Infrastructure\Http\BookingPresenter;
@@ -63,7 +62,7 @@ final readonly class BookingActionController
         if ($payload->has('partialUnload')) {
             $partialPayload = RequestPayload::fromArray($payload->object('partialUnload'));
             $partial = new PartialUnload(
-                reason: self::enumOf(PartialUnloadReason::class, $partialPayload->requiredString('reason')),
+                reason: $partialPayload->requiredEnum(PartialUnloadReason::class, 'reason'),
                 comment: $partialPayload->optionalString('comment'),
             );
         }
@@ -86,7 +85,7 @@ final readonly class BookingActionController
         return $this->respond($this->lifecycle->reject(
             actor: $this->actors->fromRequest($request),
             bookingId: $bookingId,
-            reason: self::enumOf(RejectionReason::class, $payload->requiredString('reason')),
+            reason: $payload->requiredEnum(RejectionReason::class, 'reason'),
             now: $this->clock->now(),
             comment: $payload->optionalString('comment'),
         ));
@@ -112,7 +111,7 @@ final readonly class BookingActionController
         return $this->respond($this->lifecycle->setDelay(
             actor: $this->actors->fromRequest($request),
             bookingId: $bookingId,
-            reason: self::enumOf(DelayReason::class, $payload->requiredString('reason')),
+            reason: $payload->requiredEnum(DelayReason::class, 'reason'),
             eta: $payload->requiredDateTime('eta'),
             now: $this->clock->now(),
             comment: $payload->optionalString('comment'),
@@ -136,27 +135,5 @@ final readonly class BookingActionController
     private function respond(\App\Domain\Booking\Booking $booking): JsonResponse
     {
         return new JsonResponse(BookingPresenter::toArray($booking));
-    }
-
-    /**
-     * @template T of \BackedEnum
-     *
-     * @param class-string<T> $enum
-     *
-     * @return T
-     */
-    private static function enumOf(string $enum, string $value): \BackedEnum
-    {
-        $case = $enum::tryFrom($value);
-
-        if (null === $case) {
-            throw new ValidationFailedException(\sprintf(
-                'Значення «%s» відсутнє в довіднику. Допустимі: %s',
-                $value,
-                implode(', ', array_map(static fn (\BackedEnum $c) => (string) $c->value, $enum::cases())),
-            ));
-        }
-
-        return $case;
     }
 }

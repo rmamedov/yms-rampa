@@ -52,7 +52,7 @@ final class BookingStateMachineTest extends TestCase
     public function testDriverMarksArrived(): void
     {
         $booking = BookingFactory::scheduled(driverId: 'du-9');
-        $event = $booking->markArrived(new Actor('du-9', Role::Driver), Scenario::kyiv('2026-08-28 09:55'));
+        $event = $booking->markArrived($this->driverActor('du-9'), Scenario::kyiv('2026-08-28 09:55'));
 
         self::assertSame(BookingStatus::Arrived, $booking->status());
         self::assertSame(EventType::BookingArrived, $event->type);
@@ -73,7 +73,29 @@ final class BookingStateMachineTest extends TestCase
         $booking = BookingFactory::scheduled(driverId: 'du-9');
 
         $this->expectException(TransitionNotAllowedException::class);
-        $booking->markArrived(new Actor('du-77', Role::Driver), Scenario::kyiv('2026-08-28 09:55'));
+        $booking->markArrived($this->driverActor('du-77'), Scenario::kyiv('2026-08-28 09:55'));
+    }
+
+    /**
+     * DRV: машина станів звіряє driverId саме з профілем. Водій без
+     * профілю не проходить ST-01 навіть тоді, коли driverId бронювання
+     * збігся з його обліковим записом.
+     */
+    public function testDriverWithoutProfileCannotMarkArrived(): void
+    {
+        $booking = BookingFactory::scheduled(driverId: 'acc-du-9');
+
+        $this->expectException(TransitionNotAllowedException::class);
+        $booking->markArrived(new Actor('acc-du-9', Role::Driver), Scenario::kyiv('2026-08-28 09:55'));
+    }
+
+    /** Так само не проходить водій, чий обліковий запис збігся з чужим профілем. */
+    public function testDriverAccountIdIsNotAcceptedAsDriverProfileId(): void
+    {
+        $booking = BookingFactory::scheduled(driverId: Scenario::accountOf('du-9'));
+
+        $this->expectException(TransitionNotAllowedException::class);
+        $booking->markArrived($this->driverActor('du-9'), Scenario::kyiv('2026-08-28 09:55'));
     }
 
     public function testSupplierCannotMarkArrived(): void
@@ -273,7 +295,7 @@ final class BookingStateMachineTest extends TestCase
     public function testStatusHistoryIsAppendOnly(): void
     {
         $booking = BookingFactory::scheduled(driverId: 'du-9');
-        $booking->markArrived(new Actor('du-9', Role::Driver), Scenario::kyiv('2026-08-28 09:55'));
+        $booking->markArrived($this->driverActor('du-9'), Scenario::kyiv('2026-08-28 09:55'));
         $booking->startUnloading($this->storeActor(), Scenario::kyiv('2026-08-28 10:05'));
         $booking->complete($this->storeActor(), Scenario::kyiv('2026-08-28 10:25'));
 
@@ -295,7 +317,7 @@ final class BookingStateMachineTest extends TestCase
     {
         $booking = BookingFactory::scheduled(driverId: 'du-9');
         $event = $booking->setDelay(
-            new Actor('du-9', Role::Driver),
+            $this->driverActor('du-9'),
             DelayReason::TrafficJam,
             Scenario::kyiv('2026-08-28 10:40'),
             Scenario::kyiv('2026-08-28 09:30'),
@@ -305,7 +327,7 @@ final class BookingStateMachineTest extends TestCase
         self::assertTrue($booking->delayed()->flag);
         self::assertSame(EventType::BookingDelaySet, $event->type);
 
-        $booking->markArrived(new Actor('du-9', Role::Driver), Scenario::kyiv('2026-08-28 10:45'));
+        $booking->markArrived($this->driverActor('du-9'), Scenario::kyiv('2026-08-28 10:45'));
         $booking->startUnloading($this->storeActor(), Scenario::kyiv('2026-08-28 10:50'));
 
         self::assertFalse($booking->delayed()->flag);
@@ -355,6 +377,19 @@ final class BookingStateMachineTest extends TestCase
     private function storeActor(): Actor
     {
         return new Actor('su-1', Role::StoreManager, storeIds: [Scenario::STORE_ID]);
+    }
+
+    /**
+     * Водій контуру partner: обліковий запис із клейму `sub` і ПРОФІЛЬ водія
+     * (те, що лежить у booking.driverId) — різні ідентифікатори (DRV).
+     */
+    private function driverActor(string $driverProfileId): Actor
+    {
+        return new Actor(
+            Scenario::accountOf($driverProfileId),
+            Role::Driver,
+            driverProfileId: $driverProfileId,
+        );
     }
 
     private function unloading(): \App\Domain\Booking\Booking

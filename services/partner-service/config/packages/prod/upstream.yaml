@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+#
+# ПРОД-ЗАЛЕЖНІСТЬ ВІД identity-partner-service (DATA-35, AUTH-23…AUTH-28).
+#
+# Файл читається ЛИШЕ при APP_ENV=prod. Dev і тести лишаються на
+# InMemoryPartnerAccountGateway із config/services.yaml і не потребують ані
+# піднятого сусіда, ані мережі взагалі.
+#
+# ТРАНСПОРТ. Базовий URL показує на внутрішній шлюз nginx
+# (infra/nginx-yms-internal.conf), який слухає лише 127.0.0.1:8081 і роздає
+# запити за префіксом шляху:
+#     /internal/v1/partner-accounts…  → identity-partner-service
+# Через auth_request службові маршрути не проходять і заголовків ідентичності
+# не мають, тому клієнт нічого не підписує.
+#
+# ПОРЯДОК ЗАВАНТАЖЕННЯ (пастка, через яку цей файл сам себе не вмикає):
+#     config/packages/*.yaml → config/packages/prod/*.yaml
+#         → config/services.yaml → config/services_prod.yaml
+# config/services.yaml завантажується ПІЗНІШЕ і глобом App\ перереєстровує
+# класи src/ на чисте автовайрингове визначення (гублячи явні аргументи —
+# $baseUrl), а своїм кореневим аліасом повертає порт на InMemory — мовчки
+# затираючи все, що оголошено тут. Саме тому цей файл імпортується ще раз,
+# останнім, з config/services_prod.yaml. Не видаляйте той імпорт: без нього
+# у проді знову опиниться заглушка, водій збережеться в partner_users, а
+# увійти не зможе (401).
+#
+# Перевірка фактичного звʼязування:
+#     APP_ENV=prod php bin/console debug:container App\\Domain\\Identity\\PartnerAccountGateway
+
+parameters:
+    # Дефолт env-змінної; на проді значення приходить з оточення.
+    env(IDENTITY_PARTNER_BASE_URL): 'http://127.0.0.1:8081'
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\Infrastructure\Identity\HttpPartnerAccountGateway:
+        arguments:
+            $http: '@http_client'
+            $baseUrl: '%env(IDENTITY_PARTNER_BASE_URL)%'
+
+    # --- Порт домену → продакшн-адаптер -------------------------------------
+    App\Domain\Identity\PartnerAccountGateway: '@App\Infrastructure\Identity\HttpPartnerAccountGateway'

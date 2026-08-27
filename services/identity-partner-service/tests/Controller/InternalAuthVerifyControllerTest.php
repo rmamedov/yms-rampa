@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
+use App\Controller\InternalAccountController;
 use App\Controller\InternalAuthVerifyController;
 use App\Domain\Account\PartnerAccount;
 use App\Domain\Account\PartnerRole;
@@ -22,13 +23,17 @@ use Symfony\Component\HttpKernel\HttpKernelInterface;
  *
  * Шлюз (nginx `auth_request`) очікує рівно два результати:
  *  - 204 без тіла + заголовки X-User-Id / X-User-Role / X-Supplier-Id /
- *    X-Store-Ids / X-Contour;
+ *    X-Store-Ids / X-Contour / X-Driver-Profile-Id;
  *  - 401 application/problem+json з code=AUTH_TOKEN_INVALID на будь-яку
  *    невдачу (підпис, exp, чужий контур, denylist, деактивований акаунт,
  *    відсутній чи покручений Authorization).
  *
  * Тести перевіряють і статус, і КОЖЕН заголовок: від цього залежить
  * ActorResolver у booking-service та інших мікросервісах.
+ *
+ * Окремо перевіряється X-Driver-Profile-Id: він мусить БУТИ У ВІДПОВІДІ ЗАВЖДИ,
+ * навіть порожній, бо шлюз затирає ним значення, підставлене клієнтом. Якби
+ * заголовок зникав для не-водіїв, затирати було б нічим.
  */
 final class InternalAuthVerifyControllerTest extends TestCase
 {
@@ -54,6 +59,9 @@ final class InternalAuthVerifyControllerTest extends TestCase
         self::assertSame('sp-77', $response->headers->get('X-Supplier-Id'));
         self::assertSame('', $response->headers->get('X-Store-Ids'));
         self::assertSame('partner', $response->headers->get('X-Contour'));
+        // Профіль водія до ролі постачальника не застосовний — порожньо, але є.
+        self::assertTrue($response->headers->has('X-Driver-Profile-Id'));
+        self::assertSame('', $response->headers->get('X-Driver-Profile-Id'));
     }
 
     public function testSupplierOperatorTokenYieldsIdentityHeaders(): void
@@ -72,13 +80,15 @@ final class InternalAuthVerifyControllerTest extends TestCase
         self::assertSame('sp-88', $response->headers->get('X-Supplier-Id'));
         self::assertSame('', $response->headers->get('X-Store-Ids'));
         self::assertSame('partner', $response->headers->get('X-Contour'));
+        self::assertTrue($response->headers->has('X-Driver-Profile-Id'));
+        self::assertSame('', $response->headers->get('X-Driver-Profile-Id'));
     }
 
     public function testDriverTokenCarriesSupplierIdAndEmptyStores(): void
     {
         // Для водія X-Supplier-Id теж заповнений: це постачальник, до якого
         // прикріплений водій. Магазини у скоуп partner-контуру не входять.
-        $account = $this->env->givenDriver(supplierId: 'sp-99');
+        $account = $this->env->givenDriver(supplierId: 'sp-99', driverProfileId: 'du-99');
 
         $response = $this->controller->__invoke($this->verifyRequest($this->accessTokenFor($account)));
 
@@ -88,6 +98,106 @@ final class InternalAuthVerifyControllerTest extends TestCase
         self::assertSame('sp-99', $response->headers->get('X-Supplier-Id'));
         self::assertSame('', $response->headers->get('X-Store-Ids'));
         self::assertSame('partner', $response->headers->get('X-Contour'));
+        self::assertSame('du-99', $response->headers->get('X-Driver-Profile-Id'));
+    }
+
+    /**
+     * ГОЛОВНИЙ ТЕСТ ВИПРАВЛЕННЯ: акаунт і профіль — РІЗНІ ідентифікатори.
+     *
+     * booking-service зберігає в `booking.driverId` профіль, а не акаунт. Якщо
+     * X-Driver-Profile-Id віддасть `sub` (акаунт), перевірка «це бронювання
+     * мого маршрутного листа» знову не пройде — водій отримає 403 на «На місці».
+     */
+    public function testDriverProfileHeaderCarriesProfileIdNotAccountId(): void
+    {
+        $account = $this->env->givenDriver(driverProfileId: '50f7eb07-e331-437d-bac2-89b876cd6853');
+
+        $response = $this->controller->__invoke($this->verifyRequest($this->accessTokenFor($account)));
+
+        self::assertSame('50f7eb07-e331-437d-bac2-89b876cd6853', $response->headers->get('X-Driver-Profile-Id'));
+        self::assertNotSame(
+            $response->headers->get('X-User-Id'),
+            $response->headers->get('X-Driver-Profile-Id'),
+            'Профіль водія і його обліковий запис — різні ідентичності.',
+        );
+    }
+
+    public function testDriverWithoutProfileGetsEmptyButPresentHeader(): void
+    {
+        // Водій без привʼязаного профілю: заголовок порожній, але присутній —
+        // інакше шлюзу нічим затерти значення, підставлене клієнтом.
+        $account = $this->env->givenDriver(driverProfileId: null);
+
+        $response = $this->controller->__invoke($this->verifyRequest($this->accessTokenFor($account)));
+
+        self::assertSame(Response::HTTP_NO_CONTENT, $response->getStatusCode());
+        self::assertSame('driver', $response->headers->get('X-User-Role'));
+        self::assertTrue($response->headers->has('X-Driver-Profile-Id'));
+        self::assertSame('', $response->headers->get('X-Driver-Profile-Id'));
+    }
+
+    /**
+     * Заголовок присутній у 204 для КОЖНОЇ ролі контуру — саме на це
+     * розраховує примусова підстановка в nginx.
+     */
+    #[DataProvider('identitiesOfEveryRole')]
+    public function testDriverProfileHeaderIsAlwaysPresent(string $role, ?string $driverProfileId, string $expected): void
+    {
+        $account = PartnerRole::Driver->value === $role
+            ? $this->env->givenDriver(driverProfileId: $driverProfileId)
+            : $this->env->givenSupplier(role: PartnerRole::from($role));
+
+        $response = $this->controller->__invoke($this->verifyRequest($this->accessTokenFor($account)));
+
+        self::assertSame(Response::HTTP_NO_CONTENT, $response->getStatusCode());
+        self::assertTrue(
+            $response->headers->has('X-Driver-Profile-Id'),
+            \sprintf('Заголовок X-Driver-Profile-Id має бути у 204 для ролі %s.', $role),
+        );
+        self::assertSame($expected, $response->headers->get('X-Driver-Profile-Id'));
+    }
+
+    /** @return iterable<string, array{string, ?string, string}> */
+    public static function identitiesOfEveryRole(): iterable
+    {
+        yield 'водій із профілем' => ['driver', 'du-99', 'du-99'];
+        yield 'водій без профілю' => ['driver', null, ''];
+        yield 'адміністратор постачальника' => ['supplier_admin', null, ''];
+        yield 'оператор постачальника' => ['supplier_operator', null, ''];
+    }
+
+    /**
+     * Наскрізна перевірка ланцюга: partner-service передає driverProfileId у
+     * POST /internal/v1/partner-accounts → акаунт зберігає його → токен несе
+     * його в клеймі → verify віддає його шлюзу.
+     */
+    public function testDriverProfileIdFromInternalCreateReachesVerifyHeader(): void
+    {
+        $accounts = new InternalAccountController($this->env->provisioner, $this->env->sessions);
+        $request = Request::create(
+            '/internal/v1/partner-accounts',
+            'POST',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: (string) json_encode([
+                'login' => '067 123 45 67',
+                'role' => 'driver',
+                'supplierId' => 'sp-01',
+                'driverProfileId' => '50f7eb07-e331-437d-bac2-89b876cd6853',
+            ]),
+        );
+
+        $created = json_decode((string) $accounts->create($request)->getContent(), true);
+        self::assertIsArray($created);
+        self::assertSame('50f7eb07-e331-437d-bac2-89b876cd6853', $created['driverId']);
+
+        // Акаунт справді зберіг звʼязок із профілем.
+        $account = $this->env->accounts->findById((string) $created['accountId']);
+        self::assertInstanceOf(PartnerAccount::class, $account);
+        self::assertSame('50f7eb07-e331-437d-bac2-89b876cd6853', $account->driverProfileId());
+
+        $response = $this->controller->__invoke($this->verifyRequest($this->accessTokenFor($account)));
+
+        self::assertSame('50f7eb07-e331-437d-bac2-89b876cd6853', $response->headers->get('X-Driver-Profile-Id'));
     }
 
     public function testSchemeNameIsCaseInsensitive(): void
@@ -120,11 +230,22 @@ final class InternalAuthVerifyControllerTest extends TestCase
         $token = $this->accessTokenFor($account);
         [$header, $payload, $signature] = explode('.', $token);
 
-        // Псуємо рівно один символ підпису, зберігаючи довжину й алфавіт base64url.
-        $lastChar = substr($signature, -1);
-        $tampered = substr($signature, 0, -1).('X' === $lastChar ? 'Y' : 'X');
+        // Псуємо рівно один символ підпису, зберігаючи довжину й алфавіт
+        // base64url. Саме ПЕРШИЙ символ, а не останній: підпис RS256 має
+        // 256 байтів, тому в останньому символі кодування значущі лише 2 біти,
+        // а решта 4 — вирівнювання. Заміна останнього символу в чверті випадків
+        // декодується в ТОЙ САМИЙ підпис, токен лишається валідним, і тест
+        // падає на рівному місці (флакі ~25%). Перший символ несе всі 6 бітів
+        // першого байта, тож підпис змінюється завжди.
+        $firstChar = $signature[0];
+        $tampered = ('X' === $firstChar ? 'Y' : 'X').substr($signature, 1);
 
         self::assertNotSame($signature, $tampered);
+        self::assertNotSame(
+            base64_decode(strtr($signature, '-_', '+/'), true),
+            base64_decode(strtr($tampered, '-_', '+/'), true),
+            'Зіпсований символ мусить міняти самі байти підпису, а не лише його кодування.',
+        );
         $this->assertRejected($header.'.'.$payload.'.'.$tampered);
     }
 
@@ -223,7 +344,7 @@ final class InternalAuthVerifyControllerTest extends TestCase
         self::assertSame(401, $payload['status']);
 
         // Шлюз не має чого підставити в запит — жодного службового заголовка.
-        foreach (['X-User-Id', 'X-User-Role', 'X-Supplier-Id', 'X-Store-Ids', 'X-Contour'] as $header) {
+        foreach (['X-User-Id', 'X-User-Role', 'X-Supplier-Id', 'X-Store-Ids', 'X-Contour', 'X-Driver-Profile-Id'] as $header) {
             self::assertFalse($response->headers->has($header), \sprintf('Заголовок %s не має бути у відповіді 401.', $header));
         }
     }

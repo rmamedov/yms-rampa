@@ -1,5 +1,9 @@
 import { Observable, catchError, forkJoin, map, of } from 'rxjs';
 import type { AvailableDate, DayRouteSheet } from '../models/route-sheet.model';
+import type {
+  BookingActionResult,
+  DelayReport,
+} from '../models/booking-action.model';
 import { addDaysToDateKey, kyivDateKey } from '../util/time.util';
 
 /**
@@ -11,10 +15,13 @@ export const AVAILABLE_DATES_HORIZON_DAYS = 2;
 /**
  * Контракт доступу до booking-service через api-gateway.
  *
- * У контурі водія бекенд має РІВНО ОДИН маршрут даних:
- *   GET /api/driver/v1/route-sheet?date=YYYY-MM-DD
- * Маршрутів для відмітки «На місці», введення orderId і повідомлення про
- * затримку в цьому контурі немає — див. заявки на бекенд у README задачі.
+ * Контур водія має один маршрут читання і три маршрути дій
+ * (App\Controller\Driver\RouteSheetController і BookingActionController):
+ *   GET   /api/driver/v1/route-sheet?date=YYYY-MM-DD
+ *   POST  /api/driver/v1/bookings/{bookingId}/arrived
+ *   POST  /api/driver/v1/bookings/{bookingId}/delay
+ *   PATCH /api/driver/v1/bookings/{bookingId}
+ * Авторизація в усіх чотирьох однакова — партнерський токен водія.
  *
  * Реалізації: HttpDriverApi (реальний бекенд) і MockDriverApi
  * (environment.useMocks) — обидві повертають однакову форму даних.
@@ -25,6 +32,50 @@ export abstract class DriverApi {
    * `null` — на дату точок немає (бекенд віддає `routeSheets: []`, 200).
    */
   abstract routeSheet(date: string): Observable<DayRouteSheet | null>;
+
+  /**
+   * POST /api/driver/v1/bookings/{bookingId}/arrived — «На місці»
+   * (DRV + ST-01, booked → arrived).
+   *
+   * Дія ІДЕМПОТЕНТНА: відмітити прибуття можуть і водій, і магазин — хто
+   * перший. Якщо бронювання вже `arrived`, DriverBookingService::markArrived
+   * повертає поточний стан без другого переходу і без помилки.
+   *
+   * `occurredAt` — фактичний момент натискання (потрібен офлайн-черзі).
+   * УВАГА: чинний контролер тіло запиту не читає і штампує СВІЙ час
+   * (`Clock::now()`); поле надсилається наперед, на випадок коли бекенд
+   * почне його приймати, і жодної помилки не спричиняє.
+   */
+  abstract markArrived(
+    bookingId: string,
+    occurredAt: string,
+  ): Observable<BookingActionResult>;
+
+  /**
+   * POST /api/driver/v1/bookings/{bookingId}/delay — повідомлення про
+   * затримку (DRV + DLY-01). Статус бронювання не змінюється.
+   *
+   * Бекенд відхиляє з 422: причину поза довідником, ETA в минулому
+   * (`ETA має бути в майбутньому`) і причину «інше» без коментаря.
+   */
+  abstract reportDelay(
+    bookingId: string,
+    report: DelayReport,
+  ): Observable<BookingActionResult>;
+
+  /**
+   * PATCH /api/driver/v1/bookings/{bookingId} — водій дописує або змінює
+   * номер замовлення (розділ 6.4).
+   *
+   * У тілі має бути РІВНО `orderId`: будь-яке інше поле контролер
+   * відхиляє з 403 ACCESS_DENIED. Дозволено лише до початку розвантаження —
+   * далі 422 «Номер замовлення можна вказати лише до початку розвантаження».
+   * `null` очищає номер.
+   */
+  abstract updateOrderId(
+    bookingId: string,
+    orderId: string | null,
+  ): Observable<BookingActionResult>;
 
   /**
    * Перелік дат із поїздками (DRV-13).

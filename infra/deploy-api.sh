@@ -55,8 +55,13 @@ write_env booking-service \
     "STORE_SERVICE_BASE_URL=http://127.0.0.1:8081" \
     "PARTNER_SERVICE_BASE_URL=http://127.0.0.1:8081"
 
+# IDENTITY_PARTNER_BASE_URL — той самий внутрішній шлюз: створення облікових
+# даних водія йде синхронним викликом на /internal/v1/partner-accounts, який
+# шлюз віддає identity-partner-service. Без цієї змінної працює дефолт із
+# .env, але тримаємо її явно поруч із рештою конфігурації сервісу.
 write_env partner-service \
-    "MONGO_DSN=mongodb://127.0.0.1:27017" "MONGO_DB=yms_partners"
+    "MONGO_DSN=mongodb://127.0.0.1:27017" "MONGO_DB=yms_partners" \
+    "IDENTITY_PARTNER_BASE_URL=http://127.0.0.1:8081"
 
 write_env analytics-service \
     "MONGODB_URL=mongodb://127.0.0.1:27017" "MONGODB_DB=yms_analytics"

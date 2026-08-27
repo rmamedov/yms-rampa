@@ -2,10 +2,15 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, defer, delay, of, throwError } from 'rxjs';
 import { DriverApi } from './driver.api';
 import { toDayRouteSheet } from './route-sheet.mapper';
+import { toBookingActionResult } from './booking-action.mapper';
 import { MockBackend } from '../mock/mock-backend';
 import { NetworkService } from '../offline/network.service';
 import { ApiProblemError } from '../models/problem.model';
 import type { DayRouteSheet } from '../models/route-sheet.model';
+import type {
+  BookingActionResult,
+  DelayReport,
+} from '../models/booking-action.model';
 
 /** Штучна затримка мережі, щоб стани завантаження були видимі. */
 const LATENCY_MS = 180;
@@ -18,6 +23,46 @@ export class MockDriverApi extends DriverApi {
   override routeSheet(date: string): Observable<DayRouteSheet | null> {
     // Той самий мапінг конверта, що й у HttpDriverApi — форма даних однакова.
     return this.wrap(() => toDayRouteSheet(this.backend.routeSheet(date)));
+  }
+
+  /**
+   * `occurredAt` мок приймає, але, як і чинний бекенд, ігнорує: час
+   * прибуття штампує «сервер». Поле лишається в контракті заради
+   * офлайн-черги — див. DriverApi.markArrived.
+   */
+  override markArrived(
+    bookingId: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    occurredAt: string,
+  ): Observable<BookingActionResult> {
+    return this.wrap(() =>
+      toBookingActionResult(this.backend.markArrived(bookingId)),
+    );
+  }
+
+  override reportDelay(
+    bookingId: string,
+    report: DelayReport,
+  ): Observable<BookingActionResult> {
+    return this.wrap(() =>
+      toBookingActionResult(
+        this.backend.reportDelay(
+          bookingId,
+          report.reason,
+          report.eta,
+          report.comment ?? null,
+        ),
+      ),
+    );
+  }
+
+  override updateOrderId(
+    bookingId: string,
+    orderId: string | null,
+  ): Observable<BookingActionResult> {
+    return this.wrap(() =>
+      toBookingActionResult(this.backend.updateOrderId(bookingId, orderId)),
+    );
   }
 
   private wrap<T>(fn: () => T): Observable<T> {

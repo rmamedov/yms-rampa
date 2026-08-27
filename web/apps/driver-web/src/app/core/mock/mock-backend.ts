@@ -1,27 +1,48 @@
 /**
  * InMemory-«бекенд» для режиму environment.useMocks.
  *
- * Повторює РЕАЛЬНУ поведінку booking-service на єдиному маршруті даних
- * контуру водія — `GET /api/driver/v1/route-sheet?date=YYYY-MM-DD`:
+ * Повторює РЕАЛЬНУ поведінку booking-service на маршрутах контуру водія.
+ *
+ * Читання — `GET /api/driver/v1/route-sheet?date=YYYY-MM-DD`:
  *  - той самий конверт `{driverId, date, routeSheets[]}`;
  *  - ті самі назви полів точки (RouteSheetService::point());
  *  - `slotStart` у форматі `YYYY-MM-DDTHH:MM:SSZ` (без мілісекунд);
  *  - `localTime` рахує «сервер», а не клієнт;
  *  - порожній день — це 200 і `routeSheets: []`, а не 404;
- *  - некоректний `date` — 422 VALIDATION_FAILED, як у контролері.
+ *  - некоректний `date` — 422 VALIDATION_FAILED, як у контролері;
+ *  - проєкція листа НЕ містить `arrivedAt` і `delayed` — рівно як у бекенді.
  *
- * Мутацій тут немає свідомо: у контурі водія бекенд не має жодного
- * POST/PATCH-маршруту над бронюванням.
+ * Дії — `arrived`, `delay`, `PATCH {orderId}`: віддають ПОВНЕ представлення
+ * бронювання (BookingPresenter::toArray()), тобто іншу форму, ніж точка
+ * листа, і повторюють правила DriverBookingService та агрегату Booking:
+ *  - «На місці» ідемпотентна (правило «хто перший»);
+ *  - перехід поза машиною станів — 409 INVALID_STATUS_TRANSITION;
+ *  - причина затримки лише з довідника, ETA лише в майбутньому,
+ *    «інше» лише з коментарем — усе 422;
+ *  - orderId редагується лише до початку розвантаження — далі 422.
  */
 import { Injectable } from '@angular/core';
 import type {
+  BookingStatus,
   DriverRouteSheetResponse,
   RoutePoint,
   RouteSheet,
 } from '../models/route-sheet.model';
+import {
+  DELAY_REASONS,
+  DELAY_REASON_REQUIRING_COMMENT,
+  NO_DELAY,
+  type BookingResponse,
+  type DelayState,
+} from '../models/booking-action.model';
 import { ApiProblemError } from '../models/problem.model';
 import { MOCK_STORES } from './stores.fixture';
-import { addDaysToDateKey, formatKyivTime, kyivDateKey } from '../util/time.util';
+import {
+  addDaysToDateKey,
+  formatKyivTime,
+  kyivDateKey,
+  toBackendIso,
+} from '../util/time.util';
 import type { DriverProfile } from '../models/auth.model';
 
 /** Профіль водія у формі AccountProfile::toArray() identity-partner-service. */
@@ -52,6 +73,9 @@ const MOCK_PLATE = 'AA 4721 OB';
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Статуси, у яких водій ще може діяти над точкою (Booking, розділ 6.5). */
+const OPEN_FOR_DRIVER: readonly BookingStatus[] = ['booked', 'arrived'];
+
 let seq = 0;
 function nextId(prefix: string): string {
   seq += 1;
@@ -62,9 +86,18 @@ function hourFloor(now: number): number {
   return Math.floor(now / 3_600_000) * 3_600_000;
 }
 
-/** `Y-m-d\TH:i:s\Z` — саме так серіалізує моменти booking-service. */
-function toBackendIso(at: number): string {
-  return new Date(at).toISOString().replace(/\.\d{3}Z$/, 'Z');
+/** Внутрішній запис точки: поля листа + стан, який віддають лише дії. */
+type StoredPoint = { -readonly [K in keyof RoutePoint]: RoutePoint[K] } & {
+  arrivedAt: string | null;
+  delayed: DelayState;
+};
+
+interface StoredSheet {
+  readonly routeSheetId: string;
+  readonly supplierId: string;
+  readonly date: string;
+  readonly printVersion: number;
+  readonly points: StoredPoint[];
 }
 
 interface SeedPoint {
@@ -97,7 +130,7 @@ const DAY_AFTER_SEED: SeedPoint[] = [
 
 @Injectable({ providedIn: 'root' })
 export class MockBackend {
-  private sheets = new Map<string, RouteSheet>();
+  private sheets = new Map<string, StoredSheet>();
   private seeded = false;
 
   /** Явна ре-ініціалізація (використовується у тестах). */
@@ -131,8 +164,126 @@ export class MockBackend {
       driverId: MOCK_DRIVER.driverId as string,
       date,
       // Активні бронювання інших статусів лист не показує (RouteSheetService).
-      routeSheets: sheet ? [sheet] : [],
+      routeSheets: sheet ? [toWireSheet(sheet)] : [],
     };
+  }
+
+  /**
+   * DriverBookingService::markArrived — booked → arrived.
+   *
+   * Ідемпотентність тут КЛЮЧОВА: якщо магазин відмітив прибуття першим,
+   * повторний виклик віддає поточний стан без помилки і без другої події.
+   */
+  markArrived(bookingId: string, now: number = Date.now()): BookingResponse {
+    const point = this.point(bookingId, now);
+
+    if (point.status === 'arrived') {
+      return toBookingResponse(point);
+    }
+
+    if (point.status !== 'booked') {
+      throw invalidTransition(point.status);
+    }
+
+    point.status = 'arrived';
+    point.arrivedAt = toBackendIso(now);
+
+    return toBookingResponse(point);
+  }
+
+  /** Booking::setDelay — причина з довідника, ETA лише в майбутньому. */
+  reportDelay(
+    bookingId: string,
+    reason: string,
+    eta: string,
+    comment: string | null = null,
+    now: number = Date.now(),
+  ): BookingResponse {
+    const point = this.point(bookingId, now);
+
+    if (!OPEN_FOR_DRIVER.includes(point.status)) {
+      throw validationFailed(
+        'Затримку можна позначити лише для бронювання у статусі «booked» або «arrived»',
+      );
+    }
+
+    if (!(DELAY_REASONS as readonly string[]).includes(reason)) {
+      throw validationFailed(
+        `Значення «${reason}» відсутнє в довіднику. Допустимі: ${DELAY_REASONS.join(', ')}`,
+      );
+    }
+
+    const etaMs = Date.parse(eta);
+
+    if (Number.isNaN(etaMs)) {
+      throw validationFailed('Поле «eta» має містити дату в форматі ISO 8601');
+    }
+
+    if (etaMs <= now) {
+      throw validationFailed('ETA має бути в майбутньому');
+    }
+
+    const trimmed = comment?.trim() ?? '';
+    const requiresComment = reason === DELAY_REASON_REQUIRING_COMMENT;
+
+    if (requiresComment && trimmed === '') {
+      throw validationFailed('Для причини «інше» коментар обовʼязковий');
+    }
+
+    point.delayed = {
+      flag: true,
+      // Для «інше» бекенд склеює причину з коментарем через двокрапку.
+      reason: requiresComment ? `${reason}: ${trimmed}` : reason,
+      eta: toBackendIso(etaMs),
+    };
+
+    return toBookingResponse(point);
+  }
+
+  /** Booking::setOrderIdByDriver — лише до початку розвантаження. */
+  updateOrderId(
+    bookingId: string,
+    orderId: string | null,
+    now: number = Date.now(),
+  ): BookingResponse {
+    const point = this.point(bookingId, now);
+
+    if (!OPEN_FOR_DRIVER.includes(point.status)) {
+      throw validationFailed(
+        'Номер замовлення можна вказати лише до початку розвантаження',
+      );
+    }
+
+    const trimmed = orderId?.trim() ?? '';
+    point.orderId = trimmed === '' ? null : trimmed;
+
+    return toBookingResponse(point);
+  }
+
+  /**
+   * Точка маршрутного листа цього водія.
+   *
+   * У моці всі точки належать MOCK_DRIVER, тож 403 ACCESS_DENIED
+   * (чужий лист) відтворити нічим — невідоме бронювання дає 404, як
+   * і BookingLifecycleService::load().
+   */
+  private point(bookingId: string, now: number): StoredPoint {
+    this.ensureSeeded(now);
+
+    for (const sheet of this.sheets.values()) {
+      const found = sheet.points.find((p) => p.bookingId === bookingId);
+      if (found) {
+        return found;
+      }
+    }
+
+    throw new ApiProblemError(404, {
+      type: 'about:blank',
+      title: 'Не знайдено',
+      status: 404,
+      code: 'BOOKING_NOT_FOUND',
+      detail: `Бронювання «${bookingId}» не знайдено`,
+    });
   }
 
   private ensureSeeded(now: number): void {
@@ -160,8 +311,8 @@ export class MockBackend {
     this.seeded = true;
   }
 
-  private buildSheet(dateKey: string, baseMs: number, seed: SeedPoint[]): RouteSheet {
-    const points: RoutePoint[] = seed.map((s) => {
+  private buildSheet(dateKey: string, baseMs: number, seed: SeedPoint[]): StoredSheet {
+    const points: StoredPoint[] = seed.map((s) => {
       const start = baseMs + s.offsetMinutes * 60_000;
       const store = MOCK_STORES[s.storeIndex % MOCK_STORES.length];
       return {
@@ -177,6 +328,8 @@ export class MockBackend {
         plateNumber: MOCK_PLATE,
         driverId: MOCK_DRIVER.driverId as string,
         status: s.status,
+        arrivedAt: s.status === 'booked' ? null : toBackendIso(start),
+        delayed: NO_DELAY,
       };
     });
     points.sort((a, b) => a.slotStart.localeCompare(b.slotStart));
@@ -189,6 +342,66 @@ export class MockBackend {
       points,
     };
   }
+}
+
+/**
+ * Проєкція листа: рівно поля RouteSheetService::point().
+ * `arrivedAt` і `delayed` сюди НЕ потрапляють — їх бекенд віддає лише
+ * у відповідях дій (BookingPresenter).
+ */
+function toWireSheet(sheet: StoredSheet): RouteSheet {
+  return {
+    routeSheetId: sheet.routeSheetId,
+    supplierId: sheet.supplierId,
+    date: sheet.date,
+    printVersion: sheet.printVersion,
+    points: sheet.points.map((p) => ({
+      bookingId: p.bookingId,
+      city: p.city,
+      storeName: p.storeName,
+      address: p.address,
+      localTime: p.localTime,
+      slotStart: p.slotStart,
+      rampId: p.rampId,
+      orderId: p.orderId,
+      palletsCount: p.palletsCount,
+      plateNumber: p.plateNumber,
+      driverId: p.driverId,
+      status: p.status,
+    })),
+  };
+}
+
+/** Форма BookingPresenter::toArray() у частині, яку читає застосунок водія. */
+function toBookingResponse(point: StoredPoint): BookingResponse {
+  return {
+    id: point.bookingId,
+    status: point.status,
+    orderId: point.orderId,
+    arrivedAt: point.arrivedAt,
+    delayed: point.delayed,
+  };
+}
+
+function validationFailed(detail: string): ApiProblemError {
+  return new ApiProblemError(422, {
+    type: 'about:blank',
+    title: 'Не пройдено валідацію',
+    status: 422,
+    code: 'VALIDATION_FAILED',
+    detail,
+  });
+}
+
+/** ST-06: перехід поза машиною станів — 409 з полями from/to. */
+function invalidTransition(from: BookingStatus): ApiProblemError {
+  return new ApiProblemError(409, {
+    type: 'about:blank',
+    title: 'Конфлікт',
+    status: 409,
+    code: 'INVALID_STATUS_TRANSITION',
+    detail: `Перехід зі статусу «${from}» у «arrived» неможливий`,
+  });
 }
 
 /** 00:00 київського дня dateKey у вигляді epoch ms. */

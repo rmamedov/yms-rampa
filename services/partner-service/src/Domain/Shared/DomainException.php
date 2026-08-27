@@ -13,12 +13,18 @@ namespace App\Domain\Shared;
  */
 abstract class DomainException extends \RuntimeException
 {
+    /**
+     * @param \Throwable|null $previous технічна першопричина (таймаут, обрив
+     *                                  зʼєднання): у відповідь клієнту вона не
+     *                                  потрапляє, але лишається в журналі
+     */
     public function __construct(
         string $message,
         private readonly string $errorCode,
         private readonly string $title,
+        ?\Throwable $previous = null,
     ) {
-        parent::__construct($message);
+        parent::__construct($message, 0, $previous);
     }
 
     /** Машинний код помилки, напр. VEHICLE_PLATE_DUPLICATE. */

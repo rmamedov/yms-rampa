@@ -3,13 +3,21 @@ import { firstValueFrom } from 'rxjs';
 import { DriverApi } from '../data/driver.api';
 import { LocalStorageService, STORAGE_KEYS } from '../storage/local-storage';
 import { NetworkService } from '../offline/network.service';
+import { ArrivalQueueService } from '../offline/arrival-queue.service';
 import { ProblemMessageService } from '../http/problem-message.service';
+import { I18nService } from '../i18n/i18n.service';
 import type {
   AvailableDate,
   DayRouteSheet,
   RoutePoint,
 } from '../models/route-sheet.model';
-import { kyivDateKey } from '../util/time.util';
+import {
+  DELAY_REASON_REQUIRING_COMMENT,
+  type BookingActionResult,
+  type DelayReport,
+  type DelayState,
+} from '../models/booking-action.model';
+import { kyivDateKey, toBackendIso } from '../util/time.util';
 import { environment } from '../../../environments/environment';
 
 interface CachedSheet {
@@ -46,17 +54,17 @@ export function activePointIndex(points: readonly RoutePoint[]): number {
 }
 
 /**
- * Стан маршрутного листа водія.
- *
- * Стор ТІЛЬКИ читає: у контурі водія бекенд не має жодного маршруту, який
- * змінює бронювання (ані «На місці», ані orderId, ані затримки).
+ * Стан маршрутного листа водія: читання листа плюс три дії контуру водія
+ * («На місці», затримка, orderId) з офлайн-чергою для відмітки прибуття.
  */
 @Injectable({ providedIn: 'root' })
 export class RouteSheetStore {
   private readonly api = inject(DriverApi);
   private readonly storage = inject(LocalStorageService);
   private readonly network = inject(NetworkService);
+  private readonly queue = inject(ArrivalQueueService);
   private readonly problems = inject(ProblemMessageService);
+  private readonly i18n = inject(I18nService);
 
   private readonly sheetSignal = signal<DayRouteSheet | null>(null);
   private readonly datesSignal = signal<readonly AvailableDate[]>([]);
@@ -66,6 +74,11 @@ export class RouteSheetStore {
   private readonly staleSignal = signal(false);
   private readonly cachedAtSignal = signal<number | null>(null);
   private readonly lastSyncSignal = signal<number | null>(null);
+  private readonly pendingSignal = signal<readonly string[]>([]);
+  private readonly actionErrorSignal = signal<string | null>(null);
+  private readonly delaysSignal = signal<ReadonlyMap<string, DelayState>>(
+    new Map(),
+  );
 
   readonly sheet = this.sheetSignal.asReadonly();
   readonly dates = this.datesSignal.asReadonly();
@@ -76,6 +89,10 @@ export class RouteSheetStore {
   readonly stale = this.staleSignal.asReadonly();
   readonly cachedAt = this.cachedAtSignal.asReadonly();
   readonly lastSyncAt = this.lastSyncSignal.asReadonly();
+  /** Помилка останньої дії — показується окремо від помилки завантаження. */
+  readonly actionError = this.actionErrorSignal.asReadonly();
+  /** Скільки відміток «На місці» чекають на звʼязок. */
+  readonly queuedArrivals = this.queue.size;
 
   readonly points = computed<readonly RoutePoint[]>(
     () => this.sheetSignal()?.points ?? [],
@@ -90,6 +107,29 @@ export class RouteSheetStore {
   readonly hasOtherDates = computed(() => this.datesSignal().length > 0);
 
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private flushing = false;
+
+  /** Дія над цією точкою вже виконується — кнопка блокується. */
+  isPending(bookingId: string): boolean {
+    return this.pendingSignal().includes(bookingId);
+  }
+
+  /** Відмітка «На місці» цієї точки лежить у черзі до появи звʼязку. */
+  isQueued(bookingId: string): boolean {
+    return this.queue.has(bookingId);
+  }
+
+  /**
+   * Затримка точки.
+   *
+   * Тримається на клієнті НАВМИСНО: проєкція `GET /route-sheet` полів
+   * `delayed`/`arrivedAt` не містить (RouteSheetService::point()), тому
+   * після полінгу серверного джерела для банера затримки просто немає.
+   * Це відлуння відповіді на власну дію, живе до перезавантаження вкладки.
+   */
+  delayOf(bookingId: string): DelayState | null {
+    return this.delaysSignal().get(bookingId) ?? null;
+  }
 
   /** Первинне завантаження: список дат + лист на сьогодні (DRV-12). */
   async initialize(): Promise<void> {
@@ -126,11 +166,201 @@ export class RouteSheetStore {
       if (sheet && date === kyivDateKey()) {
         this.cache(sheet);
       }
+      // Звʼязок є — саме час віддати відкладені відмітки прибуття.
+      await this.flushArrivalQueue();
     } catch (error) {
       this.handleLoadError(error, date);
     } finally {
       this.loadingSignal.set(false);
     }
+  }
+
+  // --- Дії водія --------------------------------------------------------------
+
+  /**
+   * «На місці» (ST-01). Без звʼязку відмітка стає в чергу з ФАКТИЧНИМ
+   * часом натискання і піде на сервер сама, щойно звʼязок відновиться.
+   */
+  async markArrived(bookingId: string): Promise<void> {
+    const occurredAt = toBackendIso();
+    this.actionErrorSignal.set(null);
+
+    if (!this.network.online()) {
+      this.queue.enqueue(bookingId, occurredAt);
+      return;
+    }
+
+    this.startPending(bookingId);
+    try {
+      const result = await firstValueFrom(
+        this.api.markArrived(bookingId, occurredAt),
+      );
+      // Ідемпотентність: якщо магазин відмітив прибуття першим, бекенд
+      // віддає поточний стан — для водія це успіх, а не збій.
+      this.applyResult(result);
+      this.queue.remove(bookingId);
+    } catch (error) {
+      if (this.problems.isNetworkError(error)) {
+        this.network.setOnline(false);
+        this.queue.enqueue(bookingId, occurredAt);
+        return;
+      }
+      this.actionErrorSignal.set(this.actionMessage(error, 'point.arriveError'));
+    } finally {
+      this.stopPending(bookingId);
+    }
+  }
+
+  /**
+   * Віддає накопичені відмітки «На місці».
+   *
+   * Запис прибирається з черги не лише після успіху: якщо бекенд каже, що
+   * відмітка вже не потрібна (магазин відмітив прибуття першим — 200
+   * з поточним станом; точка пішла далі — 409; бронювання зникло — 404;
+   * лист чужий — 403), тримати її в черзі немає сенсу і показувати водієві
+   * помилку теж. У черзі лишається тільки те, що не дійшло через мережу.
+   */
+  async flushArrivalQueue(): Promise<void> {
+    if (this.flushing || !this.network.online() || this.queue.isEmpty()) {
+      return;
+    }
+
+    this.flushing = true;
+    try {
+      for (const item of this.queue.items()) {
+        try {
+          const result = await firstValueFrom(
+            this.api.markArrived(item.bookingId, item.occurredAt),
+          );
+          this.applyResult(result);
+          this.queue.remove(item.bookingId);
+        } catch (error) {
+          if (this.problems.isNetworkError(error)) {
+            this.network.setOnline(false);
+            return;
+          }
+          this.queue.remove(item.bookingId);
+        }
+      }
+    } finally {
+      this.flushing = false;
+    }
+  }
+
+  /**
+   * Повідомлення про затримку (DLY-01).
+   *
+   * Правила довідника продубльовані тут НЕ замість бекенду, а щоб водій
+   * побачив підказку миттєво (зокрема в офлайні). Джерело істини лишається
+   * серверним — його 422 показується як є.
+   */
+  async reportDelay(bookingId: string, report: DelayReport): Promise<boolean> {
+    this.actionErrorSignal.set(null);
+
+    const localProblem = validateDelay(report);
+    if (localProblem) {
+      this.actionErrorSignal.set(this.i18n.t(localProblem));
+      return false;
+    }
+
+    this.startPending(bookingId);
+    try {
+      const result = await firstValueFrom(
+        this.api.reportDelay(bookingId, report),
+      );
+      this.applyResult(result);
+      return true;
+    } catch (error) {
+      this.actionErrorSignal.set(this.actionMessage(error, 'delay.error'));
+      return false;
+    } finally {
+      this.stopPending(bookingId);
+    }
+  }
+
+  /**
+   * Дописування або зміна orderId. Після початку розвантаження бекенд
+   * відповідає 422 з поясненням — воно й показується водієві.
+   */
+  async updateOrderId(
+    bookingId: string,
+    orderId: string | null,
+  ): Promise<boolean> {
+    this.actionErrorSignal.set(null);
+    this.startPending(bookingId);
+    try {
+      const result = await firstValueFrom(
+        this.api.updateOrderId(bookingId, orderId),
+      );
+      this.applyResult(result);
+      return true;
+    } catch (error) {
+      this.actionErrorSignal.set(
+        this.actionMessage(error, 'point.orderLockedError'),
+      );
+      return false;
+    } finally {
+      this.stopPending(bookingId);
+    }
+  }
+
+  clearActionError(): void {
+    this.actionErrorSignal.set(null);
+  }
+
+  /**
+   * Текст помилки дії.
+   *
+   * 403 у контурі водія означає рівно одне — точка не з його маршрутного
+   * листа (Booking::assertDriverOwnsPoint). Загальне «доступ закрито» тут
+   * лише збиває з пантелику, тож для дій формулювання конкретніше.
+   */
+  private actionMessage(error: unknown, fallbackKey: string): string {
+    return this.problems.codeOf(error) === 'ACCESS_DENIED'
+      ? this.i18n.t('error.foreignBooking')
+      : this.problems.messageFor(error, fallbackKey);
+  }
+
+  /**
+   * Переносить відповідь дії у стан листа.
+   *
+   * `status` і `orderId` є в проєкції листа, тож наступний полінг їх
+   * підтвердить. `delayed` живе лише тут — див. delayOf().
+   */
+  private applyResult(result: BookingActionResult): void {
+    const sheet = this.sheetSignal();
+
+    if (sheet?.points.some((p) => p.bookingId === result.bookingId)) {
+      const points = sheet.points.map((p) =>
+        p.bookingId === result.bookingId
+          ? { ...p, status: result.status, orderId: result.orderId }
+          : p,
+      );
+      const updated: DayRouteSheet = { ...sheet, points };
+      this.sheetSignal.set(updated);
+      if (updated.date === kyivDateKey()) {
+        this.cache(updated);
+      }
+    }
+
+    const delays = new Map(this.delaysSignal());
+    if (result.delayed.flag) {
+      delays.set(result.bookingId, result.delayed);
+    } else {
+      // Магазин знімає прапорець на початку розвантаження (ST-02).
+      delays.delete(result.bookingId);
+    }
+    this.delaysSignal.set(delays);
+  }
+
+  private startPending(bookingId: string): void {
+    this.pendingSignal.update((ids) =>
+      ids.includes(bookingId) ? ids : [...ids, bookingId],
+    );
+  }
+
+  private stopPending(bookingId: string): void {
+    this.pendingSignal.update((ids) => ids.filter((id) => id !== bookingId));
   }
 
   private handleLoadError(error: unknown, date: string): void {
@@ -202,7 +432,12 @@ export class RouteSheetStore {
     }
   }
 
-  /** Скидання стану при виході (DRV-09). */
+  /**
+   * Скидання стану при виході (DRV-09).
+   *
+   * Черга прибуттів теж очищається: наступний водій на цьому телефоні
+   * не має відправляти чужі відмітки.
+   */
   reset(): void {
     this.stopPolling();
     this.sheetSignal.set(null);
@@ -211,5 +446,33 @@ export class RouteSheetStore {
     this.staleSignal.set(false);
     this.cachedAtSignal.set(null);
     this.lastSyncSignal.set(null);
+    this.actionErrorSignal.set(null);
+    this.pendingSignal.set([]);
+    this.delaysSignal.set(new Map());
+    this.queue.clear();
   }
+}
+
+/**
+ * Дзеркало правил Booking::setDelay, які можна перевірити без мережі.
+ * Повертає ключ словника або null, якщо заперечень немає.
+ */
+export function validateDelay(
+  report: DelayReport,
+  now: number = Date.now(),
+): string | null {
+  const eta = Date.parse(report.eta);
+
+  if (Number.isNaN(eta) || eta <= now) {
+    return 'delay.etaInPast';
+  }
+
+  if (
+    report.reason === DELAY_REASON_REQUIRING_COMMENT &&
+    (report.comment ?? '').trim() === ''
+  ) {
+    return 'delay.commentRequired';
+  }
+
+  return null;
 }

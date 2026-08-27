@@ -39,6 +39,12 @@ services:
             $database: '%env(MONGO_DB)%'
 
     # --- порти → реалізації (dev/test) ---
+    #
+    # УВАГА: аліаси нижче ТИПОВІ, тобто для оточень без піднятих сусідів.
+    # Цей файл читається ПІСЛЯ config/packages/prod/*.yaml, тому все, що
+    # оголошено тут, затирає прод-профіль. Прод-звʼязування міжсервісних
+    # портів живе в config/packages/prod/upstream.yaml і імпортується ще раз
+    # останнім — з config/services_prod.yaml.
     App\Domain\Shared\Clock: '@App\Infrastructure\Clock\SystemClock'
     App\Domain\Shared\IdGenerator: '@App\Infrastructure\Security\Uuid4Generator'
     App\Domain\Security\PasswordGenerator: '@App\Infrastructure\Security\SecurePasswordGenerator'
@@ -57,7 +63,12 @@ when@prod:
         App\Domain\PartnerUser\PartnerUserRepository: '@App\Infrastructure\Mongo\MongoPartnerUserRepository'
         App\Domain\Vehicle\VehicleRepository: '@App\Infrastructure\Mongo\MongoVehicleRepository'
         App\Domain\Event\EventPublisher: '@App\Infrastructure\Mongo\MongoOutboxEventPublisher'
-        # Поки identity-partner-service і booking-service не піднято —
-        # заглушка та стратегія fail-closed (див. коментарі в класах).
-        App\Domain\Identity\PartnerAccountGateway: '@App\Infrastructure\Identity\StubPartnerAccountGateway'
+        # Порт до identity-partner-service свідомо НЕ оголошений тут: його
+        # прод-адаптеру потрібен явний аргумент $baseUrl, а цей файл
+        # завантажується раніше за config/services_prod.yaml, який імпортує
+        # config/packages/prod/upstream.yaml останнім. Оголошення тут просто
+        # дублювало б звʼязування і знову ховало заглушку в проді.
+        #
+        # Поки booking-service не піднято — стратегія fail-closed
+        # (див. коментарі в класі).
         App\Domain\Booking\BookingQueryPort: '@App\Infrastructure\Booking\FailClosedBookingQueryPort'

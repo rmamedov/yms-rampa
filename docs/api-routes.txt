@@ -22,8 +22,11 @@
  app_supplier_supplierstore_stores GET /api/supplier/v1/stores 
  app_supplier_supplierstore_store GET /api/supplier/v1/stores/{storeId} 
 ### booking-service
- driver_route_sheet GET /api/driver/v1/route-sheet 
- store_booking_arrived POST /api/store/v1/bookings/{bookingId}/arrived 
+ driver_booking_arrived POST /api/driver/v1/bookings/{bookingId}/arrived
+ driver_booking_delay POST /api/driver/v1/bookings/{bookingId}/delay
+ driver_booking_update PATCH /api/driver/v1/bookings/{bookingId}
+ driver_route_sheet GET /api/driver/v1/route-sheet
+ store_booking_arrived POST /api/store/v1/bookings/{bookingId}/arrived
  store_booking_unloading POST /api/store/v1/bookings/{bookingId}/unloading 
  store_booking_completed POST /api/store/v1/bookings/{bookingId}/completed 
  store_booking_rejected POST /api/store/v1/bookings/{bookingId}/rejected 

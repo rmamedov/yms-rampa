@@ -145,3 +145,159 @@ describe('HttpDriverApi — контракт driver_route_sheet', () => {
     expect(await promise).toEqual([{ date: today, pointCount: 1 }]);
   });
 });
+
+/**
+ * Тести закріплюють РЕАЛЬНІ маршрути дій водія (BookingActionController):
+ *   POST  /api/driver/v1/bookings/{id}/arrived
+ *   POST  /api/driver/v1/bookings/{id}/delay
+ *   PATCH /api/driver/v1/bookings/{id}
+ */
+describe('HttpDriverApi — дії контуру водія', () => {
+  let api: DriverApi;
+  let http: HttpTestingController;
+
+  /** Відповідь дій — BookingPresenter::toArray() (тут лише потрібні поля). */
+  const booking = (over: Record<string, unknown> = {}) => ({
+    id: 'bk-1',
+    status: 'arrived',
+    orderId: null,
+    arrivedAt: '2026-08-27T09:12:00Z',
+    delayed: { flag: false, reason: null, eta: null },
+    ...over,
+  });
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: DriverApi, useClass: HttpDriverApi },
+      ],
+    });
+    api = TestBed.inject(DriverApi);
+    http = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => http.verify());
+
+  it('«На місці» — POST /bookings/{id}/arrived, id у відповіді стає bookingId', async () => {
+    const promise = firstValueFrom(
+      api.markArrived('bk-1', '2026-08-27T09:12:00Z'),
+    );
+
+    const request = http.expectOne(
+      (r) => r.url === '/api/driver/v1/bookings/bk-1/arrived' && r.method === 'POST',
+    );
+    // Фактичний час натискання надсилається для офлайн-черги.
+    expect(request.request.body).toEqual({ arrivedAt: '2026-08-27T09:12:00Z' });
+    request.flush(booking());
+
+    expect(await promise).toEqual({
+      bookingId: 'bk-1',
+      status: 'arrived',
+      orderId: null,
+      arrivedAt: '2026-08-27T09:12:00Z',
+      delayed: { flag: false, reason: null, eta: null },
+    });
+  });
+
+  it('ідемпотентна відповідь на вже позначеному бронюванні — успіх, не помилка', async () => {
+    const promise = firstValueFrom(
+      api.markArrived('bk-1', '2026-08-27T09:12:00Z'),
+    );
+
+    // Магазин відмітив прибуття першим: бекенд віддає 200 і поточний стан.
+    http
+      .expectOne((r) => r.url === '/api/driver/v1/bookings/bk-1/arrived')
+      .flush(booking({ arrivedAt: '2026-08-27T08:55:00Z' }));
+
+    const result = await promise;
+    expect(result.status).toBe('arrived');
+    expect(result.arrivedAt).toBe('2026-08-27T08:55:00Z');
+  });
+
+  it('затримка — POST /bookings/{id}/delay з причиною довідника та ETA', async () => {
+    const promise = firstValueFrom(
+      api.reportDelay('bk-1', {
+        reason: 'затори',
+        eta: '2026-08-27T10:00:00Z',
+      }),
+    );
+
+    const request = http.expectOne(
+      (r) => r.url === '/api/driver/v1/bookings/bk-1/delay' && r.method === 'POST',
+    );
+    // Порожній коментар не надсилається — поле необовʼязкове.
+    expect(request.request.body).toEqual({
+      reason: 'затори',
+      eta: '2026-08-27T10:00:00Z',
+    });
+    request.flush(
+      booking({
+        status: 'booked',
+        delayed: { flag: true, reason: 'затори', eta: '2026-08-27T10:00:00Z' },
+      }),
+    );
+
+    expect((await promise).delayed.flag).toBe(true);
+  });
+
+  it('причина «інше» надсилає коментар', async () => {
+    const promise = firstValueFrom(
+      api.reportDelay('bk-1', {
+        reason: 'інше',
+        eta: '2026-08-27T10:00:00Z',
+        comment: '  прокол колеса  ',
+      }),
+    );
+
+    const request = http.expectOne(
+      (r) => r.url === '/api/driver/v1/bookings/bk-1/delay',
+    );
+    expect(request.request.body).toEqual({
+      reason: 'інше',
+      eta: '2026-08-27T10:00:00Z',
+      comment: 'прокол колеса',
+    });
+    request.flush(booking({ status: 'booked' }));
+
+    await promise;
+  });
+
+  it('orderId — PATCH /bookings/{id} рівно з одним полем', async () => {
+    const promise = firstValueFrom(api.updateOrderId('bk-1', '4410999'));
+
+    const request = http.expectOne(
+      (r) => r.url === '/api/driver/v1/bookings/bk-1' && r.method === 'PATCH',
+    );
+    // Будь-яке інше поле контролер відхилив би з 403 — надсилаємо лише orderId.
+    expect(Object.keys(request.request.body as object)).toEqual(['orderId']);
+    request.flush(booking({ status: 'booked', orderId: '4410999' }));
+
+    expect((await promise).orderId).toBe('4410999');
+  });
+
+  it('редагування після початку розвантаження — 422 з поясненням бекенду', async () => {
+    const promise = firstValueFrom(api.updateOrderId('bk-1', '4410999'));
+
+    http.expectOne((r) => r.url === '/api/driver/v1/bookings/bk-1').flush(
+      {
+        code: 'VALIDATION_FAILED',
+        detail: 'Номер замовлення можна вказати лише до початку розвантаження',
+      },
+      { status: 422, statusText: 'Unprocessable Entity' },
+    );
+
+    await expect(promise).rejects.toBeTruthy();
+  });
+
+  it('ідентифікатор бронювання екранується у шляху', async () => {
+    const promise = firstValueFrom(api.updateOrderId('bk/1 2', null));
+
+    http
+      .expectOne((r) => r.url === '/api/driver/v1/bookings/bk%2F1%202')
+      .flush(booking({ id: 'bk/1 2', status: 'booked' }));
+
+    await promise;
+  });
+});

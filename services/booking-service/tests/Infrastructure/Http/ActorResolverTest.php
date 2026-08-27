@@ -16,8 +16,10 @@ use Symfony\Component\HttpFoundation\Request;
 
 /**
  * Єдиний контракт ідентичності у службових заголовках шлюзу:
- * X-User-Id, X-User-Role (рівно одна роль), X-Supplier-Id, X-Store-Ids
- * (перелік через кому, порожній рядок = порожній перелік).
+ * X-User-Id (обліковий запис, клейм `sub`), X-User-Role (рівно одна роль),
+ * X-Supplier-Id, X-Store-Ids (перелік через кому, порожній рядок = порожній
+ * перелік) і X-Driver-Profile-Id (профіль водія, порожній рядок = профілю
+ * немає).
  */
 #[CoversClass(ActorResolver::class)]
 final class ActorResolverTest extends TestCase
@@ -67,6 +69,64 @@ final class ActorResolverTest extends TestCase
         $actor = $this->resolve('su-1', 'store_manager', supplierId: '', storeIds: 'S-01');
 
         self::assertNull($actor->supplierId);
+    }
+
+    // --- X-Driver-Profile-Id (DRV) ------------------------------------------
+
+    /**
+     * Шостий заголовок контракту: профіль водія приходить окремо від
+     * облікового запису, бо це РІЗНІ ідентифікатори.
+     */
+    public function testDriverProfileHeaderIsReadIntoSeparateField(): void
+    {
+        $actor = $this->resolve(
+            '39a8835f-3631-4299-92a6-fac399007f43',
+            'driver',
+            driverProfileId: '50f7eb07-e331-437d-bac2-89b876cd6853',
+        );
+
+        self::assertSame('39a8835f-3631-4299-92a6-fac399007f43', $actor->userId);
+        self::assertSame('50f7eb07-e331-437d-bac2-89b876cd6853', $actor->driverProfileId);
+        self::assertTrue($actor->hasDriverProfile());
+    }
+
+    /**
+     * Головна регресія: бронювання порівнюється з ПРОФІЛЕМ, а не з `sub`.
+     * Реальні ідентифікатори зі стенду — акаунт і профіль одного водія.
+     */
+    public function testOwnershipIsCheckedAgainstProfileNotAccount(): void
+    {
+        $actor = $this->resolve(
+            '39a8835f-3631-4299-92a6-fac399007f43',
+            'driver',
+            driverProfileId: '50f7eb07-e331-437d-bac2-89b876cd6853',
+        );
+
+        self::assertTrue($actor->canActOnOwnRouteSheet('50f7eb07-e331-437d-bac2-89b876cd6853'));
+        self::assertFalse($actor->canActOnOwnRouteSheet('39a8835f-3631-4299-92a6-fac399007f43'));
+    }
+
+    /** Порожній X-Driver-Profile-Id = нуль доступу, а не «будь-яке бронювання». */
+    #[DataProvider('emptyDriverProfileHeaders')]
+    public function testEmptyDriverProfileHeaderGivesZeroRouteSheetAccess(?string $header): void
+    {
+        $actor = $this->resolve('acc-du-1', 'driver', driverProfileId: $header);
+
+        self::assertNull($actor->driverProfileId);
+        self::assertFalse($actor->hasDriverProfile());
+        self::assertFalse($actor->canActOnOwnRouteSheet('du-1'));
+        self::assertFalse($actor->canActOnOwnRouteSheet('acc-du-1'));
+    }
+
+    /** Профіль водія має значення лише для ролі `driver`. */
+    #[DataProvider('nonDriverRoleHeaders')]
+    public function testDriverProfileHeaderIsIgnoredForNonDriverRoles(string $userId, string $role, ?string $supplierId, ?string $storeIds): void
+    {
+        $actor = $this->resolve($userId, $role, supplierId: $supplierId, storeIds: $storeIds, driverProfileId: 'du-1');
+
+        self::assertNull($actor->driverProfileId);
+        self::assertFalse($actor->hasDriverProfile());
+        self::assertFalse($actor->canActOnOwnRouteSheet('du-1'));
     }
 
     /**
@@ -138,11 +198,36 @@ final class ActorResolverTest extends TestCase
         yield 'самі пробіли' => ['   '];
     }
 
+    /**
+     * @return iterable<string, array{?string}>
+     */
+    public static function emptyDriverProfileHeaders(): iterable
+    {
+        yield 'заголовка немає' => [null];
+        yield 'порожній рядок' => [''];
+        yield 'самі пробіли' => ['   '];
+    }
+
+    /**
+     * @return iterable<string, array{string, string, ?string, ?string}>
+     */
+    public static function nonDriverRoleHeaders(): iterable
+    {
+        yield 'store_manager' => ['su-1', 'store_manager', null, Scenario::STORE_ID];
+        yield 'store_operator' => ['su-2', 'store_operator', null, Scenario::STORE_ID];
+        yield 'network_manager' => ['ad-1', 'network_manager', null, null];
+        yield 'super_admin' => ['ad-2', 'super_admin', null, null];
+        yield 'analyst' => ['an-1', 'analyst', null, null];
+        yield 'supplier_admin' => ['pu-1', 'supplier_admin', Scenario::SUPPLIER_ID, null];
+        yield 'supplier_operator' => ['pu-2', 'supplier_operator', Scenario::SUPPLIER_ID, null];
+    }
+
     private function resolve(
         string $userId,
         string $role,
         ?string $supplierId = null,
         ?string $storeIds = null,
+        ?string $driverProfileId = null,
     ): \App\Domain\Access\Actor {
         $request = Request::create('/api/store/v1/bookings/walk-in', 'POST');
         $request->headers->set(ActorResolver::USER_HEADER, $userId);
@@ -154,6 +239,10 @@ final class ActorResolverTest extends TestCase
 
         if (null !== $storeIds) {
             $request->headers->set(ActorResolver::STORES_HEADER, $storeIds);
+        }
+
+        if (null !== $driverProfileId) {
+            $request->headers->set(ActorResolver::DRIVER_PROFILE_HEADER, $driverProfileId);
         }
 
         return (new ActorResolver())->fromRequest($request);

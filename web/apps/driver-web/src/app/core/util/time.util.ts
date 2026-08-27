@@ -42,6 +42,15 @@ export function formatKyivDateTime(iso: string | number | Date): string {
   return dateTimeFormatter.format(new Date(iso)).replace(', ', ' ');
 }
 
+/**
+ * Момент у тому самому вигляді, що й у booking-service: `Y-m-d\TH:i:s\Z`
+ * (UTC, БЕЗ мілісекунд). Саме так серіалізують моменти BookingPresenter
+ * і RouteSheetService, тож клієнт надсилає час у тій самій формі.
+ */
+export function toBackendIso(at: string | number | Date = Date.now()): string {
+  return new Date(at).toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
 /** Поточна календарна дата в Europe/Kyiv у форматі YYYY-MM-DD. */
 export function kyivDateKey(at: Date | number = Date.now()): string {
   const parts = new Intl.DateTimeFormat('en-CA', {

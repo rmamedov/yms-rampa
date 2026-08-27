@@ -51,11 +51,17 @@ final class InMemoryPartnerAccountGateway implements PartnerAccountGateway
         return $id;
     }
 
-    public function resetPassword(string $accountId, string $newPassword): void
+    /**
+     * Локальна емуляція поважає запропонований пароль і повертає саме його —
+     * на відміну від справжнього контуру, який генерує пароль сам (AUTH-25).
+     */
+    public function resetPassword(string $accountId, string $newPassword): string
     {
         $this->requireAccount($accountId);
         $this->accounts[$accountId]['password'] = $newPassword;
         $this->accounts[$accountId]['mustChangePassword'] = true;
+
+        return $newPassword;
     }
 
     public function setAccountActive(string $accountId, bool $active): void

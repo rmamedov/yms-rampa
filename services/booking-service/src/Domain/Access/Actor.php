@@ -11,6 +11,12 @@ use InvalidArgumentException;
  *
  * Домен не знає нічого про JWT — токен розбирається в інфраструктурі,
  * сюди приходить уже готовий актор.
+ *
+ * DRV: у контурі партнера ідентичностей ДВІ, і вони не збігаються:
+ *   $userId          — ОБЛІКОВИЙ ЗАПИС (partner_accounts), клейм `sub` токена;
+ *   $driverProfileId — ПРОФІЛЬ водія (partner_users), бізнес-ідентичність.
+ * Бронювання зберігає driverId саме профілю, тому належність точки водієві
+ * визначає ПРОФІЛЬ, а не обліковий запис.
  */
 final readonly class Actor
 {
@@ -26,6 +32,16 @@ final readonly class Actor
     public array $storeIds;
 
     /**
+     * Профіль водія зі заголовка X-Driver-Profile-Id (partner_users).
+     *
+     * null означає «водій без привʼязаного профілю» = НУЛЬ ДОСТУПУ до дій
+     * контуру водія, а не «підходить будь-яке бронювання». Запасного
+     * порівняння з $userId НЕМАЄ і бути не може: обліковий запис і профіль —
+     * різні ідентифікатори, їхній збіг був би випадковістю.
+     */
+    public ?string $driverProfileId;
+
+    /**
      * @param list<string> $storeIds магазини у скоупі (заголовок X-Store-Ids)
      */
     public function __construct(
@@ -34,6 +50,8 @@ final readonly class Actor
         /** Обовʼязковий для ролей контуру постачальника. */
         public ?string $supplierId = null,
         array $storeIds = [],
+        /** Профіль водія (заголовок X-Driver-Profile-Id); порожнє значення = null. */
+        ?string $driverProfileId = null,
         /** true — дію виконує cron booking-service, а не людина (NOSH-01). */
         public bool $system = false,
     ) {
@@ -46,6 +64,7 @@ final readonly class Actor
         }
 
         $this->storeIds = self::normalizeStoreIds($storeIds);
+        $this->driverProfileId = self::normalizeDriverProfileId($driverProfileId);
     }
 
     /** Системний актор для планових завдань (авто-no_show, вивільнення резервів). */
@@ -58,6 +77,38 @@ final readonly class Actor
     public function belongsToSupplier(string $supplierId): bool
     {
         return null !== $this->supplierId && '' !== $this->supplierId && $this->supplierId === $supplierId;
+    }
+
+    /**
+     * Водій із привʼязаним профілем — ЄДИНА форма актора, яка щось може
+     * в контурі водія. Роль `driver` без профілю не діє взагалі.
+     */
+    public function hasDriverProfile(): bool
+    {
+        return Role::Driver === $this->role && null !== $this->driverProfileId;
+    }
+
+    /**
+     * DRV: чи діє водій щодо ВЛАСНОЇ точки маршрутного листа.
+     *
+     * Єдина підстава повноважень водія — бронювання закріплене саме за його
+     * ПРОФІЛЕМ (`booking.driverId === driverProfileId`); призначення водія
+     * в маршрутному листі і в бронюванні тримає синхронними RouteSheetService.
+     *
+     * Перевірка НАВМИСНО вузька і нічого не розширює:
+     *  - інші ролі (магазин, адмін мережі, постачальник) отримують false —
+     *    їхні повноваження дає canOperateStore()/belongsToSupplier();
+     *  - водій без профілю (порожній X-Driver-Profile-Id) отримує false —
+     *    порівняння з обліковим записом $userId НЕ виконується;
+     *  - бронювання без водія (`driverId = null`) не належить нікому.
+     */
+    public function canActOnOwnRouteSheet(?string $driverId): bool
+    {
+        if (!$this->hasDriverProfile()) {
+            return false;
+        }
+
+        return null !== $driverId && '' !== trim($driverId) && $driverId === $this->driverProfileId;
     }
 
     /**
@@ -99,5 +150,15 @@ final readonly class Actor
         }
 
         return $normalized;
+    }
+
+    /** Порожній рядок і самі пробіли — це «профілю немає», тобто null. */
+    private static function normalizeDriverProfileId(?string $driverProfileId): ?string
+    {
+        if (null === $driverProfileId || '' === trim($driverProfileId)) {
+            return null;
+        }
+
+        return trim($driverProfileId);
     }
 }

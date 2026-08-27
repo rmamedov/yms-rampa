@@ -11,14 +11,16 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 /**
- * Тимчасова заглушка шлюзу до identity-partner-service.
+ * Заглушка шлюзу до identity-partner-service.
  *
- * Поки контур ідентичності не піднято, вона лише генерує `accountId`
- * і пише намір у лог. Пароль у лог НЕ потрапляє за жодних обставин
- * (DATA-21, DATA-35).
+ * Вона лише генерує `accountId` і пише намір у лог. Пароль у лог НЕ потрапляє
+ * за жодних обставин (DATA-21, DATA-35).
  *
- * Замінити на HTTP/RabbitMQ-адаптер: команда створення акаунта в
- * identity-partner-service (`partner_accounts`) з unique `{login:1}`.
+ * УВАГА: у ПРОДІ цей клас НЕ використовується — там працює
+ * {@see HttpPartnerAccountGateway} (config/packages/prod/upstream.yaml).
+ * Заглушка мовчки «створює» акаунт, якого насправді немає: профіль водія
+ * зберігається, а увійти він не може (401). Тримаємо її лише як
+ * діагностичний інструмент для локальних сценаріїв без контуру ідентичності.
  */
 final readonly class StubPartnerAccountGateway implements PartnerAccountGateway
 {
@@ -46,11 +48,13 @@ final readonly class StubPartnerAccountGateway implements PartnerAccountGateway
         return $accountId;
     }
 
-    public function resetPassword(string $accountId, string $newPassword): void
+    public function resetPassword(string $accountId, string $newPassword): string
     {
         $this->logger->info('Заглушка identity-partner-service: скидання пароля', [
             'accountId' => $accountId,
         ]);
+
+        return $newPassword;
     }
 
     public function setAccountActive(string $accountId, bool $active): void
