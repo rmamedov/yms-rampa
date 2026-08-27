@@ -29,7 +29,11 @@
         class="select"
         (change)="assignSheetDriver($any($event.target).value)"
       >
-        <option value="" [selected]="!summary()?.driverId">
+        <!-- Зняти водія з усього листа бекенд не дозволяє (driverId
+             обовʼязковий), тому варіант лишається лише як позначка поточного
+             стану і недоступний для вибору — інакше список показував би стан,
+             якого насправді не сталося. Зняти водія можна поточково. -->
+        <option value="" [selected]="!summary()?.driverId" [disabled]="!!summary()?.driverId">
           {{ 'rs.noDriver' | t }}
         </option>
         @for (driver of activeDrivers(); track driver.id) {
@@ -76,6 +80,16 @@
                       [attr.aria-label]="'rs.col.vehicle' | t"
                       (change)="changeVehicle(point, $any($event.target).value)"
                     >
+                      <!-- Якщо авто бронювання немає серед активних (його
+                           деактивували, або бронювання створив магазин), браузер
+                           показував ПЕРШУ опцію — на екрані стояв чужий номер,
+                           а справжнього не було видно взагалі. Додаємо поточне
+                           значення окремою опцією. -->
+                      @if (!activeVehicles().length || !vehicleIdFor(point)) {
+                        <option [value]="''" selected>
+                          {{ point.plateNumber }}
+                        </option>
+                      }
                       @for (vehicle of activeVehicles(); track vehicle.id) {
                         <option
                           [value]="vehicle.id"

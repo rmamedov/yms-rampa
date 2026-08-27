@@ -31,6 +31,12 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  */
 final class HttpSupplierDirectory implements SupplierDirectory
 {
+    /** Розмір сторінки довідника; більший partner-service обрізає до 200. */
+    private const int PAGE_SIZE = 100;
+
+    /** Захисна стеля обходу: 10 000 постачальників — це вже не мережа, а збій. */
+    private const int MAX_SCAN = 10_000;
+
     private readonly InternalJsonGateway $gateway;
 
     /**
@@ -90,6 +96,52 @@ final class HttpSupplierDirectory implements SupplierDirectory
             'SUPPLIER_SUSPENDED' => SupplierNotAllowedException::suspended($supplierId, $storeId),
             default => new SupplierNotAllowedException($supplierId, $storeId),
         };
+    }
+
+    /**
+     * ПОВНИЙ довідник постачальників філії: клієнт гортає всі сторінки сусіда.
+     *
+     * Гортання йде за `hasMore`, а не за довжиною `items`: partner-service
+     * фільтрує сторінку за доступом до філії вже після вибірки, тож сторінка
+     * цілком може виявитися порожньою, тоді як далі ще є кого віддати.
+     * Зупинка на першій непорожній сторінці — це рівно той дефект «показано
+     * лише першу сторінку», через який приймальник не знаходив контрагента.
+     */
+    public function listForStore(string $storeId): array
+    {
+        $suppliers = [];
+
+        for ($offset = 0; $offset < self::MAX_SCAN; $offset += self::PAGE_SIZE) {
+            $payload = $this->gateway->getJson(\sprintf(
+                '/internal/v1/suppliers?storeId=%s&limit=%d&offset=%d',
+                rawurlencode($storeId),
+                self::PAGE_SIZE,
+                $offset,
+            ));
+
+            // 404 службового маршруту означає «переліку немає»; форма walk-in
+            // має відкритися з порожнім довідником, а не впасти.
+            if (null === $payload) {
+                break;
+            }
+
+            foreach ((array) ($payload['items'] ?? []) as $item) {
+                $item = (array) $item;
+                $supplierId = (string) ($item['supplierId'] ?? '');
+
+                if ('' !== $supplierId) {
+                    $suppliers[] = $this->known[$supplierId] = self::toInfo($supplierId, $item);
+                }
+            }
+
+            if (true !== ($payload['hasMore'] ?? false)) {
+                break;
+            }
+        }
+
+        usort($suppliers, static fn (SupplierInfo $a, SupplierInfo $b): int => strcmp($a->name, $b->name));
+
+        return $suppliers;
     }
 
     /**

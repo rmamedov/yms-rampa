@@ -44,18 +44,44 @@ describe('MockBackend — дзеркало GET /api/driver/v1/route-sheet', () =
 
     expect(Object.keys(point).sort()).toEqual([
       'address',
+      'arrivedAt',
       'bookingId',
       'city',
+      'delayed',
       'driverId',
+      'latitude',
       'localTime',
+      'longitude',
       'orderId',
       'palletsCount',
       'plateNumber',
       'rampId',
+      'rampName',
+      'rampNumber',
       'slotStart',
       'status',
       'storeName',
     ]);
+  });
+
+  it('точка несе координати філії — за ними будується маршрут (DRV-21)', () => {
+    const point = backend.routeSheet(kyivDateKey(now), now).routeSheets[0].points[0];
+
+    expect(typeof point.latitude).toBe('number');
+    expect(typeof point.longitude).toBe('number');
+    // Довідник філій мока — зріз fixtures/silpo-branches.json, координати справжні.
+    expect(point.latitude).toBeGreaterThan(44);
+    expect(point.latitude).toBeLessThan(52.5);
+    expect(point.longitude).toBeGreaterThan(22);
+    expect(point.longitude).toBeLessThan(40.5);
+  });
+
+  it('точка несе номер і назву рампи, а не лише службовий rampId', () => {
+    const points = backend.routeSheet(kyivDateKey(now), now).routeSheets[0].points;
+    const point = points.find((p) => p.rampId === 'ramp-2');
+
+    expect(point?.rampNumber).toBe(2);
+    expect(point?.rampName).toBe('Рампа 2');
   });
 
   it('slotStart серіалізується без мілісекунд, як у PHP `Y-m-d\\TH:i:s\\Z`', () => {
@@ -263,11 +289,33 @@ describe('MockBackend — дії контуру водія', () => {
       'orderId',
       'status',
     ]);
-    // Проєкція листа полів arrivedAt/delayed не має — рівно як у бекенді.
+    // Ідентифікатор бронювання називається по-різному — це різні контракти.
     const listed = backend
       .routeSheet(kyivDateKey(now), now)
       .routeSheets[0].points.find((p) => p.bookingId === point.bookingId);
-    expect(listed).not.toHaveProperty('arrivedAt');
+    expect(listed).not.toHaveProperty('id');
     expect(listed?.status).toBe('arrived');
+  });
+
+  /**
+   * Дефект UI-тестування: банер затримки був відлунням власної дії водія
+   * і зникав після перезавантаження. Тепер стан лежить у самій точці листа.
+   */
+  it('затримка і час прибуття лишаються в листі після повторного читання', () => {
+    const point = pointWith('booked');
+    backend.reportDelay(point.bookingId, 'затори', inFuture(30), null, now);
+    backend.markArrived(point.bookingId, now);
+
+    // Свіже читання листа — рівно те, що зробить полінг після F5.
+    const listed = backend
+      .routeSheet(kyivDateKey(now), now)
+      .routeSheets[0].points.find((p) => p.bookingId === point.bookingId);
+
+    expect(listed?.delayed).toEqual({
+      flag: true,
+      reason: 'затори',
+      eta: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/),
+    });
+    expect(listed?.arrivedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
   });
 });

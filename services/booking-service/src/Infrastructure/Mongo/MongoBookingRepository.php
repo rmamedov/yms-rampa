@@ -151,6 +151,21 @@ final readonly class MongoBookingRepository implements BookingRepository
         return null === $result ? 0 : (int) ($result->n ?? 0);
     }
 
+    /**
+     * SUP-06. `limit: 1` замість `count`: питання булеве, і на постачальнику
+     * з тисячами поставок рахувати їх усі немає сенсу — досить першого
+     * документа за індексом `supplierId`.
+     */
+    public function hasAnyBySupplier(string $supplierId): bool
+    {
+        $cursor = $this->connection->manager()->executeQuery(
+            $this->connection->namespace(self::COLLECTION),
+            new Query(['supplierId' => $supplierId], ['limit' => 1, 'projection' => ['_id' => 1]]),
+        );
+
+        return [] !== $cursor->toArray();
+    }
+
     public function findOverlappingByPlate(
         string $supplierId,
         string $plateNumber,

@@ -6,6 +6,8 @@ import type { RouteDestination } from '../util/deep-links';
 const store: RouteDestination = {
   city: 'Київ',
   address: 'просп. Володимира Івасюка, 46',
+  latitude: 50.5202,
+  longitude: 30.51452,
 };
 
 describe('NavigatorPreferenceService (DRV-22, NAV-04)', () => {
@@ -33,10 +35,9 @@ describe('NavigatorPreferenceService (DRV-22, NAV-04)', () => {
     expect(TestBed.inject(LocalStorageService).getRaw(STORAGE_KEYS.navigatorApp)).toBe(
       'waze',
     );
+    // Відкривається точка на карті, а не пошук за адресою (DRV-21).
     expect(opened).toEqual([
-      'https://waze.com/ul?q=' +
-        encodeURIComponent('Київ, просп. Володимира Івасюка, 46') +
-        '&navigate=yes',
+      'https://waze.com/ul?ll=50.5202,30.51452&navigate=yes',
     ]);
   });
 

@@ -99,6 +99,12 @@ final readonly class StoreReadService
     /** Дошка прибуттів магазину на локальну добу. */
     public function board(Actor $actor, string $storeId, string $date, DateTimeImmutable $now): StoreBoard
     {
+        // Відсутній storeId — помилка запиту, а не відмова в доступі: інакше
+        // клієнт із забутим параметром отримав би 403 і шукав проблему в правах.
+        if ('' === trim($storeId)) {
+            throw new ValidationFailedException('Параметр «storeId» обовʼязковий');
+        }
+
         $actor->assertCanOperateStore($storeId);
         self::assertDate($date);
 

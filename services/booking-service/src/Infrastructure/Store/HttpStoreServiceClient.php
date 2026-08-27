@@ -43,4 +43,18 @@ final class HttpStoreServiceClient implements StoreServiceClient
             '/internal/v1/stores/'.InternalJsonGateway::segment($storeId).'/settings'
         );
     }
+
+    public function fetchStoreList(?array $storeIds, int $page, int $perPage): ?array
+    {
+        $query = ['page' => (string) $page, 'perPage' => (string) $perPage];
+
+        if (null !== $storeIds) {
+            // Порожній перелік свідомо перетворюється на порожнє значення
+            // параметра: сусід читає його як «звуження є, і воно нікого не
+            // пропускає», тоді як ВІДСУТНІЙ параметр означав би «вся мережа».
+            $query['storeIds'] = implode(',', $storeIds);
+        }
+
+        return $this->gateway->getJson('/internal/v1/stores?'.http_build_query($query));
+    }
 }

@@ -67,6 +67,17 @@ interface BookingRepository
     public function countActiveFutureBySupplier(string $supplierId, DateTimeImmutable $now): int;
 
     /**
+     * SUP-06: чи існує хоч одне бронювання постачальника БУДЬ-ЯКОГО статусу
+     * і будь-якого типу — включно зі скасованими, no_show і walk-in.
+     *
+     * Питання ставить partner-service перед видаленням постачальника
+     * (службовий маршрут GET /internal/v1/bookings/suppliers/{supplierId}).
+     * Саме «будь-який статус», а не «активні»: історія поставок не повинна
+     * лишитися з посиланням на неіснуючого контрагента.
+     */
+    public function hasAnyBySupplier(string $supplierId): bool;
+
+    /**
      * BOOK-04: активні бронювання того самого постачальника з тим самим
      * держномером, що перетинаються за часом з [from, to) — незалежно від магазину.
      *

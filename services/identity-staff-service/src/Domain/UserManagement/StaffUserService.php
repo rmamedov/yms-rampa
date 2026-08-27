@@ -418,7 +418,9 @@ final readonly class StaffUserService
             $plainPassword,
             $target->email()->value,
             $target->fullName(),
-            $target->passwordHistory(),
+            // Чинний хеш іде в історію разом із попередніми: «скинути на той
+            // самий пароль» — це теж повтор (так само в AuthenticationService).
+            [$target->passwordHash(), ...$target->passwordHistory()],
         );
 
         $now = $this->clock->now();

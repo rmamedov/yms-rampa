@@ -65,8 +65,16 @@ export interface MockBookingFact {
   readonly onTime: boolean | null;
 }
 
+/**
+ * Обліковий запис співробітника в мок-базі — те саме, що віддає
+ * StaffUserView::user() бекенду (розділ 4.7).
+ */
 export interface MockAccount extends AuthUser {
   readonly active: boolean;
+  readonly twoFactorEnabled: boolean;
+  readonly lastLoginAt: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
 }
 
 /** Детермінований генератор — дані моків стабільні між запусками і в тестах. */
@@ -106,8 +114,24 @@ const ROLE_LABELS: Readonly<Record<string, string>> = {
   analyst: 'Аналітик',
 };
 
+/** RBAC-16: скоуп «вся мережа» визначається РОЛЛЮ, а не порожнім storeIds. */
+const NETWORK_WIDE_ROLES: readonly string[] = [
+  'super_admin',
+  'network_manager',
+  'analyst',
+];
+
 const ACCOUNT_SEED: ReadonlyArray<
-  Omit<MockAccount, 'storeIds' | 'roleLabel' | 'networkWide'> & {
+  Omit<
+    MockAccount,
+    | 'storeIds'
+    | 'roleLabel'
+    | 'networkWide'
+    | 'twoFactorEnabled'
+    | 'lastLoginAt'
+    | 'createdAt'
+    | 'updatedAt'
+  > & {
     storeIndexes: number[];
   }
 > = [
@@ -483,17 +507,23 @@ export function seed(): MockState {
     }
   });
 
-  const accounts: MockAccount[] = ACCOUNT_SEED.map((a) => ({
+  const accounts: MockAccount[] = ACCOUNT_SEED.map((a, index) => ({
     id: a.id,
     fullName: a.fullName,
     email: a.email,
     role: a.role,
     roleLabel: ROLE_LABELS[a.role] ?? a.role,
     active: a.active,
-    networkWide: a.storeIndexes.length === 0,
+    networkWide: NETWORK_WIDE_ROLES.includes(a.role),
     storeIds: a.storeIndexes
-      .map((i) => stores[i]?.card.id)
+      .map((storeIndex) => stores[storeIndex]?.card.id)
       .filter((v): v is string => !!v),
+    twoFactorEnabled: a.role === 'super_admin',
+    lastLoginAt: a.active
+      ? new Date(Date.now() - (index + 1) * 3_600_000).toISOString()
+      : null,
+    createdAt: new Date(Date.now() - (180 - index * 10) * 86_400_000).toISOString(),
+    updatedAt: new Date(Date.now() - (index + 1) * 86_400_000).toISOString(),
   }));
 
   return {

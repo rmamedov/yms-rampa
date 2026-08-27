@@ -1,0 +1,103 @@
+<div class="page-header">
+  <h1>{{ 'users.title' | t }}</h1>
+  <span class="spacer"></span>
+  <button type="button" class="btn btn-primary" (click)="create()">
+    {{ 'users.add' | t }}
+  </button>
+</div>
+
+<div class="toolbar">
+  <div style="min-width: 280px">
+    <label for="user-search">{{ 'common.search' | t }}</label>
+    <input
+      id="user-search"
+      type="search"
+      [value]="search()"
+      [placeholder]="'users.search.placeholder' | t"
+      (input)="search.set($any($event.target).value)"
+      (keydown.enter)="applyFilters()"
+    />
+  </div>
+  <div style="min-width: 200px">
+    <label for="user-role">{{ 'users.col.role' | t }}</label>
+    <select id="user-role" [value]="roleFilter()" (change)="setRoleFilter($event)">
+      <option value="">{{ 'common.all' | t }}</option>
+      @for (role of roleOptions(); track role) {
+        <option [value]="role">{{ 'role.' + role | t }}</option>
+      }
+    </select>
+  </div>
+  <div style="min-width: 180px">
+    <label for="user-status">{{ 'common.status' | t }}</label>
+    <select id="user-status" [value]="statusFilter()" (change)="setStatusFilter($event)">
+      <option value="">{{ 'common.all' | t }}</option>
+      <option value="active">{{ 'users.status.active' | t }}</option>
+      <option value="inactive">{{ 'users.status.inactive' | t }}</option>
+    </select>
+  </div>
+  <button type="button" class="btn btn-primary" (click)="applyFilters()">
+    {{ 'common.apply' | t }}
+  </button>
+  <button type="button" class="btn" (click)="resetFilters()">
+    {{ 'common.reset' | t }}
+  </button>
+</div>
+
+<div class="table-wrap">
+  <table class="data">
+    <thead>
+      <tr>
+        <th>{{ 'users.col.fullName' | t }}</th>
+        <th>{{ 'common.email' | t }}</th>
+        <th>{{ 'users.col.role' | t }}</th>
+        <th>{{ 'users.col.scope' | t }}</th>
+        <th>{{ 'common.status' | t }}</th>
+        <th>{{ 'users.col.lastLogin' | t }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (row of rows(); track row.id) {
+        <tr>
+          <td>
+            <a [routerLink]="['/users', row.id]">{{
+              row.fullName || ('users.noName' | t)
+            }}</a>
+          </td>
+          <td class="mono">{{ row.email }}</td>
+          <td>{{ 'role.' + row.role | t }}</td>
+          <td>
+            <span [class.badge]="row.scope.zeroAccess" [class.badge-danger]="row.scope.zeroAccess">
+              {{ scopeLabel(row) | t: { n: row.scope.storeIds.length } }}
+            </span>
+          </td>
+          <td>
+            <span
+              class="badge"
+              [class.badge-success]="row.active"
+              [class.badge-danger]="!row.active"
+              >{{ (row.active ? 'users.status.active' : 'users.status.inactive') | t }}</span
+            >
+          </td>
+          <td class="mono">{{ row.lastLoginAt ?? ('common.never' | t) }}</td>
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="6">
+            <app-empty-state
+              [message]="emptyMessage() ?? ('users.empty' | t)"
+              [actionLabel]="'common.reset' | t"
+              (action)="resetFilters()"
+            />
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+  <app-pagination
+    [page]="page()"
+    [pageSize]="pageSize()"
+    [total]="total()"
+    (pageChange)="setPage($event)"
+    (pageSizeChange)="setPageSize($event)"
+  />
+</div>

@@ -26,4 +26,16 @@ interface StoreServiceClient
      * @throws UpstreamUnavailableException store-service недоступний або відповів не за контрактом
      */
     public function fetchStore(string $storeId): ?array;
+
+    /**
+     * Сторінка службового переліку магазинів
+     * (GET /internal/v1/stores?storeIds=…&page=…&perPage=…).
+     *
+     * @param list<string>|null $storeIds звуження скоупом; null — без звуження
+     *
+     * @return array<string, mixed>|null null — сусід відповів 404
+     *
+     * @throws UpstreamUnavailableException store-service недоступний або відповів не за контрактом
+     */
+    public function fetchStoreList(?array $storeIds, int $page, int $perPage): ?array;
 }

@@ -119,6 +119,57 @@ export interface AuthSession {
 }
 
 // ---------------------------------------------------------------------------
+// Користувачі мережі (identity-staff-service, розділ 4.7)
+// ---------------------------------------------------------------------------
+
+/**
+ * Скоуп облікового запису у відповіді `/api/admin/v1/users`.
+ *
+ * `zeroAccess` — ОКРЕМА ознака від бекенду, а не здогадка інтерфейсу:
+ * для store_manager і store_operator порожній `storeIds` означає НУЛЬ
+ * доступу, а не доступ до всієї мережі (RBAC-13).
+ */
+export interface StaffUserScope {
+  readonly storeIds: readonly string[];
+  /** RBAC-16: роль зі скоупом «вся мережа». */
+  readonly networkWide: boolean;
+  /** RBAC-13: роль обмежена переліком магазинів. */
+  readonly storeScoped: boolean;
+  readonly zeroAccess: boolean;
+  /** Готовий текст попередження від бекенду; null — попереджати нема про що. */
+  readonly warning: string | null;
+}
+
+export interface StaffUser {
+  readonly id: string;
+  readonly email: string;
+  readonly fullName: string;
+  /** RBAC-04: рівно одна роль. */
+  readonly role: StaffRole;
+  readonly roleLabel: string;
+  readonly scope: StaffUserScope;
+  readonly active: boolean;
+  readonly twoFactorEnabled: boolean;
+  readonly lastLoginAt: string | null;
+  readonly createdAt: string | null;
+  readonly updatedAt: string | null;
+}
+
+/**
+ * Відповідь на створення акаунта і на скидання пароля: пароль приходить
+ * РІВНО ОДИН РАЗ і ніде не зберігається (AUTH-61).
+ */
+export interface StaffUserCredentials {
+  readonly user: StaffUser;
+  readonly login: string;
+  readonly password: string;
+  readonly passwordGenerated: boolean;
+  readonly passwordNotice: string;
+}
+
+export type StaffUserStatusFilter = '' | 'active' | 'inactive';
+
+// ---------------------------------------------------------------------------
 // Магазини (store-service)
 // ---------------------------------------------------------------------------
 

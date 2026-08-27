@@ -23,6 +23,8 @@ import {
   SlotBlock,
   SlotSizeMinutes,
   StaffRole,
+  StaffUser,
+  StaffUserCredentials,
   Store,
   StoreConfiguration,
   StoreListRow,
@@ -84,6 +86,76 @@ export function toSession(wire: WireTokenResponse): AuthSession {
       networkWide: wire.user.scope?.networkWide ?? false,
     },
     tokens: toTokens(wire),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// identity-staff-service: розділ «Користувачі» (4.7)
+// ---------------------------------------------------------------------------
+
+/** StaffUserView::user() бекенду. */
+export interface WireStaffUser {
+  readonly id: string;
+  readonly email: string;
+  readonly fullName: string;
+  readonly role: string;
+  readonly roleLabel: string;
+  readonly scope: {
+    readonly storeIds: readonly string[];
+    readonly networkWide: boolean;
+    readonly storeScoped: boolean;
+    readonly zeroAccess: boolean;
+    readonly warning: string | null;
+  };
+  readonly active: boolean;
+  readonly twoFactorEnabled: boolean;
+  readonly lastLoginAt: string | null;
+  readonly createdAt: string | null;
+  readonly updatedAt: string | null;
+}
+
+/** StaffUserView::credentials() — профіль + одноразовий пароль. */
+export interface WireStaffUserCredentials extends WireStaffUser {
+  readonly login: string;
+  readonly password: string;
+  readonly passwordGenerated: boolean;
+  readonly passwordNotice: string;
+}
+
+export function toStaffUser(wire: WireStaffUser): StaffUser {
+  return {
+    id: wire.id,
+    email: wire.email,
+    fullName: wire.fullName,
+    role: wire.role as StaffRole,
+    roleLabel: wire.roleLabel,
+    scope: {
+      storeIds: [...(wire.scope?.storeIds ?? [])],
+      networkWide: wire.scope?.networkWide ?? false,
+      storeScoped: wire.scope?.storeScoped ?? false,
+      // RBAC-13: ознаку нульового доступу рахує бекенд — інтерфейс її
+      // не виводить із порожнього storeIds, бо для мережевих ролей
+      // порожній перелік означає протилежне.
+      zeroAccess: wire.scope?.zeroAccess ?? false,
+      warning: wire.scope?.warning ?? null,
+    },
+    active: wire.active,
+    twoFactorEnabled: wire.twoFactorEnabled ?? false,
+    lastLoginAt: wire.lastLoginAt ?? null,
+    createdAt: wire.createdAt ?? null,
+    updatedAt: wire.updatedAt ?? null,
+  };
+}
+
+export function toStaffUserCredentials(
+  wire: WireStaffUserCredentials,
+): StaffUserCredentials {
+  return {
+    user: toStaffUser(wire),
+    login: wire.login ?? wire.email,
+    password: wire.password,
+    passwordGenerated: wire.passwordGenerated ?? true,
+    passwordNotice: wire.passwordNotice,
   };
 }
 

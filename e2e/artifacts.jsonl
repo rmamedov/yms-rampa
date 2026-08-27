@@ -754,3 +754,45 @@
 {"kind":"booking","id":"f0a5068a-ba45-4efb-ae9e-3b8014318aa4","note":"UITEST-3501 2026-09-01T10:00:00Z","at":"2026-08-27T22:26:14.416Z"}
 {"kind":"booking","id":"f8734154-eded-4181-9d3c-b9b82a4f60dc","note":"UITEST-5766 2026-09-02T10:30:00Z","at":"2026-08-27T22:26:17.315Z"}
 {"kind":"driver","id":"1fe1b159-3912-47eb-a069-19dea70d1505","note":"+380990005259","at":"2026-08-27T22:26:23.200Z"}
+{"kind":"vehicle","id":"64557a5d-4fec-4e75-81d4-dad3b4afaaed","note":"UT3819XX","at":"2026-08-27T22:28:04.964Z"}
+{"kind":"vehicle","id":"5931357c-f68d-4f18-81c4-7679f5d933ba","note":"UT8502XX","at":"2026-08-27T22:28:07.573Z"}
+{"kind":"driver","id":"4c2954e7-06b0-4f18-9836-d1a6c31c7edb","note":"+380990009849","at":"2026-08-27T22:28:14.353Z"}
+{"kind":"driver","id":"581c2880-45cf-4e20-9928-893e90f4b42f","note":"+380990004511","at":"2026-08-27T22:28:15.929Z"}
+{"kind":"driver","id":"b60c57ce-aa21-4557-a6fe-7c981ad96452","note":"+380990007342","at":"2026-08-27T22:28:17.361Z"}
+{"kind":"driver","id":"143abed1-c012-479f-87df-940a7f652562","note":"+380990008633","at":"2026-08-27T22:28:18.922Z"}
+{"kind":"booking","id":"c4ec920c-215b-42f4-9ee0-bb87aeee03ed","note":"UITEST-busy 2026-08-31T05:00:00Z","at":"2026-08-27T22:29:35.864Z"}
+{"kind":"vehicle","id":"5a463d01-ad45-4e63-906d-bb771e851999","note":"UT2115XX","at":"2026-08-27T22:30:31.986Z"}
+{"kind":"booking","id":"10201576-7ff1-4ed5-9273-6ffdf1c1d6bb","note":"UITEST-9979 2026-08-29T10:00:00Z","at":"2026-08-27T22:30:54.867Z"}
+{"kind":"vehicle","id":"2932bc9f-d231-492b-b2d0-ef838ad5d692","note":"UT4091XX","at":"2026-08-27T22:30:56.088Z"}
+{"kind":"booking","id":"97104f08-c9b0-43da-8ed2-b76affd76c84","note":"UITEST-4091 2026-08-31T10:30:00Z","at":"2026-08-27T22:30:59.661Z"}
+{"kind":"vehicle","id":"c8470c98-998e-42d2-a32d-8fdb0937aa1d","note":"UT9222XX","at":"2026-08-27T22:30:59.770Z"}
+{"kind":"booking","id":"81b41b7a-453c-498b-bd8f-122bf4a5a6bf","note":"конкуренція 2026-08-31T10:30:00Z","at":"2026-08-27T22:31:18.086Z"}
+{"kind":"vehicle","id":"a5f5d398-a3b1-4294-b931-0b33b4e453bb","note":"UT9600XX","at":"2026-08-27T22:31:20.856Z"}
+{"kind":"vehicle","id":"3355a8ee-6347-4f69-b00f-580df363503c","note":"UT6094XX","at":"2026-08-27T22:31:26.421Z"}
+{"kind":"vehicle","id":"447df966-5e8b-420c-88a3-8a88f8bb24a5","note":"UT7675XX","at":"2026-08-27T22:31:30.096Z"}
+{"kind":"vehicle","id":"a04db6c7-4ef2-4554-9c69-ae89b02ec7ed","note":"UT4424XX","at":"2026-08-27T22:31:33.197Z"}
+{"kind":"vehicle","id":"167ac1b6-cd08-4042-8e85-5c3d245d2cf0","note":"UT3434XX","at":"2026-08-27T22:31:36.240Z"}
+{"kind":"vehicle","id":"7736e16e-a936-4a36-b871-01f589760b4b","note":"UT6446XX","at":"2026-08-27T22:31:39.662Z"}
+{"kind":"vehicle","id":"b2ea0528-c53f-4318-964a-5e655a548953","note":"UT6220XX","at":"2026-08-27T22:31:44.433Z"}
+{"kind":"booking","id":"843c5a47-438f-43ec-b941-c376014269d6","note":"UITEST-veh-lock 2026-08-29T10:00:00Z","at":"2026-08-27T22:31:44.726Z"}
+{"kind":"vehicle","id":"69ea0f54-eef6-4892-a89d-640cfe8483e5","note":"UT3874XX","at":"2026-08-27T22:31:47.731Z"}
+{"kind":"vehicle","id":"267fd8b0-e75d-4977-94b1-6ef57091adef","note":"UT6020XX","at":"2026-08-27T22:31:51.464Z"}
+{"kind":"driver","id":"77f448ad-fdae-4113-9a3b-aa3a974f0e51","note":"+380990005642","at":"2026-08-27T22:32:16.956Z"}
+{"kind":"driver","id":"f633c567-4805-4845-bb0e-456e69aecc33","note":"+380990008324","at":"2026-08-27T22:32:18.522Z"}
+{"kind":"driver","id":"049655ba-4daa-4d86-aea9-8c54d612324b","note":"+380990001766","at":"2026-08-27T22:32:20.249Z"}
+{"kind":"driver","id":"cdbd1a0c-7cec-4a86-8a95-c676c8b0ebdc","note":"+380990009374","at":"2026-08-27T22:32:21.700Z"}
+{"kind":"driver","id":"5e784ebd-2706-4ef3-a276-942d7f57f9bc","note":"+380990001583","at":"2026-08-27T22:32:31.620Z"}
+{"kind":"vehicle","id":"931a4fbf-0284-4cd4-add5-f0cb66d95c33","note":"UT5444XX","at":"2026-08-27T22:32:47.592Z"}
+{"kind":"driver","id":"983e77e9-c781-4e08-af83-53dd3e87143f","note":"+380990005070","at":"2026-08-27T22:32:50.990Z"}
+{"kind":"driver","id":"34a5ebcd-050b-45d4-bfc5-423d85df460d","note":"+380990009961","at":"2026-08-27T22:32:56.533Z"}
+{"kind":"booking","id":"f50f800f-7b96-4e9d-b385-da7ce0c7199a","note":"UITEST-8186 2026-08-31T10:30:00Z","at":"2026-08-27T22:33:02.965Z"}
+{"kind":"booking","id":"c8dff4ea-47d1-4d56-a8cb-257df3c233c6","note":"UITEST-1861 2026-08-31T10:30:00Z","at":"2026-08-27T22:33:05.736Z"}
+{"kind":"driver","id":"6bf8015a-e68c-4461-b571-25aa9c49f867","note":"+380990001792","at":"2026-08-27T22:33:10.053Z"}
+{"kind":"booking","id":"cdca2b2c-7c29-410e-b48a-120b18267455","note":"UITEST-4672 2026-09-01T10:30:00Z","at":"2026-08-27T22:33:10.378Z"}
+{"kind":"booking","id":"b74f64b9-a16a-4c86-b86e-a56e51f62245","note":"UITEST-7774 2026-09-01T10:30:00Z","at":"2026-08-27T22:33:13.324Z"}
+{"kind":"vehicle","id":"dad43f67-4d4a-48fe-887d-7564fc13ddaa","note":"UT9316XX","at":"2026-08-27T22:33:18.054Z"}
+{"kind":"booking","id":"d1795f9c-6860-4a2d-88df-be9f72bdb4f9","note":"UITEST-9316 2026-08-31T12:40:00Z","at":"2026-08-27T22:33:18.210Z"}
+{"kind":"booking","id":"328a7648-cb4e-477a-b7b2-7eb1fcaedb9f","note":"UITEST-7579 2026-08-31T09:00:00Z","at":"2026-08-27T22:33:21.866Z"}
+{"kind":"booking","id":"d9e74466-4a41-4d8c-9618-3163eb31c907","note":"UITEST-9193 2026-09-01T10:00:00Z","at":"2026-08-27T22:33:24.943Z"}
+{"kind":"booking","id":"6917c1f1-8c4e-4731-aee3-048e872db99d","note":"UITEST-8333 2026-09-02T10:30:00Z","at":"2026-08-27T22:33:27.871Z"}
+{"kind":"driver","id":"a8d4f6a1-1a27-4b38-94e3-eafb6dc13a11","note":"+380990009253","at":"2026-08-27T22:33:34.167Z"}

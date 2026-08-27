@@ -87,7 +87,6 @@
           [active]="isActive(i)"
           [pending]="store.isPending(point.bookingId)"
           [queued]="store.isQueued(point.bookingId)"
-          [delay]="store.delayOf(point.bookingId)"
           (routeRequested)="onRouteRequested($event)"
           (routeOptionsRequested)="openNavigatorSheet($event)"
           (arriveRequested)="onArrive($event)"

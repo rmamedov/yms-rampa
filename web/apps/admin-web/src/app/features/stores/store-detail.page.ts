@@ -44,8 +44,10 @@ import { StoreBlocksTabComponent } from './tabs/blocks-tab.component';
 import {
   CONFIG_DEFAULTS,
   ConfigFormState,
+  configBlockingErrors,
   emptyReceivingWindows,
   minimumEffectiveDate,
+  normalizeReceivingWindows,
   validateEffectiveDate,
 } from '../../core/utils/store-config.util';
 
@@ -123,15 +125,23 @@ export class StoreDetailPage {
     validateEffectiveDate(this.effectiveFrom(), this.isFirstVersion()),
   );
 
-  /** Бекенд вимагає ці два поля обовʼязково (requireInt/requireFloat). */
-  protected readonly configIncomplete = computed(() => {
-    const draft = this.draft();
-    return (
-      draft === null ||
-      draft.slotSizeMinutes === null ||
-      draft.maxVehicleWeightTons === null
-    );
-  });
+  /**
+   * Усе, що робить чернетку незбережуваною: бракує обовʼязкових полів
+   * (requireInt/requireFloat), немає жодної рампи, зламані інтервали прийому.
+   */
+  protected readonly configErrors = computed<readonly string[]>(() =>
+    configBlockingErrors(this.draft()),
+  );
+
+  /** «Зберегти» активна лише для валідної чернетки — як на вкладці «Загальне». */
+  protected readonly canSave = computed(
+    () =>
+      this.canConfigure() &&
+      this.dirty() &&
+      !this.saving() &&
+      this.configErrors().length === 0 &&
+      this.effectiveDateError() === null,
+  );
 
   protected readonly crumbs = computed<readonly Crumb[]>(() => {
     const store = this.store();
@@ -258,6 +268,11 @@ export class StoreDetailPage {
     }
     if (this.effectiveDateError() !== null) {
       this.toast.errorKey('conflicts.error.effectiveFrom');
+      return;
+    }
+    const blocking = this.configErrors();
+    if (blocking.length > 0) {
+      this.toast.errorKey(blocking[0]);
       return;
     }
     if (draft.slotSizeMinutes === null || draft.maxVehicleWeightTons === null) {
@@ -426,10 +441,8 @@ export function toFormState(store: Store): ConfigFormState {
     bookingHorizonDays: config.bookingHorizonDays,
     noShowGraceMinutes: config.noShowGraceMinutes,
     holdMaxMinutes: config.holdMaxMinutes,
-    receivingWindows: config.receivingWindows.map((w) => ({
-      dayOfWeek: w.dayOfWeek,
-      intervals: w.intervals.map((i) => ({ ...i })),
-    })),
+    // Бекенд віддає лише дні, для яких задано вікна; у формі мають бути всі сім.
+    receivingWindows: normalizeReceivingWindows(config.receivingWindows),
     calendarExceptions: config.calendarExceptions.map((e) => ({ ...e })),
   };
 }

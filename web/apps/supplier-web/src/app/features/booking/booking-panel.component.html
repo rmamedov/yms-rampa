@@ -152,7 +152,7 @@
       <input
         id="order-id"
         class="input"
-        maxlength="64"
+        [attr.maxlength]="null"
         [value]="orderId()"
         (input)="orderId.set($any($event.target).value)"
         [disabled]="expired()"

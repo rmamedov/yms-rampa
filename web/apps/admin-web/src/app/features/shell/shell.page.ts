@@ -13,6 +13,7 @@ interface NavItem {
 const NAV: readonly NavItem[] = [
   { section: 'stores', link: '/stores', labelKey: 'nav.stores' },
   { section: 'suppliers', link: '/suppliers', labelKey: 'nav.suppliers' },
+  { section: 'users', link: '/users', labelKey: 'nav.users' },
   { section: 'sync', link: '/mcp-sync', labelKey: 'nav.sync' },
   { section: 'analytics', link: '/analytics', labelKey: 'nav.analytics' },
 ];

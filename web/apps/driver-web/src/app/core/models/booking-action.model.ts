@@ -9,11 +9,12 @@
  *  App\Application\Booking\DriverBookingService).
  *
  * Усі три маршрути віддають ПОВНЕ представлення бронювання
- * (BookingPresenter::toArray()), а не точку маршрутного листа. Тому форма
- * відповіді дії НЕ дорівнює `RoutePoint`: тут є `arrivedAt` і `delayed`,
- * яких проєкція `GET /route-sheet` не містить.
+ * (BookingPresenter::toArray()), а не точку маршрутного листа, тож форма
+ * відповіді дії НЕ дорівнює `RoutePoint` — вона ширша. Спільні поля
+ * (`status`, `orderId`, `arrivedAt`, `delayed`) описані один раз у
+ * route-sheet.model.ts: обидва контракти мусять читати їх однаково.
  */
-import type { BookingStatus } from './route-sheet.model';
+import type { BookingStatus, DelayState } from './route-sheet.model';
 
 /**
  * Довідник причин затримки — рівно значення backed enum
@@ -52,17 +53,6 @@ export interface DelayReport {
   /** Обовʼязковий для причини «інше», інакше — необовʼязковий. */
   readonly comment?: string | null;
 }
-
-/** Поле `delayed` відповіді — DelayInfo::toArray() (DLY-01). */
-export interface DelayState {
-  readonly flag: boolean;
-  /** Для «інше» бекенд склеює причину з коментарем: «інше: <текст>». */
-  readonly reason: string | null;
-  /** UTC ISO 8601 або null. */
-  readonly eta: string | null;
-}
-
-export const NO_DELAY: DelayState = { flag: false, reason: null, eta: null };
 
 /**
  * Зріз відповіді дії, який потрібен застосунку водія.

@@ -13,6 +13,7 @@ use App\Application\Booking\WalkInRequest;
 use App\Application\Hold\SlotHoldService;
 use App\Application\RouteSheet\RouteSheetService;
 use App\Application\Slot\SlotGridService;
+use App\Application\Store\StoreReadService;
 use App\Domain\Access\Actor;
 use App\Domain\Access\Role;
 use App\Domain\Booking\Booking;
@@ -24,11 +25,13 @@ use App\Domain\Slot\SlotGridGenerator;
 use App\Domain\Slot\SlotKey;
 use App\Domain\Slot\StoreConfig;
 use App\Domain\Slot\TimeInterval;
+use App\Domain\Store\GeoPoint;
 use App\Domain\Store\StorePolicy;
 use App\Domain\Store\StoreSettings;
 use App\Domain\Supplier\SupplierInfo;
 use App\Infrastructure\InMemory\FrozenClock;
 use App\Infrastructure\InMemory\InMemoryBookingRepository;
+use App\Infrastructure\InMemory\InMemoryDriverDirectory;
 use App\Infrastructure\InMemory\InMemoryOutboxStore;
 use App\Infrastructure\InMemory\InMemoryRouteSheetRepository;
 use App\Infrastructure\InMemory\InMemorySlotHoldStore;
@@ -61,7 +64,9 @@ final class Scenario
     public InMemorySlotHoldStore $holds;
     public InMemoryRouteSheetRepository $routeSheetRepository;
     public InMemorySupplierDirectory $suppliers;
+    public InMemoryDriverDirectory $driverProfiles;
     public SlotGridService $grid;
+    public StoreReadService $storeRead;
     public SlotHoldService $holdService;
     public RouteSheetService $routeSheets;
     public BookingCreationService $creation;
@@ -86,6 +91,8 @@ final class Scenario
             new SupplierInfo(self::OTHER_SUPPLIER_ID, 'ТОВ Хлібзавод'),
         ]);
 
+        $this->driverProfiles = new InMemoryDriverDirectory();
+
         $this->grid = new SlotGridService(
             $this->stores,
             $this->overlays,
@@ -98,6 +105,7 @@ final class Scenario
             $this->routeSheetRepository,
             $this->bookings,
             new SequentialIdGenerator('rs-'),
+            $this->stores,
         );
 
         $this->holdService = new SlotHoldService($this->grid, $this->holds);
@@ -114,8 +122,36 @@ final class Scenario
         $this->lifecycle = new BookingLifecycleService($this->bookings, $this->grid, $this->routeSheets);
         $this->driverBookings = new DriverBookingService($this->lifecycle, $this->bookings);
         $this->sweeper = new NoShowSweeper($this->bookings, $this->stores, $this->routeSheets);
+
+        // Читання контуру магазину: перелік філій бере ту саму фікстуру, що й
+        // конфігурацію, тому «магазин зареєстровано» означає і те, і те.
+        $this->storeRead = new StoreReadService(
+            $this->grid,
+            $this->bookings,
+            $this->suppliers,
+            $this->driverProfiles,
+            $this->stores,
+        );
     }
 
+    /** Ще одна філія мережі — для перевірок скоупу магазинних ролей. */
+    public function registerStore(string $storeId, string $displayName = 'Сільпо Поділ'): StoreSettings
+    {
+        $settings = new StoreSettings(
+            config: self::storeSettings($storeId)->config,
+            policy: new StorePolicy(),
+            snapshot: new StoreSnapshot('2001', $displayName, 'Київ', 'вул. Нижній Вал, 15'),
+        );
+
+        $this->stores->register($settings);
+
+        return $settings;
+    }
+
+    /**
+     * @param bool $withLocation false — філія без координат: так store-service
+     *                           виглядає, поки довідник не заповнено
+     */
     public static function storeSettings(
         string $storeId = self::STORE_ID,
         float $maxVehicleWeightTons = 20.0,
@@ -123,6 +159,7 @@ final class Scenario
         int $bookingHorizonDays = 14,
         ?StorePolicy $policy = null,
         bool $ymsActive = true,
+        bool $withLocation = true,
     ): StoreSettings {
         $windows = [];
         for ($day = 1; $day <= 6; ++$day) {
@@ -134,7 +171,10 @@ final class Scenario
                 storeId: $storeId,
                 receivingWindows: $windows,
                 slotSizeMinutes: 30,
-                ramps: [new Ramp('r1', 'Рампа 1'), new Ramp('r2', 'Рампа 2')],
+                ramps: [
+                    new Ramp('r1', 'Рампа 1', number: 1),
+                    new Ramp('r2', 'Холодильна', number: 2),
+                ],
                 maxVehicleWeightTons: $maxVehicleWeightTons,
                 leadTimeMinutes: $leadTimeMinutes,
                 bookingHorizonDays: $bookingHorizonDays,
@@ -142,6 +182,8 @@ final class Scenario
             policy: $policy ?? new StorePolicy(),
             snapshot: new StoreSnapshot('1998', 'Сільпо Хрещатик', 'Київ', 'вул. Хрещатик, 12'),
             ymsActive: $ymsActive,
+            // Реальні координати філії 1932 (fixtures/silpo-branches.json).
+            location: $withLocation ? new GeoPoint(50.49699, 30.36123) : null,
         );
     }
 

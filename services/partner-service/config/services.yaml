@@ -63,12 +63,10 @@ when@prod:
         App\Domain\PartnerUser\PartnerUserRepository: '@App\Infrastructure\Mongo\MongoPartnerUserRepository'
         App\Domain\Vehicle\VehicleRepository: '@App\Infrastructure\Mongo\MongoVehicleRepository'
         App\Domain\Event\EventPublisher: '@App\Infrastructure\Mongo\MongoOutboxEventPublisher'
-        # Порт до identity-partner-service свідомо НЕ оголошений тут: його
-        # прод-адаптеру потрібен явний аргумент $baseUrl, а цей файл
-        # завантажується раніше за config/services_prod.yaml, який імпортує
-        # config/packages/prod/upstream.yaml останнім. Оголошення тут просто
-        # дублювало б звʼязування і знову ховало заглушку в проді.
-        #
-        # Поки booking-service не піднято — стратегія fail-closed
-        # (див. коментарі в класі).
-        App\Domain\Booking\BookingQueryPort: '@App\Infrastructure\Booking\FailClosedBookingQueryPort'
+        # Порти до identity-partner-service і booking-service свідомо НЕ
+        # оголошені тут: їхнім прод-адаптерам потрібен явний аргумент $baseUrl,
+        # а цей файл завантажується раніше за config/services_prod.yaml, який
+        # імпортує config/packages/prod/upstream.yaml останнім. Оголошення тут
+        # просто дублювало б звʼязування і знову ховало заглушку в проді —
+        # саме так BookingQueryPort довго лишався заглушкою «бронювання є
+        # завжди», через яку жодного постачальника не можна було видалити.

@@ -9,13 +9,13 @@ import { I18nService } from '../i18n/i18n.service';
 import type {
   AvailableDate,
   DayRouteSheet,
+  DelayState,
   RoutePoint,
 } from '../models/route-sheet.model';
 import {
   DELAY_REASON_REQUIRING_COMMENT,
   type BookingActionResult,
   type DelayReport,
-  type DelayState,
 } from '../models/booking-action.model';
 import { kyivDateKey, toBackendIso } from '../util/time.util';
 import { environment } from '../../../environments/environment';
@@ -76,9 +76,6 @@ export class RouteSheetStore {
   private readonly lastSyncSignal = signal<number | null>(null);
   private readonly pendingSignal = signal<readonly string[]>([]);
   private readonly actionErrorSignal = signal<string | null>(null);
-  private readonly delaysSignal = signal<ReadonlyMap<string, DelayState>>(
-    new Map(),
-  );
 
   readonly sheet = this.sheetSignal.asReadonly();
   readonly dates = this.datesSignal.asReadonly();
@@ -122,13 +119,26 @@ export class RouteSheetStore {
   /**
    * Затримка точки.
    *
-   * Тримається на клієнті НАВМИСНО: проєкція `GET /route-sheet` полів
-   * `delayed`/`arrivedAt` не містить (RouteSheetService::point()), тому
-   * після полінгу серверного джерела для банера затримки просто немає.
-   * Це відлуння відповіді на власну дію, живе до перезавантаження вкладки.
+   * ДЖЕРЕЛО ІСТИНИ — сам лист: проєкція `GET /route-sheet` віддає `delayed`
+   * (RouteSheetService::point()), тож банер переживає перезавантаження
+   * сторінки і підтверджується полінгом, а не живе лише як відлуння власної
+   * дії водія. Відповідь на дію лягає в ту саму точку — див. applyResult().
    */
   delayOf(bookingId: string): DelayState | null {
-    return this.delaysSignal().get(bookingId) ?? null;
+    const delayed = this.pointOf(bookingId)?.delayed;
+
+    return delayed?.flag ? delayed : null;
+  }
+
+  /** Час фактичного прибуття з листа, UTC ISO 8601 або null. */
+  arrivedAtOf(bookingId: string): string | null {
+    return this.pointOf(bookingId)?.arrivedAt ?? null;
+  }
+
+  private pointOf(bookingId: string): RoutePoint | null {
+    return (
+      this.sheetSignal()?.points.find((p) => p.bookingId === bookingId) ?? null
+    );
   }
 
   /** Первинне завантаження: список дат + лист на сьогодні (DRV-12). */
@@ -324,33 +334,36 @@ export class RouteSheetStore {
   /**
    * Переносить відповідь дії у стан листа.
    *
-   * `status` і `orderId` є в проєкції листа, тож наступний полінг їх
-   * підтвердить. `delayed` живе лише тут — див. delayOf().
+   * Усі чотири поля (`status`, `orderId`, `delayed`, `arrivedAt`) є і в
+   * проєкції листа, тож наступний полінг їх підтвердить, а не затре: тут
+   * лише прибирається затримка до наступного читання. Знятий магазином
+   * прапорець (ST-02, початок розвантаження) так само приїжджає відповіддю
+   * з `flag: false` і гасить банер одразу.
    */
   private applyResult(result: BookingActionResult): void {
     const sheet = this.sheetSignal();
 
-    if (sheet?.points.some((p) => p.bookingId === result.bookingId)) {
-      const points = sheet.points.map((p) =>
-        p.bookingId === result.bookingId
-          ? { ...p, status: result.status, orderId: result.orderId }
-          : p,
-      );
-      const updated: DayRouteSheet = { ...sheet, points };
-      this.sheetSignal.set(updated);
-      if (updated.date === kyivDateKey()) {
-        this.cache(updated);
-      }
+    if (!sheet?.points.some((p) => p.bookingId === result.bookingId)) {
+      return;
     }
 
-    const delays = new Map(this.delaysSignal());
-    if (result.delayed.flag) {
-      delays.set(result.bookingId, result.delayed);
-    } else {
-      // Магазин знімає прапорець на початку розвантаження (ST-02).
-      delays.delete(result.bookingId);
+    const points = sheet.points.map((p) =>
+      p.bookingId === result.bookingId
+        ? {
+            ...p,
+            status: result.status,
+            orderId: result.orderId,
+            delayed: result.delayed,
+            arrivedAt: result.arrivedAt,
+          }
+        : p,
+    );
+    const updated: DayRouteSheet = { ...sheet, points };
+    this.sheetSignal.set(updated);
+
+    if (updated.date === kyivDateKey()) {
+      this.cache(updated);
     }
-    this.delaysSignal.set(delays);
   }
 
   private startPending(bookingId: string): void {
@@ -448,7 +461,6 @@ export class RouteSheetStore {
     this.lastSyncSignal.set(null);
     this.actionErrorSignal.set(null);
     this.pendingSignal.set([]);
-    this.delaysSignal.set(new Map());
     this.queue.clear();
   }
 }

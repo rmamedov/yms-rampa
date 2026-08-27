@@ -47,6 +47,7 @@ export const UK_DICTIONARY = {
   'menu.close': 'Закрити',
 
   'point.ramp': 'Рампа',
+  'point.arrivedAt': 'Прибуття',
   'point.pallets': 'Палет',
   'point.plate': 'Авто',
   'point.orderId': '№ замовлення',

@@ -10,7 +10,9 @@ use App\Domain\Slot\ReceivingWindow;
 use App\Domain\Slot\StoreConfig;
 use App\Domain\Slot\TimeInterval;
 use App\Domain\Store\GeoPoint;
+use App\Domain\Store\StoreBrief;
 use App\Domain\Store\StoreConfigProvider;
+use App\Domain\Store\StoreDirectory;
 use App\Domain\Store\StoreNotFoundException;
 use App\Domain\Store\StorePolicy;
 use App\Domain\Store\StoreSettings;
@@ -19,9 +21,15 @@ use App\Domain\Store\StoreSettings;
  * Заглушка конфігурації магазину: віддає зареєстровану фікстуру, а якщо
  * її немає — типову філію з мережевими дефолтами (розділ 6.11).
  *
- * У проді підмінюється HttpStoreConfigProvider, який читає store-service.
+ * Заодно грає роль довідника філій (StoreDirectory): перелік магазинів у
+ * заглушці — це рівно ті, що в неї зареєстрували. Тримати для цього окремий
+ * клас із власним списком означало б завести два джерела правди, які легко
+ * розсинхронити в тестах.
+ *
+ * У проді підмінюється HttpStoreConfigProvider і HttpStoreDirectory, які
+ * читають store-service.
  */
-final class FixtureStoreConfigProvider implements StoreConfigProvider
+final class FixtureStoreConfigProvider implements StoreConfigProvider, StoreDirectory
 {
     /** @var array<string, StoreSettings> */
     private array $fixtures = [];
@@ -50,6 +58,33 @@ final class FixtureStoreConfigProvider implements StoreConfigProvider
         }
 
         return self::defaultSettings($storeId);
+    }
+
+    public function listStores(?array $storeIds = null): array
+    {
+        $stores = [];
+
+        foreach ($this->fixtures as $storeId => $settings) {
+            if (null !== $storeIds && !\in_array($storeId, $storeIds, true)) {
+                continue;
+            }
+
+            // Магазин, відключений від YMS, у перелік не потрапляє — так само,
+            // як його не віддає службовий перелік store-service.
+            if (!$settings->ymsActive) {
+                continue;
+            }
+
+            $stores[] = new StoreBrief(
+                storeId: $storeId,
+                externalId: $settings->snapshot->externalId,
+                displayName: $settings->snapshot->displayName,
+                city: $settings->snapshot->city,
+                address: $settings->snapshot->address,
+            );
+        }
+
+        return $stores;
     }
 
     /**

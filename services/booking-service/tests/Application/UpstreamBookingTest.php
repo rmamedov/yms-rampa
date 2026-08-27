@@ -159,7 +159,12 @@ final class UpstreamBookingTest extends TestCase
             $bookings,
             $holds,
             new HttpSupplierDirectory($partner, self::BASE_URL),
-            new RouteSheetService(new InMemoryRouteSheetRepository(), $bookings, new SequentialIdGenerator('rs-')),
+            new RouteSheetService(
+                new InMemoryRouteSheetRepository(),
+                $bookings,
+                new SequentialIdGenerator('rs-'),
+                new HttpStoreConfigProvider($storeClient),
+            ),
             new SequentialIdGenerator('bk-'),
         );
     }

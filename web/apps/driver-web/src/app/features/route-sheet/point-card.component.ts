@@ -9,8 +9,7 @@ import {
 import { LowerCasePipe } from '@angular/common';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { StatusBadgeComponent } from '../../shared/ui/status-badge.component';
-import type { RoutePoint } from '../../core/models/route-sheet.model';
-import type { DelayState } from '../../core/models/booking-action.model';
+import { rampLabel, type RoutePoint } from '../../core/models/route-sheet.model';
 import { isClosedPoint } from '../../core/state/route-sheet.store';
 import { formatKyivTime } from '../../core/util/time.util';
 
@@ -43,7 +42,6 @@ export class PointCardComponent {
   readonly pending = input(false);
   /** Відмітка «На місці» стоїть у черзі до появи звʼязку. */
   readonly queued = input(false);
-  readonly delay = input<DelayState | null>(null);
 
   readonly routeRequested = output<RoutePoint>();
   readonly routeOptionsRequested = output<RoutePoint>();
@@ -60,9 +58,27 @@ export class PointCardComponent {
     OPEN_FOR_DRIVER.includes(this.point().status),
   );
 
+  /** Що написано на воротах: номер, інакше назва рампи (DRV-21). */
+  protected readonly ramp = computed(() => rampLabel(this.point()));
+
+  /**
+   * Затримка береться з САМОЇ точки листа: після перезавантаження сторінки
+   * і після кожного полінгу банер підтверджується сервером (DLY-01).
+   */
+  protected readonly delayed = computed(() => {
+    const delayed = this.point().delayed;
+    return delayed?.flag ? delayed : null;
+  });
+
   protected readonly delayEta = computed(() => {
-    const eta = this.delay()?.eta;
+    const eta = this.delayed()?.eta;
     return eta ? formatKyivTime(eta) : null;
+  });
+
+  /** Час фактичного прибуття у київському поданні, або null. */
+  protected readonly arrivedAt = computed(() => {
+    const arrivedAt = this.point().arrivedAt;
+    return arrivedAt ? formatKyivTime(arrivedAt) : null;
   });
 
   protected readonly editingOrder = signal(false);

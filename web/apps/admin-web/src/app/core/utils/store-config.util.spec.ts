@@ -1,5 +1,6 @@
 import { CalendarException, DayOfWeek, Ramp, ReceivingWindow } from '../models';
 import {
+  configBlockingErrors,
   ConfigFormState,
   CONFIG_DEFAULTS,
   countDailySlots,
@@ -7,6 +8,7 @@ import {
   emptyReceivingWindows,
   generateSlotStarts,
   minimumEffectiveDate,
+  normalizeReceivingWindows,
   ReservedRuleCandidate,
   validateDayIntervals,
   validateEffectiveDate,
@@ -186,6 +188,115 @@ describe('STC-12/13 — календар винятків', () => {
       today,
     );
     expect(errors).toEqual([]);
+  });
+
+  it('другий виняток на ту саму дату відхиляється (id похідний від дати)', () => {
+    const date = addDays(today, 10);
+    const existing: CalendarException = {
+      id: `exc-${date}`,
+      date,
+      type: 'closed',
+      intervals: [],
+      reason: 'Інвентаризація',
+    };
+    const duplicate: CalendarException = {
+      ...existing,
+      reason: 'Ще одна причина',
+    };
+    expect(validateException(duplicate, [existing], 30, today)).toContain(
+      'receiving.error.duplicateDate',
+    );
+  });
+
+  it('сам виняток не вважається власним дублікатом', () => {
+    const date = addDays(today, 10);
+    const exception: CalendarException = {
+      id: `exc-${date}`,
+      date,
+      type: 'closed',
+      intervals: [],
+      reason: 'Інвентаризація',
+    };
+    expect(validateException(exception, [exception], 30, today)).toEqual([]);
+  });
+
+  it('винятки на різні дати співіснують', () => {
+    const existing: CalendarException = {
+      id: `exc-${addDays(today, 10)}`,
+      date: addDays(today, 10),
+      type: 'closed',
+      intervals: [],
+      reason: 'Інвентаризація',
+    };
+    const other: CalendarException = {
+      id: `exc-${addDays(today, 11)}`,
+      date: addDays(today, 11),
+      type: 'closed',
+      intervals: [],
+      reason: 'Свято',
+    };
+    expect(validateException(other, [existing], 30, today)).toEqual([]);
+  });
+});
+
+describe('STC-10 — у формі присутні всі сім днів тижня', () => {
+  it('дні, яких немає у відповіді бекенду, доповнюються порожніми', () => {
+    const fromBackend = windows().filter((w) => w.dayOfWeek <= 6);
+    const normalized = normalizeReceivingWindows(fromBackend);
+
+    expect(normalized.map((w) => w.dayOfWeek)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(normalized.find((w) => w.dayOfWeek === 7)?.intervals).toEqual([]);
+    expect(normalized.find((w) => w.dayOfWeek === 1)?.intervals).toEqual([
+      { from: '08:00', to: '12:00' },
+    ]);
+  });
+
+  it('інтервали копіюються, а не поділяються посиланням із джерелом', () => {
+    const source = windows();
+    const normalized = normalizeReceivingWindows(source);
+    expect(normalized[0].intervals[0]).toEqual(source[0].intervals[0]);
+    expect(normalized[0].intervals[0]).not.toBe(source[0].intervals[0]);
+  });
+});
+
+describe('STC-20/21 — блокувальні помилки чернетки конфігурації', () => {
+  it('повна і валідна чернетка не блокує збереження', () => {
+    expect(configBlockingErrors(config())).toEqual([]);
+  });
+
+  it('без жодної рампи зберігати не можна', () => {
+    expect(configBlockingErrors(config({ ramps: [] }))).toContain(
+      'slots.error.noRamps',
+    );
+  });
+
+  it('повторений номер рампи блокує збереження', () => {
+    expect(
+      configBlockingErrors(
+        config({ ramps: [ramp({ id: 'a' }), ramp({ id: 'b' })] }),
+      ),
+    ).toContain('slots.error.rampNumber');
+  });
+
+  it('зламаний інтервал прийому блокує збереження', () => {
+    const broken = windows().map((w) =>
+      w.dayOfWeek === 1
+        ? { dayOfWeek: w.dayOfWeek, intervals: [{ from: '18:00', to: '08:00' }] }
+        : w,
+    );
+    expect(configBlockingErrors(config({ receivingWindows: broken }))).toContain(
+      'receiving.error.order',
+    );
+  });
+
+  it('без обовʼязкових полів бекенду зберігати не можна', () => {
+    expect(configBlockingErrors(config({ slotSizeMinutes: null }))).toContain(
+      'store.error.configIncomplete',
+    );
+    expect(configBlockingErrors(config({ maxVehicleWeightTons: null }))).toContain(
+      'store.error.configIncomplete',
+    );
+    expect(configBlockingErrors(null)).toContain('store.error.configIncomplete');
   });
 });
 

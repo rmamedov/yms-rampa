@@ -12,7 +12,12 @@ import { ArrivalQueueService } from '../offline/arrival-queue.service';
 import { LocalStorageService, STORAGE_KEYS } from '../storage/local-storage';
 import { ApiProblemError } from '../models/problem.model';
 import { addDaysToDateKey, kyivDateKey } from '../util/time.util';
-import type { DayRouteSheet, RoutePoint } from '../models/route-sheet.model';
+import {
+  NO_DELAY,
+  rampLabel,
+  type DayRouteSheet,
+  type RoutePoint,
+} from '../models/route-sheet.model';
 import type {
   BookingActionResult,
   DelayReport,
@@ -24,14 +29,20 @@ function point(over: Partial<RoutePoint> = {}): RoutePoint {
     city: 'Київ',
     storeName: 'Сільпо №1998',
     address: 'просп. Володимира Івасюка, 46',
+    latitude: 50.5202,
+    longitude: 30.51452,
     localTime: '09:00',
     slotStart: '2026-08-27T06:00:00Z',
     rampId: 'ramp-2',
+    rampNumber: 2,
+    rampName: 'Рампа 2',
     orderId: null,
     palletsCount: 8,
     plateNumber: 'AA 4721 OB',
     driverId: 'drv-1',
     status: 'booked',
+    delayed: NO_DELAY,
+    arrivedAt: null,
     ...over,
   };
 }
@@ -144,6 +155,30 @@ describe('чисті правила проєкції статусів (8.7, DRV-
     expect(isClosedPoint(point({ status: 'completed' }))).toBe(true);
     expect(isClosedPoint(point({ status: 'rejected' }))).toBe(true);
     expect(isClosedPoint(point({ status: 'booked' }))).toBe(false);
+  });
+});
+
+/**
+ * Дефект UI-тестування: на картці стояло «РАМПА ramp-2» замість «Рампа 2».
+ * Водій шукає на дворі ворота з номером, а не службовий ідентифікатор.
+ */
+describe('підпис рампи (DRV-21)', () => {
+  it('номер із довідника перемагає ідентифікатор', () => {
+    expect(rampLabel(point({ rampId: 'ramp-2', rampNumber: 2 }))).toBe('2');
+  });
+
+  it('без номера показується назва рампи', () => {
+    expect(
+      rampLabel(
+        point({ rampId: 'ramp-3', rampNumber: null, rampName: 'Холодильна' }),
+      ),
+    ).toBe('Холодильна');
+  });
+
+  it('ідентифікатор лишається лише коли довідник філії недоступний', () => {
+    expect(
+      rampLabel(point({ rampId: 'ramp-2', rampNumber: null, rampName: null })),
+    ).toBe('ramp-2');
   });
 });
 
@@ -423,6 +458,72 @@ describe('RouteSheetStore — дії водія', () => {
     expect(store.actionError()).toBe(
       'Для причини «Інше» коментар обовʼязковий',
     );
+  });
+
+  /**
+   * Дефект UI-тестування: банер затримки був відлунням власної дії водія і
+   * зникав після перезавантаження сторінки. Тепер `delayed` є у проєкції
+   * листа, тож переживає і F5, і полінг.
+   */
+  it('затримка з листа переживає перезавантаження і полінг', async () => {
+    const eta = '2026-08-27T10:30:00Z';
+    api.byDate.set(
+      kyivDateKey(),
+      sheet([
+        point({
+          delayed: { flag: true, reason: 'затори', eta },
+          arrivedAt: '2026-08-27T09:12:00Z',
+        }),
+      ]),
+    );
+
+    // Свіжий застосунок: жодної дії водія в цій сесії не було.
+    await store.load(kyivDateKey());
+
+    expect(store.delayOf('bk-1')).toEqual({ flag: true, reason: 'затори', eta });
+    expect(store.arrivedAtOf('bk-1')).toBe('2026-08-27T09:12:00Z');
+  });
+
+  it('полінг не гасить затримку, яку підтверджує сервер', async () => {
+    const eta = new Date(Date.now() + 30 * 60_000).toISOString();
+    await store.reportDelay('bk-1', { reason: 'затори', eta });
+    // Лист із сервера підтверджує затримку — стан не має «моргнути».
+    api.byDate.set(
+      kyivDateKey(),
+      sheet([point({ delayed: { flag: true, reason: 'затори', eta } })]),
+    );
+
+    await store.load(kyivDateKey(), { silent: true });
+
+    expect(store.delayOf('bk-1')?.flag).toBe(true);
+  });
+
+  it('знятий магазином прапорець гасить банер (ST-02)', async () => {
+    const eta = new Date(Date.now() + 30 * 60_000).toISOString();
+    await store.reportDelay('bk-1', { reason: 'затори', eta });
+    // Магазин почав розвантаження — бекенд віддає лист уже без затримки.
+    api.byDate.set(
+      kyivDateKey(),
+      sheet([point({ status: 'unloading', delayed: NO_DELAY })]),
+    );
+
+    await store.load(kyivDateKey(), { silent: true });
+
+    expect(store.delayOf('bk-1')).toBeNull();
+  });
+
+  it('відповідь на дію одразу кладе затримку і час прибуття в точку листа', async () => {
+    const eta = new Date(Date.now() + 30 * 60_000).toISOString();
+
+    await store.reportDelay('bk-1', { reason: 'затори', eta });
+    await store.markArrived('bk-1');
+
+    expect(store.points()[0].delayed).toEqual({
+      flag: true,
+      reason: 'затори',
+      eta,
+    });
+    expect(store.points()[0].arrivedAt).toBe('2026-08-27T09:12:00Z');
   });
 
   it('422 бекенду показується його ж поясненням', async () => {

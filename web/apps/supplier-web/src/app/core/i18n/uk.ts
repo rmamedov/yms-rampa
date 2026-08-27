@@ -94,10 +94,10 @@ export const UK_DICTIONARY: Record<string, string> = {
   'slots.state.reserved': 'Недоступно',
   'slots.state.blocked': 'Заблоковано',
   'slots.state.past': 'Минув',
-  'slots.cellAria': 'Рампа {ramp}, {time}, {state}',
+  'slots.cellAria': '{ramp}, {time}, {state}',
 
   'book.title': 'Бронювання слота',
-  'book.slotInfo': '{date}, {time} · рампа {ramp}',
+  'book.slotInfo': '{date}, {time} · {ramp}',
   'book.timer': 'Час на оформлення: {time}',
   'book.timerAria': 'Залишилось часу на оформлення: {time}',
   'book.expired': 'Час оформлення вичерпано, оновіть сітку',

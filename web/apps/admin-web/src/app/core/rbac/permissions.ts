@@ -143,16 +143,24 @@ export const ROLES_REQUIRING_STORES: readonly StaffRole[] = [
 
 /**
  * Розділи admin-web, які реально має бекенд контуру /api/admin/v1.
- * Розділів «Staff-користувачі» і «Журнал аудиту» тут немає: маршрутів
- * ні для CRUD staff-акаунтів, ні для аудит-логу бекенд не надає
- * (див. problems у звіті — заявка на бекенд).
+ *
+ * Розділу «Журнал аудиту» тут немає: маршруту для аудит-логу бекенд не
+ * надає (записи `role_audit` пишуться, але назовні не публікуються).
+ * Розділ «Користувачі» зʼявився разом із /api/admin/v1/users
+ * identity-staff-service (розділ 4.7).
  */
-export type SectionId = 'stores' | 'suppliers' | 'sync' | 'analytics';
+export type SectionId =
+  | 'stores'
+  | 'suppliers'
+  | 'users'
+  | 'sync'
+  | 'analytics';
 
 /** Розділ admin-web → право, що відкриває його (ADM-02). */
 export const SECTION_PERMISSION: Readonly<Record<SectionId, Permission>> = {
   stores: 'store.read',
   suppliers: 'supplier.read',
+  users: 'users.manage.staff',
   sync: 'store.sync.manage',
   analytics: 'analytics.view',
 };
@@ -160,9 +168,19 @@ export const SECTION_PERMISSION: Readonly<Record<SectionId, Permission>> = {
 export const SECTION_ORDER: readonly SectionId[] = [
   'stores',
   'suppliers',
+  'users',
   'sync',
   'analytics',
 ];
+
+/**
+ * RBAC-23: кого показувати у фільтрі ролей і в селекті ролі — рівно те,
+ * що актор має право призначати за деревом 4.7. Бекенд відповідає 403
+ * RBAC_ROLE_ASSIGNMENT_FORBIDDEN на решту, тож пропонувати їх не можна.
+ */
+export function assignableRoles(role: StaffRole | null): readonly StaffRole[] {
+  return role ? (ROLE_ASSIGNMENT_TREE[role] ?? []) : [];
+}
 
 export function isStaffRole(role: AnyRole): role is StaffRole {
   return (STAFF_ROLES as readonly string[]).includes(role);

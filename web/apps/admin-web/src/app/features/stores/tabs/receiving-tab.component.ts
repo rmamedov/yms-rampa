@@ -19,6 +19,7 @@ import {
 import { TranslatePipe } from '../../../core/i18n/translate.pipe';
 import {
   IntervalError,
+  normalizeReceivingWindows,
   validateException,
   validateReceivingWindows,
 } from '../../../core/utils/store-config.util';
@@ -62,12 +63,9 @@ export class StoreReceivingTabComponent {
 
   constructor() {
     effect(() => {
-      this.draftWindows.set(
-        this.windows().map((w) => ({
-          dayOfWeek: w.dayOfWeek,
-          intervals: w.intervals.map((i) => ({ ...i })),
-        })),
-      );
+      // Чернетка завжди містить усі сім днів: інакше редагування дня,
+      // якого немає в конфігурації, не мало б на що подіяти.
+      this.draftWindows.set(normalizeReceivingWindows(this.windows()));
       this.draftExceptions.set(this.exceptions().map((e) => ({ ...e })));
     });
   }

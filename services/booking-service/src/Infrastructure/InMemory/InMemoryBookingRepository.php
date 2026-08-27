@@ -118,6 +118,19 @@ final class InMemoryBookingRepository implements BookingRepository
         return $count;
     }
 
+    public function hasAnyBySupplier(string $supplierId): bool
+    {
+        foreach ($this->bookings as $booking) {
+            // SUP-06: статус і тип не фільтруються — рахується будь-який слід
+            // постачальника в історії поставок.
+            if ($booking->supplierId === $supplierId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function findOverlappingByPlate(
         string $supplierId,
         string $plateNumber,

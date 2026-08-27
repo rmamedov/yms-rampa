@@ -234,6 +234,106 @@ final class HttpSupplierDirectoryTest extends TestCase
         self::assertSame(1, $client->getRequestsCount());
     }
 
+    // --- Довідник для форми позапланового прибуття -------------------------
+
+    /**
+     * ДЕФЕКТ «показано лише першу сторінку»: приймальник не знаходив
+     * контрагента і заводив прибуття «поза системою». Клієнт зобовʼязаний
+     * пройти всі сторінки сусіда.
+     */
+    public function testDirectoryFetchesEveryPage(): void
+    {
+        $client = new MockHttpClient([
+            new MockResponse($this->listBody([['supplierId' => 'sp-1', 'name' => 'А']], hasMore: true)),
+            new MockResponse($this->listBody([['supplierId' => 'sp-2', 'name' => 'Б']], hasMore: true)),
+            new MockResponse($this->listBody([['supplierId' => 'sp-3', 'name' => 'В']], hasMore: false)),
+        ]);
+
+        $suppliers = (new HttpSupplierDirectory($client, self::BASE_URL))->listForStore(self::STORE_ID);
+
+        self::assertSame(['sp-1', 'sp-2', 'sp-3'], array_map(
+            static fn ($supplier): string => $supplier->supplierId,
+            $suppliers,
+        ));
+        self::assertSame(3, $client->getRequestsCount());
+    }
+
+    /**
+     * Порожня сторінка НЕ означає кінець: partner-service фільтрує сторінку за
+     * доступом до філії вже після вибірки, тож гортати треба за `hasMore`.
+     */
+    public function testEmptyPageDoesNotStopPaging(): void
+    {
+        $client = new MockHttpClient([
+            new MockResponse($this->listBody([], hasMore: true)),
+            new MockResponse($this->listBody([['supplierId' => 'sp-9', 'name' => 'Я']], hasMore: false)),
+        ]);
+
+        $suppliers = (new HttpSupplierDirectory($client, self::BASE_URL))->listForStore(self::STORE_ID);
+
+        self::assertCount(1, $suppliers);
+        self::assertSame('sp-9', $suppliers[0]->supplierId);
+        self::assertSame(2, $client->getRequestsCount());
+    }
+
+    public function testDirectoryAsksNeighbourForTheStoreItNeeds(): void
+    {
+        $captured = '';
+        $client = new MockHttpClient(function (string $method, string $url) use (&$captured): MockResponse {
+            $captured = $url;
+
+            return new MockResponse($this->listBody([], hasMore: false));
+        });
+
+        (new HttpSupplierDirectory($client, self::BASE_URL))->listForStore(self::STORE_ID);
+
+        self::assertStringContainsString('/internal/v1/suppliers?storeId='.self::STORE_ID, $captured);
+        self::assertStringContainsString('limit=100', $captured);
+        self::assertStringNotContainsString('/api/', $captured);
+    }
+
+    /** Перелік упорядкований за назвою — у списку вибору порядок має сенс. */
+    public function testDirectoryIsSortedByName(): void
+    {
+        $client = new MockHttpClient([new MockResponse($this->listBody([
+            ['supplierId' => 'sp-2', 'name' => 'Bravo'],
+            ['supplierId' => 'sp-1', 'name' => 'Alpha'],
+        ], hasMore: false))]);
+
+        $suppliers = (new HttpSupplierDirectory($client, self::BASE_URL))->listForStore(self::STORE_ID);
+
+        self::assertSame(['Alpha', 'Bravo'], array_map(
+            static fn ($supplier): string => $supplier->name,
+            $suppliers,
+        ));
+    }
+
+    /** 404 службового маршруту — порожній довідник, а не падіння форми. */
+    public function testMissingListRouteYieldsEmptyDirectory(): void
+    {
+        $directory = $this->directory($this->notFoundProblem(), 404);
+
+        self::assertSame([], $directory->listForStore(self::STORE_ID));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     */
+    private function listBody(array $items, bool $hasMore = false): string
+    {
+        return json_encode([
+            'items' => array_map(static fn (array $item): array => array_replace([
+                'status' => 'active',
+                'allStores' => true,
+                'allowedStoreIds' => [],
+            ], $item), $items),
+            'total' => \count($items),
+            'limit' => 100,
+            'offset' => 0,
+            'hasMore' => $hasMore,
+        ], \JSON_THROW_ON_ERROR);
+    }
+
     private function directory(string $body, int $status = 200): HttpSupplierDirectory
     {
         $client = new MockHttpClient(

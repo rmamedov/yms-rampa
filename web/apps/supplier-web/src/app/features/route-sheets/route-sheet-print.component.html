@@ -39,6 +39,9 @@
       <strong>{{ driver()?.phone ?? '______________' }}</strong>
     </p>
 
+    <!-- На вузькому екрані таблиця ширша за вʼюпорт: без контейнера з
+         прокруткою сторінка скролилася вбік. У друк це не втручається. -->
+    <div class="table-wrap">
     <table class="sheet-print__table">
       <thead>
         <tr>
@@ -65,6 +68,7 @@
         }
       </tbody>
     </table>
+    </div>
   </article>
 } @else {
   <p class="muted no-print">{{ 'common.loading' | t }}</p>

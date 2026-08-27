@@ -91,6 +91,12 @@ final readonly class JsonBody
     }
 
     /**
+     * Перелік рядків БЕЗ дедуплікації: повтор у переліку — це факт запиту,
+     * і рішення, чи він припустимий, ухвалює домен. Для `storeIds` дублікати
+     * прибирає StaffUser::normalizeStoreIds, а для `roles` повторення тієї
+     * самої ролі — це спроба призначити другу (RBAC-27.1), яку не можна
+     * мовчки «виправити».
+     *
      * @return list<string>|null null — поля немає, тобто змінювати нічого
      */
     public function optionalStringList(string $field): ?array
@@ -124,7 +130,7 @@ final readonly class JsonBody
 
             $trimmed = trim((string) $item);
 
-            if ('' !== $trimmed && !\in_array($trimmed, $result, true)) {
+            if ('' !== $trimmed) {
                 $result[] = $trimmed;
             }
         }

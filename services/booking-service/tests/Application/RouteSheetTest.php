@@ -6,7 +6,10 @@ namespace App\Tests\Application;
 
 use App\Application\RouteSheet\RouteSheetService;
 use App\Domain\Access\AccessDeniedException;
+use App\Domain\Booking\DelayReason;
 use App\Domain\RouteSheet\RouteSheetEntry;
+use App\Infrastructure\InMemory\SequentialIdGenerator;
+use App\Infrastructure\Store\FixtureStoreConfigProvider;
 use App\Tests\Support\Scenario;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
@@ -168,6 +171,122 @@ final class RouteSheetTest extends TestCase
         self::assertSame('ORD-55871', $point['orderId']);
         self::assertSame(8, $point['palletsCount']);
         self::assertSame('du-7', $point['driverId']);
+    }
+
+    /**
+     * DRV-21: точка несе КООРДИНАТИ філії, а не лише текстову адресу —
+     * інакше «Побудувати маршрут» відкриває пошук, а не точку на карті.
+     */
+    public function testDriverPointCarriesBranchCoordinates(): void
+    {
+        $scenario = new Scenario();
+        $booking = $scenario->book('2026-08-28 10:00');
+        $scenario->routeSheets->assignDriverToBooking($scenario->supplier(), $booking->id, 'du-7', $scenario->now());
+
+        $point = $scenario->routeSheets->forDriver('du-7', '2026-08-28')[0]['points'][0];
+
+        self::assertSame(50.49699, $point['latitude']);
+        self::assertSame(30.36123, $point['longitude']);
+        // Адреса лишається — вона запасний варіант і рядок для друку.
+        self::assertSame('Київ', $point['city']);
+        self::assertSame('вул. Хрещатик, 12', $point['address']);
+    }
+
+    /** Філія без координат не ламає лист — поля просто порожні. */
+    public function testPointWithoutCoordinatesKeepsNullsInsteadOfFailing(): void
+    {
+        $scenario = new Scenario(settings: Scenario::storeSettings(withLocation: false));
+        $booking = $scenario->book('2026-08-28 10:00');
+        $scenario->routeSheets->assignDriverToBooking($scenario->supplier(), $booking->id, 'du-7', $scenario->now());
+
+        $point = $scenario->routeSheets->forDriver('du-7', '2026-08-28')[0]['points'][0];
+
+        self::assertNull($point['latitude']);
+        self::assertNull($point['longitude']);
+    }
+
+    /**
+     * DRV-21: водієві потрібні номер і назва рампи з довідника філії —
+     * на воротах написано «2», а не службове «r2».
+     */
+    public function testDriverPointCarriesRampNumberAndName(): void
+    {
+        $scenario = new Scenario();
+        $booking = $scenario->book('2026-08-28 10:00', rampId: 'r2');
+        $scenario->routeSheets->assignDriverToBooking($scenario->supplier(), $booking->id, 'du-7', $scenario->now());
+
+        $point = $scenario->routeSheets->forDriver('du-7', '2026-08-28')[0]['points'][0];
+
+        self::assertSame(2, $point['rampNumber']);
+        self::assertSame('Холодильна', $point['rampName']);
+        // Ідентифікатор лишається в контракті — за ним ідуть дії.
+        self::assertSame('r2', $point['rampId']);
+    }
+
+    /** Магазин зник із довідника — номер рампи невідомий, лист усе одно віддається. */
+    public function testUnknownStoreLeavesRampNumberEmpty(): void
+    {
+        $scenario = new Scenario();
+        $booking = $scenario->book('2026-08-28 10:00');
+        $scenario->routeSheets->assignDriverToBooking($scenario->supplier(), $booking->id, 'du-7', $scenario->now());
+
+        // Той самий лист, але довідник більше не знає цієї філії (STORE_NOT_FOUND).
+        $sheets = new RouteSheetService(
+            $scenario->routeSheetRepository,
+            $scenario->bookings,
+            new SequentialIdGenerator('rs-'),
+            new FixtureStoreConfigProvider(strict: true),
+        );
+
+        $point = $sheets->forDriver('du-7', '2026-08-28')[0]['points'][0];
+
+        self::assertNull($point['rampNumber']);
+        self::assertNull($point['rampName']);
+        self::assertNull($point['latitude']);
+        self::assertNull($point['longitude']);
+        self::assertSame('r1', $point['rampId']);
+    }
+
+    /**
+     * DLY-01: позначка затримки і час прибуття живуть у САМІЙ проєкції листа,
+     * тож переживають перезавантаження сторінки і підтверджуються полінгом.
+     */
+    public function testDelayAndArrivalSurviveRouteSheetReload(): void
+    {
+        $scenario = new Scenario();
+        $booking = $scenario->book('2026-08-27 12:00');
+        $scenario->routeSheets->assignDriverToBooking($scenario->supplier(), $booking->id, 'du-7', $scenario->now());
+
+        $scenario->driverBookings->reportDelay(
+            $scenario->driver('du-7'),
+            $booking->id,
+            DelayReason::TrafficJam,
+            Scenario::kyiv('2026-08-27 12:45'),
+            $scenario->now(),
+        );
+        $scenario->driverBookings->markArrived($scenario->driver('du-7'), $booking->id, $scenario->now());
+
+        // Свіже читання листа — рівно те, що зробить полінг після F5.
+        $point = $scenario->routeSheets->forDriver('du-7', '2026-08-27')[0]['points'][0];
+
+        self::assertTrue($point['delayed']['flag']);
+        self::assertSame('затори', $point['delayed']['reason']);
+        self::assertSame('2026-08-27T09:45:00Z', $point['delayed']['eta']);
+        self::assertSame('2026-08-27T06:00:00Z', $point['arrivedAt']);
+        self::assertSame('arrived', $point['status']);
+    }
+
+    /** Без затримки і без прибуття поля присутні, але порожні. */
+    public function testUntouchedPointHasEmptyDelayAndArrival(): void
+    {
+        $scenario = new Scenario();
+        $booking = $scenario->book('2026-08-28 10:00');
+        $scenario->routeSheets->assignDriverToBooking($scenario->supplier(), $booking->id, 'du-7', $scenario->now());
+
+        $point = $scenario->routeSheets->forDriver('du-7', '2026-08-28')[0]['points'][0];
+
+        self::assertSame(['flag' => false, 'reason' => null, 'eta' => null], $point['delayed']);
+        self::assertNull($point['arrivedAt']);
     }
 
     /** Лист чужого постачальника недоступний. */

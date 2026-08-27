@@ -1,0 +1,183 @@
+<app-breadcrumbs [crumbs]="crumbs()" />
+
+<div class="page-header">
+  <h1>{{ user()?.fullName || ('users.add' | t) }}</h1>
+  <span class="spacer"></span>
+  @if (user(); as current) {
+    <span
+      class="badge"
+      [class.badge-success]="current.active"
+      [class.badge-danger]="!current.active"
+      >{{ (current.active ? 'users.status.active' : 'users.status.inactive') | t }}</span
+    >
+  }
+</div>
+
+<div class="card">
+  <div class="card-title">{{ 'users.card.general' | t }}</div>
+  <div class="grid-2">
+    <div class="field">
+      <label for="user-email">{{ 'common.email' | t }}</label>
+      <input
+        id="user-email"
+        type="email"
+        class="mono"
+        [value]="email()"
+        [disabled]="!isNew()"
+        (input)="email.set($any($event.target).value)"
+      />
+      @if (!isNew()) {
+        <div class="field-hint">{{ 'users.field.email.readonly' | t }}</div>
+      }
+      @if (emailError(); as error) {
+        <div class="field-error">{{ error | t }}</div>
+      }
+    </div>
+    <div class="field">
+      <label for="user-name">{{ 'users.col.fullName' | t }}</label>
+      <input
+        id="user-name"
+        type="text"
+        maxlength="200"
+        [value]="fullName()"
+        (input)="fullName.set($any($event.target).value)"
+      />
+      @if (fullNameError(); as error) {
+        <div class="field-error">{{ error | t }}</div>
+      }
+    </div>
+    <div class="field">
+      <label for="user-role">{{ 'users.col.role' | t }}</label>
+      <select
+        id="user-role"
+        [value]="role()"
+        [disabled]="isSelf()"
+        (change)="setRole($event)"
+      >
+        <option value="">{{ 'common.notSet' | t }}</option>
+        @for (option of roleOptions(); track option) {
+          <option [value]="option">{{ 'role.' + option | t }}</option>
+        }
+      </select>
+      <div class="field-hint">{{ 'users.field.role.hint' | t }}</div>
+      @if (isSelf()) {
+        <div class="field-hint">{{ 'users.self.hint' | t }}</div>
+      }
+      @if (roleError(); as error) {
+        <div class="field-error">{{ error | t }}</div>
+      }
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">{{ 'users.card.scope' | t }}</div>
+
+  @if (storeScoped()) {
+    @if (zeroAccess()) {
+      <div class="notice notice-warn">{{ 'users.scope.zeroWarning' | t }}</div>
+    }
+
+    @if (!storesLoaded()) {
+      <p class="muted">{{ 'common.loading' | t }}</p>
+    } @else if (storeOptions().length === 0) {
+      <div class="notice notice-warn">{{ 'users.scope.storesUnavailable' | t }}</div>
+    } @else {
+      <app-multi-select
+        [label]="'stores.title' | t"
+        [options]="storeOptions()"
+        [selected]="storeIds()"
+        (selectedChange)="storeIds.set($event)"
+      />
+      <div class="field-hint" style="margin-top: 8px">
+        {{ 'users.scope.count' | t: { n: storeOptions().length } }}
+      </div>
+      <div class="row" style="margin-top: 12px">
+        @for (id of storeIds(); track id) {
+          <span class="badge badge-info">{{ storeLabel(id) }}</span>
+        }
+      </div>
+    }
+  } @else {
+    <p class="muted">{{ 'users.scope.networkHint' | t }}</p>
+  }
+</div>
+
+<div class="row">
+  <button type="button" class="btn btn-primary" [disabled]="invalid()" (click)="save()">
+    {{ 'common.save' | t }}
+  </button>
+  @if (user(); as current) {
+    <button type="button" class="btn" (click)="resetOpen.set(true)">
+      {{ 'users.password.reset' | t }}
+    </button>
+    @if (current.active) {
+      <button type="button" class="btn btn-danger" (click)="deactivateOpen.set(true)">
+        {{ 'users.deactivate' | t }}
+      </button>
+    } @else {
+      <button type="button" class="btn" (click)="activate()">
+        {{ 'users.activate' | t }}
+      </button>
+    }
+  }
+</div>
+
+@if (deactivateOpen()) {
+  <app-modal [title]="'users.deactivate' | t" (closed)="deactivateOpen.set(false)">
+    <p>{{ 'users.deactivate.confirm' | t: { name: user()?.fullName ?? '' } }}</p>
+    <div class="field-hint">{{ 'users.deactivate.hint' | t }}</div>
+    <ng-container modalFooter>
+      <button type="button" class="btn" (click)="deactivateOpen.set(false)">
+        {{ 'common.cancel' | t }}
+      </button>
+      <button type="button" class="btn btn-danger" (click)="confirmDeactivate()">
+        {{ 'common.confirm' | t }}
+      </button>
+    </ng-container>
+  </app-modal>
+}
+
+@if (resetOpen()) {
+  <app-modal [title]="'users.password.reset' | t" (closed)="resetOpen.set(false)">
+    <p>{{ 'users.password.confirm' | t: { name: user()?.fullName ?? '' } }}</p>
+    <div class="field-hint">{{ 'users.password.hint' | t }}</div>
+    <ng-container modalFooter>
+      <button type="button" class="btn" (click)="resetOpen.set(false)">
+        {{ 'common.cancel' | t }}
+      </button>
+      <button type="button" class="btn btn-primary" (click)="confirmReset()">
+        {{ 'common.confirm' | t }}
+      </button>
+    </ng-container>
+  </app-modal>
+}
+
+<!-- AUTH-61: пароль існує лише тут і лише зараз — повторно бекенд його не віддасть. -->
+@if (credentials(); as issued) {
+  <app-modal [title]="'users.password.issued' | t" (closed)="closeCredentials()">
+    <div class="notice notice-warn">{{ issued.passwordNotice }}</div>
+    <div class="field">
+      <label for="issued-login">{{ 'users.password.login' | t }}</label>
+      <input id="issued-login" type="text" class="mono" [value]="issued.login" readonly />
+    </div>
+    <div class="field">
+      <label for="issued-password">{{ 'users.password.value' | t }}</label>
+      <input
+        id="issued-password"
+        type="text"
+        class="mono"
+        [value]="issued.password"
+        readonly
+      />
+    </div>
+    <ng-container modalFooter>
+      <button type="button" class="btn" (click)="copyPassword()">
+        {{ 'common.copy' | t }}
+      </button>
+      <button type="button" class="btn btn-primary" (click)="closeCredentials()">
+        {{ 'common.close' | t }}
+      </button>
+    </ng-container>
+  </app-modal>
+}

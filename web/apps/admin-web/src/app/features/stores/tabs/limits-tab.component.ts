@@ -153,16 +153,33 @@ export class StoreLimitsTabComponent {
   );
   protected readonly holdMaxError = computed(() => validateHoldMax(this.holdMax()));
 
+  /** Тоннаж «як було» — значення, з яким вкладку відкрили (еталон для STC-31). */
+  private readonly baselineWeight = signal<number | null>(null);
+
+  /**
+   * Значення, яке вкладка сама щойно віддала батькові. Батько одразу оновлює
+   * чернетку, і те саме число повертається у вхідний сигнал — це відлуння
+   * власного редагування, а не нові дані, тож еталон на ньому не переставляємо.
+   */
+  private echoedWeight: number | null | undefined = undefined;
+
   /** STC-31: зменшення ліміту зачіпає вже наявні бронювання. */
   protected readonly lowered = computed(() => {
-    const original = this.maxVehicleWeightTons();
+    const original = this.baselineWeight();
     const next = this.weight();
     return original !== null && next !== null && next < original;
   });
 
   constructor() {
     effect(() => {
-      this.weight.set(this.maxVehicleWeightTons());
+      const incoming = this.maxVehicleWeightTons();
+      if (incoming !== this.echoedWeight) {
+        // Значення прийшло ззовні (завантаження магазину або скасування змін) —
+        // фіксуємо його як еталон «як було».
+        this.echoedWeight = incoming;
+        this.baselineWeight.set(incoming);
+        this.weight.set(incoming);
+      }
       this.leadTime.set(this.leadTimeMinutes());
       this.horizon.set(this.bookingHorizonDays());
       this.noShowGrace.set(this.noShowGraceMinutes());
@@ -196,6 +213,7 @@ export class StoreLimitsTabComponent {
   }
 
   private emit(): void {
+    this.echoedWeight = this.weight();
     this.changed.emit({
       maxVehicleWeightTons: this.weight(),
       leadTimeMinutes: this.leadTime(),

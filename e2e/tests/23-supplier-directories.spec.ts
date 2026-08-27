@@ -12,11 +12,8 @@ import {
   languageProblems,
   loginSupplier,
   normalizedText,
-  stamp,
   Sup,
   toast,
-  uitestPhone,
-  uitestPlate,
   workingDay,
   type StoreDto,
 } from '../support/supplier';
@@ -65,7 +62,6 @@ async function saveVehicleForm(page: Page, fields: { plate?: string; brand?: str
 test.describe('S-09 Довідник авто', () => {
   test('S-09.1 X-01 у таблиці всі авто з API з правильними полями', async ({ page }) => {
     const plate = await api.freePlate();
-    const mark = plate.slice(2, 6);
     const created = await api.createVehicle({ plateNumber: plate, weightTons: 6.5, brand: 'UITEST MAN TGX' });
     createdVehicles.push(created.id);
 
@@ -90,7 +86,6 @@ test.describe('S-09 Довідник авто', () => {
 
   test('S-09.2 створення авто нормалізує держномер', async ({ page }) => {
     const plate = await api.freePlate();
-    const mark = plate.slice(2, 6);
 
     await loginSupplier(page);
     await goto(page, '/vehicles');
@@ -332,18 +327,24 @@ test.describe('S-10 Водії', () => {
     test.setTimeout(180_000);
     await loginSupplier(page);
 
-    const base = stamp();
-    const digits = (index: number) => `${base.slice(0, 3)}${index}`;
     const variants = [
       { label: '0XXXXXXXXX', value: (d: string) => `099000${d}` },
       { label: '+380XXXXXXXXX', value: (d: string) => `+38099000${d}` },
       { label: '380XXXXXXXXX', value: (d: string) => `38099000${d}` },
       { label: 'з пробілами і дефісами', value: (d: string) => `0 (99) 000-${d.slice(0, 2)}-${d.slice(2)}` },
     ];
+    // Кожному формату — свій вільний номер: діапазон +38099000XXXX спільний
+    // з попередніми прогонами, і зайнятий номер дав би 409 замість перевірки.
+    const phones = [
+      await api.freePhone(),
+      await api.freePhone(),
+      await api.freePhone(),
+      await api.freePhone(),
+    ];
 
     for (const [index, variant] of variants.entries()) {
-      const d = digits(index);
-      const expectedPhone = uitestPhone(d);
+      const expectedPhone = phones[index];
+      const d = expectedPhone.slice(-4);
       await goto(page, '/drivers');
       await page.locator('button:has-text("Додати водія")').click();
 

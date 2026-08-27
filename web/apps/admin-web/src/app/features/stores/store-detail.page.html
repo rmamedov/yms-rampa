@@ -121,15 +121,15 @@
           @if (effectiveDateError(); as error) {
             <div class="field-error">{{ error | t }}</div>
           }
-          @if (configIncomplete()) {
-            <div class="field-error">{{ 'store.error.configIncomplete' | t }}</div>
+          @for (error of configErrors(); track error) {
+            <div class="field-error">{{ error | t }}</div>
           }
         </div>
         <span class="spacer"></span>
         <button
           type="button"
           class="btn btn-primary"
-          [disabled]="!canConfigure() || !dirty() || saving() || configIncomplete()"
+          [disabled]="!canSave()"
           (click)="save()"
         >
           {{ saving() ? ('common.loading' | t) : ('common.save' | t) }}

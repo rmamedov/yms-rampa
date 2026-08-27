@@ -133,7 +133,11 @@ export function validateException(
   if (validateReason(exception.reason, 'receiving.error.reason') !== null) {
     errors.push('receiving.error.reason');
   }
-  if (existing.some((e) => e.id !== exception.id && e.date === exception.date)) {
+  // Ключ винятку в бекенді — дата, тож id похідний від неї (mapCalendarException):
+  // порівняння за id завжди збігалося б із порівнянням за датою і дублікат
+  // проходив би непоміченим. Самого себе (редагування наявного) відсікаємо
+  // за посиланням на обʼєкт, а не за id.
+  if (existing.some((e) => e !== exception && e.date === exception.date)) {
     errors.push('receiving.error.duplicateDate');
   }
   if (exception.type === 'custom') {
@@ -339,4 +343,44 @@ export function emptyReceivingWindows(): ReceivingWindow[] {
     dayOfWeek: dow,
     intervals: [],
   }));
+}
+
+/**
+ * Доповнює перелік вікон усіма сімома днями тижня (порожніми, якщо вікон немає).
+ * Бекенд віддає лише дні, для яких вікна задані, а форма редагує день як
+ * наявний рядок: без цього доповнення «Додати інтервал» для дня, якого немає
+ * в конфігурації, мовчки нічого не робить.
+ */
+export function normalizeReceivingWindows(
+  windows: readonly ReceivingWindow[],
+): ReceivingWindow[] {
+  return emptyReceivingWindows().map((empty) => ({
+    dayOfWeek: empty.dayOfWeek,
+    intervals: (
+      windows.find((w) => w.dayOfWeek === empty.dayOfWeek)?.intervals ?? []
+    ).map((i) => ({ ...i })),
+  }));
+}
+
+/**
+ * Помилки чернетки конфігурації, з якими нова версія не збережеться:
+ * бракує обовʼязкових полів (requireInt/requireFloat), немає жодної рампи
+ * або зламані вікна прийому. Поки список не порожній, «Зберегти» має бути
+ * заблоковано — інакше користувач отримує 422 із загальним текстом.
+ */
+export function configBlockingErrors(draft: ConfigFormState | null): string[] {
+  if (draft === null) {
+    return ['store.error.configIncomplete'];
+  }
+  const errors: string[] = [];
+  if (draft.slotSizeMinutes === null || draft.maxVehicleWeightTons === null) {
+    errors.push('store.error.configIncomplete');
+  }
+  errors.push(...validateRamps(draft.ramps));
+  errors.push(
+    ...validateReceivingWindows(draft.receivingWindows, draft.slotSizeMinutes).map(
+      (e) => e.messageKey,
+    ),
+  );
+  return [...new Set(errors)];
 }

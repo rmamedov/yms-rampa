@@ -52,10 +52,14 @@ final class HttpStoreConfigProviderTest extends TestCase
         self::assertSame('13:00', $monday->intervals[1]->formatFrom());
         self::assertSame('18:00', $monday->intervals[1]->formatTo());
 
-        // Рампи віддаються всі, вимкнена лишається у списку.
+        // Рампи віддаються всі, вимкнена лишається у списку. Номер потрібен
+        // контуру водія: на воротах написано «2», а не «r2» (DRV-21).
         self::assertCount(3, $config->ramps);
         self::assertCount(2, $config->activeRamps());
         self::assertSame('Холодильна', $config->ramps[1]->name);
+        self::assertSame(2, $config->ramps[1]->number);
+        self::assertSame($config->ramps[1], $config->ramp('r2'));
+        self::assertNull($config->ramp('r-невідома'));
         self::assertFalse($config->ramps[2]->active);
 
         // Обидва типи винятків календаря.
@@ -80,6 +84,53 @@ final class HttpStoreConfigProviderTest extends TestCase
         self::assertSame('00123', $settings->snapshot->externalId);
         self::assertSame('Сільпо на Хрещатику', $settings->snapshot->displayName);
         self::assertSame('вул. Хрещатик, 12', $settings->snapshot->address);
+
+        // DRV-21: координати з того ж блоку — пункт призначення навігатора.
+        self::assertNotNull($settings->location);
+        self::assertSame(50.49699, $settings->location->latitude);
+        self::assertSame(30.36123, $settings->location->longitude);
+    }
+
+    /**
+     * Координати не вигадуються: філія без них (або з поламаними значеннями)
+     * лишається без location, і контур водія веде за текстовою адресою.
+     */
+    public function testMissingOrBrokenCoordinatesLeaveLocationEmpty(): void
+    {
+        $withoutCoordinates = $this->provider(new MockResponse(StoreSettingsPayload::json([
+            'snapshot' => [
+                'externalId' => '00123',
+                'displayName' => 'Сільпо на Хрещатику',
+                'city' => 'Київ',
+                'address' => 'вул. Хрещатик, 12',
+            ],
+        ])))->settingsFor(StoreSettingsPayload::STORE_ID);
+
+        self::assertNull($withoutCoordinates->location);
+
+        $brokenCoordinates = $this->provider(new MockResponse(StoreSettingsPayload::json([
+            'snapshot' => [
+                'externalId' => '00123',
+                'displayName' => 'Сільпо на Хрещатику',
+                'city' => 'Київ',
+                'address' => 'вул. Хрещатик, 12',
+                'latitude' => 'н/д',
+                'longitude' => 1000.0,
+            ],
+        ])))->settingsFor(StoreSettingsPayload::STORE_ID);
+
+        self::assertNull($brokenCoordinates->location);
+    }
+
+    /** Рампа без номера у відповіді сусіда — це null, а не 0. */
+    public function testRampWithoutNumberKeepsNull(): void
+    {
+        $settings = $this->provider(new MockResponse(StoreSettingsPayload::json([
+            'ramps' => [['rampId' => 'r1', 'name' => 'Рампа 1', 'active' => true]],
+        ])))->settingsFor(StoreSettingsPayload::STORE_ID);
+
+        self::assertNull($settings->config->ramps[0]->number);
+        self::assertSame('Рампа 1', $settings->config->ramps[0]->name);
     }
 
     /**

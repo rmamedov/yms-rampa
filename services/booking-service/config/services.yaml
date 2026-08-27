@@ -53,4 +53,8 @@ services:
     # config/packages/prod/ і затирає його.
     App\Domain\Slot\SlotOverlayProvider: '@App\Infrastructure\InMemory\InMemorySlotOverlayProvider'
     App\Domain\Supplier\SupplierDirectory: '@App\Infrastructure\InMemory\InMemorySupplierDirectory'
+    App\Domain\Driver\DriverDirectory: '@App\Infrastructure\InMemory\InMemoryDriverDirectory'
+    # Одна заглушка на два порти: перелік філій у ній — це рівно ті філії,
+    # конфігурацію яких у неї зареєстрували (див. FixtureStoreConfigProvider).
     App\Domain\Store\StoreConfigProvider: '@App\Infrastructure\Store\FixtureStoreConfigProvider'
+    App\Domain\Store\StoreDirectory: '@App\Infrastructure\Store\FixtureStoreConfigProvider'

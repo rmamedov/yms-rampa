@@ -1,8 +1,11 @@
 import { StaffRole } from '../models';
 import {
   ADMIN_WEB_ROLES,
+  assignableRoles,
   grantFor,
   ROLE_ASSIGNMENT_TREE,
+  ROLES_REQUIRING_STORES,
+  SECTION_ORDER,
   SECTION_PERMISSION,
   STAFF_ROLES,
 } from './permissions';
@@ -62,5 +65,36 @@ describe('RBAC матриця (розділ 4.4)', () => {
 
   it('канонічний перелік staff-ролей — рівно 5', () => {
     expect(STAFF_ROLES).toHaveLength(5);
+  });
+
+  it('розділ «Користувачі» відкриває право users.manage.staff', () => {
+    expect(SECTION_ORDER).toContain('users');
+    expect(SECTION_PERMISSION['users']).toBe('users.manage.staff');
+
+    // Матриця 4.4: розділ доступний лише super_admin (✓) і network_manager (S*)
+    expect(grantFor('super_admin', 'users.manage.staff')).toBe('full');
+    expect(grantFor('network_manager', 'users.manage.staff')).toBe('scoped');
+    expect(grantFor('store_manager', 'users.manage.staff')).toBe('denied');
+    expect(grantFor('store_operator', 'users.manage.staff')).toBe('denied');
+    expect(grantFor('analyst', 'users.manage.staff')).toBe('denied');
+  });
+
+  it('RBAC-23: у селекті ролі пропонується лише дерево призначення актора', () => {
+    expect(assignableRoles('super_admin')).toContain('super_admin');
+    expect(assignableRoles('network_manager')).toEqual([
+      'store_manager',
+      'store_operator',
+    ]);
+    expect(assignableRoles('network_manager')).not.toContain('super_admin');
+    expect(assignableRoles('store_manager')).toEqual([]);
+    expect(assignableRoles('analyst')).toEqual([]);
+    expect(assignableRoles(null)).toEqual([]);
+  });
+
+  it('USR-02: привʼязка магазинів потрібна лише магазинним ролям', () => {
+    expect([...ROLES_REQUIRING_STORES].sort()).toEqual([
+      'store_manager',
+      'store_operator',
+    ]);
   });
 });

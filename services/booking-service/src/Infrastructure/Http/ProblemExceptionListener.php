@@ -23,7 +23,12 @@ final readonly class ProblemExceptionListener
     {
         $request = $event->getRequest();
 
-        if (!str_starts_with($request->getPathInfo(), '/api/')) {
+        // Публічний API (/api/) і службові маршрути (/internal/) віддають
+        // помилки в одному форматі: сусід читає з відповіді поле `code`, а без
+        // problem+json отримав би HTML-сторінку помилки Symfony.
+        $path = $request->getPathInfo();
+
+        if (!str_starts_with($path, '/api/') && !str_starts_with($path, '/internal/')) {
             return;
         }
 

@@ -11,7 +11,10 @@ import { firstValueFrom } from 'rxjs';
 import { DriverApi } from '../../core/data/driver.api';
 import { AuthService } from '../../core/auth/auth.service';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
-import type { DayRouteSheet } from '../../core/models/route-sheet.model';
+import {
+  rampLabel,
+  type DayRouteSheet,
+} from '../../core/models/route-sheet.model';
 import { formatKyivDateTime, kyivDateKey } from '../../core/util/time.util';
 import { formatPhone } from '../../core/util/phone.util';
 
@@ -54,7 +57,8 @@ export class PrintPage implements OnInit {
         storeName: p.storeName,
         city: p.city,
         address: p.address,
-        ramp: p.rampId,
+        // На папері має бути те саме, що на воротах, — номер або назва рампи.
+        ramp: rampLabel(p),
         orderId: p.orderId ?? '—',
         pallets: p.palletsCount,
       })),

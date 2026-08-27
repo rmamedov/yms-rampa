@@ -50,13 +50,24 @@ services:
         arguments:
             $client: '@App\Infrastructure\Store\HttpStoreServiceClient'
 
+    App\Infrastructure\Store\HttpStoreDirectory:
+        arguments:
+            $client: '@App\Infrastructure\Store\HttpStoreServiceClient'
+
     # --- partner-service ----------------------------------------------------
     App\Infrastructure\Supplier\HttpSupplierDirectory:
         arguments:
             $http: '@http_client'
             $baseUrl: '%env(PARTNER_SERVICE_BASE_URL)%'
 
+    App\Infrastructure\Driver\HttpDriverDirectory:
+        arguments:
+            $http: '@http_client'
+            $baseUrl: '%env(PARTNER_SERVICE_BASE_URL)%'
+
     # --- Порти домену → продакшн-адаптери -----------------------------------
     App\Domain\Store\StoreConfigProvider: '@App\Infrastructure\Store\HttpStoreConfigProvider'
+    App\Domain\Store\StoreDirectory: '@App\Infrastructure\Store\HttpStoreDirectory'
     App\Domain\Slot\SlotOverlayProvider: '@App\Infrastructure\Store\HttpSlotOverlayProvider'
     App\Domain\Supplier\SupplierDirectory: '@App\Infrastructure\Supplier\HttpSupplierDirectory'
+    App\Domain\Driver\DriverDirectory: '@App\Infrastructure\Driver\HttpDriverDirectory'

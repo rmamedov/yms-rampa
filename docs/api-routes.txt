@@ -75,9 +75,16 @@
  store_auth_refresh POST /api/store/v1/auth/refresh 
  admin_auth_logout POST /api/admin/v1/auth/logout 
  store_auth_logout POST /api/store/v1/auth/logout 
- admin_auth_password POST /api/admin/v1/auth/password 
- store_auth_password POST /api/store/v1/auth/password 
- internal_auth_verify GET /internal/v1/auth/verify 
+ admin_auth_password POST /api/admin/v1/auth/password
+ store_auth_password POST /api/store/v1/auth/password
+ admin_users_list GET /api/admin/v1/users
+ admin_users_create POST /api/admin/v1/users
+ admin_users_get GET /api/admin/v1/users/{id}
+ admin_users_update PATCH|PUT /api/admin/v1/users/{id}
+ admin_users_deactivate POST /api/admin/v1/users/{id}/deactivate
+ admin_users_activate POST /api/admin/v1/users/{id}/activate
+ admin_users_password_reset POST /api/admin/v1/users/{id}/password/reset
+ internal_auth_verify GET /internal/v1/auth/verify
 ### identity-partner-service
  driver_auth_login POST /api/driver/v1/auth/login 
  driver_auth_refresh POST /api/driver/v1/auth/refresh 

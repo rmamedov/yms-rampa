@@ -1,9 +1,8 @@
-import {
-  NO_DELAY,
-  type BookingActionResult,
-  type BookingResponse,
-  type DelayState,
+import type {
+  BookingActionResult,
+  BookingResponse,
 } from '../models/booking-action.model';
+import { NO_DELAY, type DelayState } from '../models/route-sheet.model';
 
 /**
  * Згортає відповідь маршруту дії (BookingPresenter::toArray()) у зріз,

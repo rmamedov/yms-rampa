@@ -14,7 +14,16 @@ namespace App\Domain\Booking;
  */
 interface BookingQueryPort
 {
-    /** SUP-06: чи існує хоч одне бронювання постачальника будь-якого статусу. */
+    /**
+     * SUP-06: чи існує хоч одне бронювання постачальника будь-якого статусу.
+     *
+     * Реалізація НЕ має права вигадувати відповідь, коли booking-service
+     * мовчить: «так» заблокувало б видалення назавжди, «ні» знищило б
+     * довідник, на який посилається історія. Замість цього — виняток.
+     *
+     * @throws BookingQueryUnavailableException сусід недоступний або відповів
+     *                                          не за контрактом
+     */
     public function supplierHasAnyBookings(string $supplierId): bool;
 
     /** SUP-VEH-04: чи є в авто активні бронювання (booked/arrived/unloading). */

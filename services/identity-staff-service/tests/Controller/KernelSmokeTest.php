@@ -23,6 +23,8 @@ use Symfony\Component\HttpFoundation\Request;
 #[CoversNothing]
 final class KernelSmokeTest extends TestCase
 {
+    private const string SOME_ID = '11111111-2222-3333-4444-555555555555';
+
     private Kernel $kernel;
 
     protected function setUp(): void
@@ -75,6 +77,80 @@ final class KernelSmokeTest extends TestCase
         $response = $this->post('/api/store/v1/auth/login', ['email' => 'x@silpo.ua', 'password' => 'y']);
 
         self::assertSame(401, $response->getStatusCode());
+    }
+
+    /**
+     * Дефект, з якого почався розділ «Користувачі»: маршрутів керування
+     * акаунтами не існувало взагалі — GET /api/admin/v1/users віддавав 404.
+     * Тепер вони зареєстровані у справжньому ядрі, а без ідентичності
+     * від шлюзу відповідають 401, а не 404.
+     */
+    public function testUserManagementRoutesAreRegistered(): void
+    {
+        $cases = [
+            ['GET', '/api/admin/v1/users'],
+            ['POST', '/api/admin/v1/users'],
+            ['GET', '/api/admin/v1/users/'.self::SOME_ID],
+            ['PATCH', '/api/admin/v1/users/'.self::SOME_ID],
+            ['POST', '/api/admin/v1/users/'.self::SOME_ID.'/deactivate'],
+            ['POST', '/api/admin/v1/users/'.self::SOME_ID.'/activate'],
+            ['POST', '/api/admin/v1/users/'.self::SOME_ID.'/password/reset'],
+        ];
+
+        foreach ($cases as [$method, $path]) {
+            $response = $this->kernel->handle(Request::create($path, $method));
+
+            self::assertSame(401, $response->getStatusCode(), $method.' '.$path);
+            self::assertSame('application/problem+json', $response->headers->get('Content-Type'));
+
+            /** @var array<string, mixed> $body */
+            $body = json_decode((string) $response->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+            self::assertSame('AUTH_TOKEN_INVALID', $body['code'], $method.' '.$path);
+        }
+    }
+
+    /**
+     * Наскрізно через ядро: super_admin читає список користувачів за
+     * службовими заголовками, які виставляє api-gateway.
+     */
+    public function testUserListIsServedForSuperAdminIdentity(): void
+    {
+        $testContainer = $this->kernel->getContainer()->get('test.service_container');
+        \assert($testContainer instanceof \Psr\Container\ContainerInterface);
+
+        $users = $testContainer->get(StaffUserRepository::class);
+        $hasher = $testContainer->get(PasswordHasher::class);
+
+        \assert($users instanceof StaffUserRepository);
+        \assert($hasher instanceof PasswordHasher);
+
+        $root = \App\Domain\Identity\StaffUser::create(
+            email: \App\Domain\Identity\Email::fromString('root@silpo.ua'),
+            passwordHash: $hasher->hash('Rampa!Staff2026'),
+            role: Role::SuperAdmin,
+            storeIds: [],
+            now: new \DateTimeImmutable('now', new \DateTimeZone('UTC')),
+            fullName: 'Головний Адміністратор',
+        );
+        $users->save($root);
+
+        $response = $this->kernel->handle(Request::create(
+            uri: '/api/admin/v1/users',
+            server: [
+                'HTTP_X-User-Id' => $root->id(),
+                'HTTP_X-User-Role' => 'super_admin',
+                'HTTP_X-Contour' => 'staff',
+            ],
+        ));
+
+        self::assertSame(200, $response->getStatusCode());
+
+        /** @var array<string, mixed> $body */
+        $body = json_decode((string) $response->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        self::assertSame(20, $body['perPage']);
+        self::assertGreaterThanOrEqual(1, $body['total']);
+        self::assertSame('root@silpo.ua', $body['items'][0]['email']);
+        self::assertFalse($body['items'][0]['scope']['zeroAccess']);
     }
 
     /**

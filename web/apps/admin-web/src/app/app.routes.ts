@@ -46,6 +46,18 @@ export const appRoutes: Route[] = [
           ),
       },
       {
+        path: 'users',
+        canActivate: [sectionGuard('users')],
+        loadComponent: () =>
+          import('./features/users/user-list.page').then((m) => m.UserListPage),
+      },
+      {
+        path: 'users/:id',
+        canActivate: [sectionGuard('users')],
+        loadComponent: () =>
+          import('./features/users/user-detail.page').then((m) => m.UserDetailPage),
+      },
+      {
         path: 'mcp-sync',
         canActivate: [sectionGuard('sync')],
         loadComponent: () =>

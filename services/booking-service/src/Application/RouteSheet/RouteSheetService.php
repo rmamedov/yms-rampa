@@ -13,10 +13,14 @@ use App\Domain\Booking\BookingType;
 use App\Domain\Booking\Exception\BookingNotFoundException;
 use App\Domain\Event\DomainEvent;
 use App\Domain\Event\EventType;
+use App\Domain\Exception\UpstreamUnavailableException;
 use App\Domain\RouteSheet\RouteSheet;
 use App\Domain\RouteSheet\RouteSheetRepository;
 use App\Domain\Shared\IdGenerator;
 use App\Domain\Slot\StoreConfig;
+use App\Domain\Store\StoreConfigProvider;
+use App\Domain\Store\StoreNotFoundException;
+use App\Domain\Store\StoreSettings;
 use DateTimeImmutable;
 use DateTimeZone;
 
@@ -148,7 +152,7 @@ final readonly class RouteSheetService
                 $booking = $this->bookings->find($bookingId);
 
                 if (null !== $booking && $booking->isActive()) {
-                    $bookings[] = self::point($booking, $driverId);
+                    $bookings[] = $this->point($booking, $driverId);
                 }
             }
 
@@ -190,7 +194,7 @@ final readonly class RouteSheetService
             }
 
             $supplierName ??= $booking->supplierNameSnapshot;
-            $points[] = self::point($booking, $entry->driverId);
+            $points[] = $this->point($booking, $entry->driverId);
         }
 
         return [
@@ -204,26 +208,63 @@ final readonly class RouteSheetService
     }
 
     /**
+     * Проєкція точки маршрутного листа.
+     *
+     * Крім снапшота бронювання тут є два зрізи довідника філії, які беруться
+     * зі store-service через StoreConfigProvider:
+     *  - координати — щоб «Побудувати маршрут» відкривав точку на карті,
+     *    а не пошук за рядком «місто, вулиця» (DRV-21);
+     *  - номер і назва рампи — водій на дворі шукає ворота з написом «2»,
+     *    а не службовий ідентифікатор «ramp-2».
+     *
+     * Плюс власний стан бронювання, який раніше жив лише у відповідях на дії
+     * водія: `delayed` і `arrivedAt`. Без них банер затримки на картці зникав
+     * після перезавантаження сторінки і не підтверджувався полінгом (DLY-01).
+     *
      * @return array<string, mixed>
      */
-    private static function point(Booking $booking, ?string $driverId): array
+    private function point(Booking $booking, ?string $driverId): array
     {
         $tz = new DateTimeZone(StoreConfig::TIMEZONE);
+        $settings = $this->settingsOrNull($booking->storeId);
+        $ramp = $settings?->config->ramp($booking->rampId());
 
         return [
             'bookingId' => $booking->id,
             'city' => $booking->storeSnapshot->city,
             'storeName' => $booking->storeSnapshot->displayName,
             'address' => $booking->storeSnapshot->address,
+            'latitude' => $settings?->location?->latitude,
+            'longitude' => $settings?->location?->longitude,
             'localTime' => $booking->slotStart->setTimezone($tz)->format('H:i'),
             'slotStart' => $booking->slotStart->format('Y-m-d\TH:i:s\Z'),
             'rampId' => $booking->rampId(),
+            'rampNumber' => $ramp?->number,
+            'rampName' => $ramp?->name,
             'orderId' => $booking->orderId(),
             'palletsCount' => $booking->palletsCount(),
             'plateNumber' => $booking->vehicle()->plateNumber,
             'driverId' => $driverId,
             'status' => $booking->status()->value,
+            'delayed' => $booking->delayed()->toArray(),
+            'arrivedAt' => $booking->arrivedAt()?->format('Y-m-d\TH:i:s\Z'),
         ];
+    }
+
+    /**
+     * Довідник філії для збагачення точки.
+     *
+     * Маршрутний лист — головний екран водія, і він мусить відкриватися навіть
+     * коли сусід лежить: без довідника точка просто лишається без координат
+     * і без назви рампи, а не перетворюється на 502.
+     */
+    private function settingsOrNull(string $storeId): ?StoreSettings
+    {
+        try {
+            return $this->stores->settingsFor($storeId);
+        } catch (StoreNotFoundException|UpstreamUnavailableException) {
+            return null;
+        }
     }
 
     private function applyDriver(Booking $booking, ?string $driverId, Actor $actor, DateTimeImmutable $now): void

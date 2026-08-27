@@ -6,6 +6,7 @@ namespace App\Infrastructure\Http;
 
 use App\Domain\Booking\Booking;
 use App\Domain\Booking\StatusChange;
+use App\Domain\Driver\DriverInfo;
 use App\Domain\Slot\StoreConfig;
 use DateTimeZone;
 
@@ -16,9 +17,17 @@ use DateTimeZone;
 final readonly class BookingPresenter
 {
     /**
+     * @param DriverInfo|null $driver знімок профілю призначеного водія, якщо
+     *                                контур має його чим наповнити. Поле
+     *                                `driverId` лишається на місці за будь-яких
+     *                                умов: воно — частина документа бронювання,
+     *                                тоді як `driver` — довідкове збагачення,
+     *                                якого може не бути (водія не призначено,
+     *                                профіль видалено, сусід не відповів)
+     *
      * @return array<string, mixed>
      */
-    public static function toArray(Booking $booking): array
+    public static function toArray(Booking $booking, ?DriverInfo $driver = null): array
     {
         $tz = new DateTimeZone(StoreConfig::TIMEZONE);
 
@@ -37,6 +46,7 @@ final readonly class BookingPresenter
             'supplierName' => $booking->supplierNameSnapshot,
             'vehicle' => $booking->vehicle()->toArray(),
             'driverId' => $booking->driverId(),
+            'driver' => $driver?->toArray(),
             'orderId' => $booking->orderId(),
             'palletsCount' => $booking->palletsCount(),
             'delayed' => $booking->delayed()->toArray(),

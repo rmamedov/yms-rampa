@@ -40,13 +40,18 @@ export function filterVehicles(
   vehicles: readonly Vehicle[],
   query: string,
 ): Vehicle[] {
-  const needle = normalizeQuery(query).replace(/[\s-]/g, '');
+  // Держномер шукаємо без роздільників, щоб «AA 1234 BC» знаходило «AA1234BC».
+  // Марку — за початковим запитом: раніше вона порівнювалася з очищеним від
+  // пробілів рядком, тому будь-який запит із пробілом («Renault 8512») не
+  // знаходив нічого.
+  const raw = normalizeQuery(query);
+  const needle = raw.replace(/[\s-]/g, '');
   if (!needle) {
     return [...vehicles];
   }
   return vehicles.filter(
     (vehicle) =>
-      vehicle.plateNumber.toLocaleLowerCase('uk-UA').includes(needle) ||
-      (vehicle.brand ?? '').toLocaleLowerCase('uk-UA').includes(needle),
+      vehicle.plateNumber.toLocaleLowerCase('uk-UA').replace(/[\s-]/g, '').includes(needle) ||
+      (vehicle.brand ?? '').toLocaleLowerCase('uk-UA').includes(raw),
   );
 }

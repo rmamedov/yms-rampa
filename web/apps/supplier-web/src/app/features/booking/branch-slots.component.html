@@ -92,7 +92,9 @@
               <tr>
                 <th scope="col">{{ 'slots.time' | t }}</th>
                 @for (ramp of store.ramps; track ramp.rampId) {
-                  <th scope="col">{{ 'slots.ramp' | t }} {{ ramp.name }}</th>
+                  <!-- Бекенд віддає name уже у вигляді «Рампа 1», тому власне слово
+                       не додаємо — інакше в заголовку виходило «РАМПА РАМПА 1». -->
+                  <th scope="col">{{ ramp.name }}</th>
                 }
               </tr>
             </thead>

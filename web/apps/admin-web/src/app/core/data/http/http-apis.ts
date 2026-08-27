@@ -19,6 +19,8 @@ import {
   ReservedSlotRule,
   SlotBlock,
   STORE_SORT_COLUMNS,
+  StaffUser,
+  StaffUserCredentials,
   Store,
   StoreConfiguration,
   StoreGeneralPatch,
@@ -38,6 +40,12 @@ import {
   StoresApi,
 } from '../stores.api';
 import { SupplierDraft, SupplierFilter, SuppliersApi } from '../suppliers.api';
+import {
+  StaffUserDraft,
+  StaffUserFilter,
+  StaffUserPatch,
+  UsersApi,
+} from '../users.api';
 import { SyncApi } from '../sync.api';
 import { AnalyticsApi } from '../analytics.api';
 import {
@@ -49,6 +57,8 @@ import {
   toReservedRule,
   toSession,
   toSlotBlock,
+  toStaffUser,
+  toStaffUserCredentials,
   toStore,
   toStoreListRow,
   toSupplier,
@@ -62,6 +72,8 @@ import {
   WireConfiguration,
   WireReservedRule,
   WireSlotBlock,
+  WireStaffUser,
+  WireStaffUserCredentials,
   WireStoreCard,
   WireStoreRow,
   WireSupplier,
@@ -133,6 +145,76 @@ export class HttpAuthApi extends AuthApi {
     return this.api
       .post<void>('/auth/logout', { refreshToken, allDevices })
       .pipe(map(() => undefined));
+  }
+}
+
+/** /api/admin/v1/users/** — identity-staff-service (розділ 4.7). */
+@Injectable()
+export class HttpUsersApi extends UsersApi {
+  private readonly api = inject(ApiClient);
+
+  list(filter: StaffUserFilter, query: PageQuery): Observable<Page<StaffUser>> {
+    return this.api
+      .get<WirePage<WireStaffUser>>('/users', {
+        page: query.page,
+        perPage: perPageOf(query),
+        q: filter.search,
+        role: filter.role,
+        status: filter.status,
+      })
+      .pipe(map((wire) => toPage(wire, toStaffUser)));
+  }
+
+  get(id: string): Observable<StaffUser> {
+    return this.api.get<WireStaffUser>(`/users/${id}`).pipe(map(toStaffUser));
+  }
+
+  create(draft: StaffUserDraft): Observable<StaffUserCredentials> {
+    return this.api
+      .post<WireStaffUserCredentials>('/users', {
+        email: draft.email,
+        fullName: draft.fullName,
+        // RBAC-04: одна роль одним полем; масив `roles` бекенд трактує
+        // як спробу призначити другу.
+        role: draft.role,
+        storeIds: [...draft.storeIds],
+        // Порожній пароль не шлемо взагалі — інакше бекенд вважатиме,
+        // що адміністратор задав його явно.
+        ...(draft.password ? { password: draft.password } : {}),
+      })
+      .pipe(map(toStaffUserCredentials));
+  }
+
+  update(id: string, patch: StaffUserPatch): Observable<StaffUser> {
+    const body: Record<string, unknown> = {};
+    if (patch.fullName !== undefined) {
+      body['fullName'] = patch.fullName;
+    }
+    if (patch.role !== undefined) {
+      body['role'] = patch.role;
+    }
+    if (patch.storeIds !== undefined) {
+      body['storeIds'] = [...patch.storeIds];
+    }
+    return this.api.patch<WireStaffUser>(`/users/${id}`, body).pipe(map(toStaffUser));
+  }
+
+  deactivate(id: string): Observable<StaffUser> {
+    return this.api
+      .post<WireStaffUser>(`/users/${id}/deactivate`)
+      .pipe(map(toStaffUser));
+  }
+
+  activate(id: string): Observable<StaffUser> {
+    return this.api
+      .post<WireStaffUser>(`/users/${id}/activate`)
+      .pipe(map(toStaffUser));
+  }
+
+  resetPassword(id: string): Observable<StaffUserCredentials> {
+    return this.api
+      .post<WireStaffUserCredentials>(`/users/${id}/password/reset`)
+      .pipe(map(toStaffUserCredentials));
   }
 }
 

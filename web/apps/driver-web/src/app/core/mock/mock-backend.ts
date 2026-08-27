@@ -10,10 +10,11 @@
  *  - `localTime` рахує «сервер», а не клієнт;
  *  - порожній день — це 200 і `routeSheets: []`, а не 404;
  *  - некоректний `date` — 422 VALIDATION_FAILED, як у контролері;
- *  - проєкція листа НЕ містить `arrivedAt` і `delayed` — рівно як у бекенді.
+ *  - точка несе координати філії та номер і назву рампи з довідника магазину,
+ *    а також власний стан бронювання — `delayed` і `arrivedAt`.
  *
  * Дії — `arrived`, `delay`, `PATCH {orderId}`: віддають ПОВНЕ представлення
- * бронювання (BookingPresenter::toArray()), тобто іншу форму, ніж точка
+ * бронювання (BookingPresenter::toArray()), тобто ширшу форму, ніж точка
  * листа, і повторюють правила DriverBookingService та агрегату Booking:
  *  - «На місці» ідемпотентна (правило «хто перший»);
  *  - перехід поза машиною станів — 409 INVALID_STATUS_TRANSITION;
@@ -22,18 +23,18 @@
  *  - orderId редагується лише до початку розвантаження — далі 422.
  */
 import { Injectable } from '@angular/core';
-import type {
-  BookingStatus,
-  DriverRouteSheetResponse,
-  RoutePoint,
-  RouteSheet,
+import {
+  NO_DELAY,
+  type BookingStatus,
+  type DelayState,
+  type DriverRouteSheetResponse,
+  type RoutePoint,
+  type RouteSheet,
 } from '../models/route-sheet.model';
 import {
   DELAY_REASONS,
   DELAY_REASON_REQUIRING_COMMENT,
-  NO_DELAY,
   type BookingResponse,
-  type DelayState,
 } from '../models/booking-action.model';
 import { ApiProblemError } from '../models/problem.model';
 import { MOCK_STORES } from './stores.fixture';
@@ -86,10 +87,19 @@ function hourFloor(now: number): number {
   return Math.floor(now / 3_600_000) * 3_600_000;
 }
 
-/** Внутрішній запис точки: поля листа + стан, який віддають лише дії. */
-type StoredPoint = { -readonly [K in keyof RoutePoint]: RoutePoint[K] } & {
-  arrivedAt: string | null;
-  delayed: DelayState;
+/** Внутрішній запис точки: ті самі поля листа, але змінювані діями. */
+type StoredPoint = { -readonly [K in keyof RoutePoint]: RoutePoint[K] };
+
+/**
+ * Довідник рамп філії у моці. store-service віддає номер і назву, причому
+ * назва без власного імені сама дорівнює «Рампа N» (Ramp::displayName()) —
+ * «Холодильна» тут саме для того, щоб мок покривав і власне імʼя.
+ */
+const MOCK_RAMPS: Readonly<Record<string, { number: number; name: string }>> = {
+  'ramp-1': { number: 1, name: 'Рампа 1' },
+  'ramp-2': { number: 2, name: 'Рампа 2' },
+  'ramp-3': { number: 3, name: 'Холодильна' },
+  'ramp-4': { number: 4, name: 'Рампа 4' },
 };
 
 interface StoredSheet {
@@ -315,14 +325,19 @@ export class MockBackend {
     const points: StoredPoint[] = seed.map((s) => {
       const start = baseMs + s.offsetMinutes * 60_000;
       const store = MOCK_STORES[s.storeIndex % MOCK_STORES.length];
+      const ramp = MOCK_RAMPS[s.rampId] ?? null;
       return {
         bookingId: nextId('bk'),
         city: store.city,
         storeName: store.storeName,
         address: store.address,
+        latitude: store.latitude,
+        longitude: store.longitude,
         localTime: formatKyivTime(start),
         slotStart: toBackendIso(start),
         rampId: s.rampId,
+        rampNumber: ramp?.number ?? null,
+        rampName: ramp?.name ?? null,
         orderId: s.orderId,
         palletsCount: s.palletsCount,
         plateNumber: MOCK_PLATE,
@@ -345,9 +360,10 @@ export class MockBackend {
 }
 
 /**
- * Проєкція листа: рівно поля RouteSheetService::point().
- * `arrivedAt` і `delayed` сюди НЕ потрапляють — їх бекенд віддає лише
- * у відповідях дій (BookingPresenter).
+ * Проєкція листа: рівно поля RouteSheetService::point() — включно з
+ * координатами філії, номером і назвою рампи, прапорцем затримки і часом
+ * прибуття. Перелічені поіменно навмисно: так тест складу полів ловить
+ * будь-яку розбіжність із бекендом.
  */
 function toWireSheet(sheet: StoredSheet): RouteSheet {
   return {
@@ -360,14 +376,20 @@ function toWireSheet(sheet: StoredSheet): RouteSheet {
       city: p.city,
       storeName: p.storeName,
       address: p.address,
+      latitude: p.latitude,
+      longitude: p.longitude,
       localTime: p.localTime,
       slotStart: p.slotStart,
       rampId: p.rampId,
+      rampNumber: p.rampNumber,
+      rampName: p.rampName,
       orderId: p.orderId,
       palletsCount: p.palletsCount,
       plateNumber: p.plateNumber,
       driverId: p.driverId,
       status: p.status,
+      delayed: p.delayed,
+      arrivedAt: p.arrivedAt,
     })),
   };
 }

@@ -37,6 +37,20 @@ final class InMemorySupplierDirectory implements SupplierDirectory
         return $this->suppliers[$supplierId] ?? null;
     }
 
+    public function listForStore(string $storeId): array
+    {
+        $allowed = array_values(array_filter(
+            $this->suppliers,
+            static fn (SupplierInfo $supplier): bool => $supplier->active && $supplier->hasAccessTo($storeId),
+        ));
+
+        // Порядок детермінований і не залежить від локалі процесу: у списку
+        // вибору важлива стабільність, а не тонкощі української колації.
+        usort($allowed, static fn (SupplierInfo $a, SupplierInfo $b): int => strcmp($a->name, $b->name));
+
+        return $allowed;
+    }
+
     public function assertMayBookAt(string $supplierId, string $storeId): SupplierInfo
     {
         $supplier = $this->find($supplierId);

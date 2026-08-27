@@ -6,8 +6,8 @@
  * (App\Controller\Driver\RouteSheetController + RouteSheetService::forDriver()).
  *
  * Поля названі рівно так, як їх віддає бекенд. У контурі водія НЕМАЄ
- * `slotEnd`, координат філії, снапшота авто (модель/тоннаж), імені водія,
- * прапорця `delayed` та `arrivedAt` — не вигадуємо їх на клієнті.
+ * `slotEnd`, снапшота авто (модель/тоннаж) та імені водія — не вигадуємо їх
+ * на клієнті.
  */
 
 /** Канонічний статус бронювання (BookingStatus у booking-service, розділ 6.5). */
@@ -21,6 +21,22 @@ export type BookingStatus =
   | 'rejected';
 
 /**
+ * Прапорець затримки з причиною та ETA — DelayInfo::toArray() (DLY-01).
+ *
+ * Живе тут, бо це частина ЧИТАННЯ листа: `delayed` є і в точці маршрутного
+ * листа, і у відповіді на дію водія, тож обидва контракти описують одну форму.
+ */
+export interface DelayState {
+  readonly flag: boolean;
+  /** Для «інше» бекенд склеює причину з коментарем: «інше: <текст>». */
+  readonly reason: string | null;
+  /** UTC ISO 8601 або null. */
+  readonly eta: string | null;
+}
+
+export const NO_DELAY: DelayState = { flag: false, reason: null, eta: null };
+
+/**
  * Точка маршрутного листа = одне бронювання.
  * Рівно поля RouteSheetService::point().
  */
@@ -29,17 +45,32 @@ export interface RoutePoint {
   readonly city: string;
   readonly storeName: string;
   readonly address: string;
+  /**
+   * Координати філії з довідника store-service (DRV-21). Саме за ними
+   * будується маршрут у навігаторі; null означає, що філія в довіднику без
+   * координат — тоді лишається текстова адреса.
+   */
+  readonly latitude: number | null;
+  readonly longitude: number | null;
   /** Час слоту «HH:MM» у Europe/Kyiv — обчислює сервер (DRV-05). */
   readonly localTime: string;
   /** Початок слоту в UTC, формат `YYYY-MM-DDTHH:MM:SSZ`. */
   readonly slotStart: string;
+  /** Службовий ідентифікатор рампи — за ним ідуть дії, водієві його не показують. */
   readonly rampId: string;
+  /** Номер і назва рампи з довідника філії — рівно те, що написано на воротах. */
+  readonly rampNumber: number | null;
+  readonly rampName: string | null;
   /** Може бути порожнім — заповнює постачальник або магазин. */
   readonly orderId: string | null;
   readonly palletsCount: number;
   readonly plateNumber: string;
   readonly driverId: string | null;
   readonly status: BookingStatus;
+  /** Затримка точки — джерело істини для банера на картці (DLY-01). */
+  readonly delayed: DelayState;
+  /** Час фактичного прибуття, UTC ISO 8601, або null. */
+  readonly arrivedAt: string | null;
 }
 
 /** Маршрутний лист пари «постачальник + дата». */
@@ -83,4 +114,22 @@ export interface AvailableDate {
   /** YYYY-MM-DD у Europe/Kyiv. */
   readonly date: string;
   readonly pointCount: number;
+}
+
+/**
+ * Значення, яке водій бачить поруч із підписом «Рампа».
+ *
+ * Спершу номер: він написаний на воротах, і саме його водій шукає на дворі.
+ * Далі назва з довідника — вона потрібна там, де номера немає (у store-service
+ * назва рампи без власного імені сама дорівнює «Рампа N», тож поруч із
+ * підписом вона дала б «Рампа Рампа 2»). Службовий ідентифікатор лишається
+ * останнім засобом: побачити його водій має лише тоді, коли довідник філії
+ * недоступний.
+ */
+export function rampLabel(point: RoutePoint): string {
+  if (point.rampNumber !== null) {
+    return String(point.rampNumber);
+  }
+
+  return point.rampName ?? point.rampId;
 }

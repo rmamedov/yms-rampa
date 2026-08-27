@@ -67,9 +67,10 @@ final readonly class AdminUserController
             /** @var array<string, mixed> $query */
             $query = $request->query->all();
 
-            return new JsonResponse(StaffUserView::page(
-                $this->users->listUsers($actor, StaffUserCriteria::fromQuery($query)),
-            ));
+            return $this->respond(
+                StaffUserView::page($this->users->listUsers($actor, StaffUserCriteria::fromQuery($query))),
+                $request,
+            );
         });
     }
 

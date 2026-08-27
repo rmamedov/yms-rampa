@@ -126,6 +126,21 @@ final readonly class StoreConfig
         return null;
     }
 
+    /**
+     * Рампа за службовим ідентифікатором — разом з вимкненими: бронювання
+     * на вимкненій рампі не зникає, і водієві однаково треба показати номер.
+     */
+    public function ramp(string $rampId): ?Ramp
+    {
+        foreach ($this->ramps as $ramp) {
+            if ($ramp->rampId === $rampId) {
+                return $ramp;
+            }
+        }
+
+        return null;
+    }
+
     /** @return list<Ramp> */
     public function activeRamps(): array
     {
