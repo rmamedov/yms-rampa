@@ -149,6 +149,25 @@ describe('Картка магазину — збереження конфігу�
     expect(saveButton().disabled).toBe(false);
   });
 
+  it('STC-31: зменшення тоннажу попереджає про вплив на наявні бронювання', async () => {
+    await setup();
+    render();
+    openTab('Обмеження');
+    expect(host.querySelector('.notice-warn')).toBeNull();
+
+    const weight = required(
+      host.querySelector<HTMLInputElement>('#max-weight'),
+      'Поля тоннажу',
+    );
+    weight.value = String(Number(weight.value) - 0.5);
+    weight.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(host.querySelector('.notice-warn')?.textContent).toContain(
+      'Зменшення тоннажу може зачепити вже наявні бронювання',
+    );
+  });
+
   it('STC-10: усі сім днів у формі, навіть якщо неділі в конфігурації немає', async () => {
     await setup();
     const last = store.configurations.length - 1;

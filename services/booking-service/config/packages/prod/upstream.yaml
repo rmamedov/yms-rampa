@@ -6,11 +6,13 @@
 # FixtureStoreConfigProvider / InMemory*-довідниках з config/services.yaml і
 # не потребують ані піднятих сусідів, ані мережі взагалі.
 #
-# ТРАНСПОРТ. Обидва базові URL показують на внутрішній шлюз nginx
+# ТРАНСПОРТ. Усі базові URL показують на внутрішній шлюз nginx
 # (infra/nginx-yms-internal.conf), який слухає лише 127.0.0.1:8081 і роздає
 # запити за префіксом шляху:
 #     /internal/v1/stores…     → store-service
 #     /internal/v1/suppliers…  → partner-service
+#     /internal/v1/drivers…    → partner-service
+#     /internal/v1/analytics…  → analytics-service
 # Через auth_request службові маршрути не проходять і заголовків ідентичності
 # не мають, тому клієнти нічого не підписують.
 #
@@ -26,6 +28,7 @@ parameters:
     # Дефолти env-змінних; на проді значення приходять з оточення.
     env(STORE_SERVICE_BASE_URL): 'http://127.0.0.1:8081'
     env(PARTNER_SERVICE_BASE_URL): 'http://127.0.0.1:8081'
+    env(ANALYTICS_SERVICE_BASE_URL): 'http://127.0.0.1:8081'
 
 services:
     _defaults:
@@ -64,6 +67,17 @@ services:
         arguments:
             $http: '@http_client'
             $baseUrl: '%env(PARTNER_SERVICE_BASE_URL)%'
+
+    # --- analytics-service ---------------------------------------------------
+    #
+    # Куди релей outbox складає доменні події (DATA-16, KPI-05). На відміну від
+    # клієнтів вище, цей викликається не з HTTP-запиту користувача, а з фонової
+    # команди yms:outbox:relay за systemd-таймером, тому має власний, набагато
+    # більший таймаут (див. HttpAnalyticsEventSink).
+    App\Infrastructure\Analytics\HttpAnalyticsEventSink:
+        arguments:
+            $http: '@http_client'
+            $baseUrl: '%env(ANALYTICS_SERVICE_BASE_URL)%'
 
     # --- Порти домену → продакшн-адаптери -----------------------------------
     App\Domain\Store\StoreConfigProvider: '@App\Infrastructure\Store\HttpStoreConfigProvider'

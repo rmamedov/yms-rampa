@@ -15,12 +15,17 @@ use App\Domain\Slot\ReservedSlotRule;
 use App\Domain\Store\StoreNotFoundException;
 use App\Domain\Supplier\SupplierInfo;
 use App\Infrastructure\Http\ActorResolver;
+use App\Infrastructure\Http\ProblemExceptionListener;
+use App\Infrastructure\Http\ProblemResponseFactory;
 use App\Tests\Support\Scenario;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Event\ExceptionEvent;
+use Symfony\Component\HttpKernel\HttpKernelInterface;
 
 /**
  * Контур ЧИТАННЯ магазину: /api/store/v1/stores…, /api/store/v1/bookings.
@@ -512,6 +517,80 @@ final class StoreReadHttpTest extends TestCase
 
         $this->expectException(AccessDeniedException::class);
         $this->controller($scenario)->stores(Request::create('/api/store/v1/stores', 'GET'));
+    }
+
+    /**
+     * Відмова доходить до клієнта як RFC 7807 з полем `code`, а не як 500:
+     * без цього store-web показав би «щось пішло не так» замість «немає прав».
+     */
+    public function testForbiddenReadIsRenderedAsProblemJson(): void
+    {
+        $scenario = new Scenario();
+        $scenario->registerStore(self::OTHER_STORE_ID);
+
+        $response = $this->render(
+            fn () => $this->call($scenario, 'board', self::OTHER_STORE_ID, 'store_manager', Scenario::STORE_ID),
+            '/api/store/v1/bookings',
+        );
+
+        self::assertSame(403, $response->getStatusCode());
+        self::assertSame('application/problem+json', $response->headers->get('Content-Type'));
+
+        $payload = json_decode((string) $response->getContent(), true, 16, \JSON_THROW_ON_ERROR);
+
+        self::assertSame('ACCESS_DENIED', $payload['code']);
+        self::assertSame(403, $payload['status']);
+        self::assertStringContainsString(self::OTHER_STORE_ID, $payload['detail']);
+    }
+
+    /** Некоректна дата — 422 VALIDATION_FAILED, а не 403 і не 500. */
+    public function testMalformedDateIsRenderedAsValidationProblem(): void
+    {
+        $scenario = new Scenario();
+
+        $response = $this->render(
+            fn () => $this->controller($scenario)->slots(
+                Scenario::STORE_ID,
+                $this->request('GET', '/api/store/v1/stores/store-1/slots?date=28-08-2026'),
+            ),
+            '/api/store/v1/stores/store-1/slots',
+        );
+
+        self::assertSame(422, $response->getStatusCode());
+        self::assertSame(
+            'VALIDATION_FAILED',
+            json_decode((string) $response->getContent(), true, 16, \JSON_THROW_ON_ERROR)['code'],
+        );
+    }
+
+    /** Проганяє виняток контролера через слухач помилок HTTP-шару. */
+    private function render(callable $action, string $uri): Response
+    {
+        try {
+            $action();
+            self::fail('Очікувався виняток контуру магазину.');
+        } catch (\Throwable $error) {
+            $kernel = new class implements HttpKernelInterface {
+                public function handle(Request $request, int $type = self::MAIN_REQUEST, bool $catch = true): Response
+                {
+                    return new Response();
+                }
+            };
+
+            $event = new ExceptionEvent(
+                $kernel,
+                Request::create($uri, 'GET'),
+                HttpKernelInterface::MAIN_REQUEST,
+                $error,
+            );
+
+            (new ProblemExceptionListener(new ProblemResponseFactory()))($event);
+
+            $response = $event->getResponse();
+            self::assertNotNull($response);
+
+            return $response;
+        }
     }
 
     /**

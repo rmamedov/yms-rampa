@@ -203,7 +203,6 @@ export class StoreLimitsTabComponent {
   }
 
   private emit(): void {
-    this.echoedWeight = this.weight();
     this.changed.emit({
       maxVehicleWeightTons: this.weight(),
       leadTimeMinutes: this.leadTime(),

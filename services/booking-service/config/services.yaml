@@ -58,3 +58,12 @@ services:
     # конфігурацію яких у неї зареєстрували (див. FixtureStoreConfigProvider).
     App\Domain\Store\StoreConfigProvider: '@App\Infrastructure\Store\FixtureStoreConfigProvider'
     App\Domain\Store\StoreDirectory: '@App\Infrastructure\Store\FixtureStoreConfigProvider'
+
+    # --- Релей outbox (DATA-16, KPI-05) --------------------------------------
+    #
+    # Приймач подій звʼязаний в УСІХ оточеннях, а не лише в проді: команда
+    # yms:outbox:relay реєструється завжди, тож без цього аліаса контейнер не
+    # зібрався б навіть у dev. Базовий URL у прод-профілі приходить із
+    # ANALYTICS_SERVICE_BASE_URL (config/packages/prod/upstream.yaml), а тут
+    # лишається дефолт із конструктора — внутрішній шлюз 127.0.0.1:8081.
+    App\Application\Outbox\AnalyticsEventSink: '@App\Infrastructure\Analytics\HttpAnalyticsEventSink'
