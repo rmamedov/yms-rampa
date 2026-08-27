@@ -48,20 +48,30 @@ write_env store-service \
 # Базові URL сусідів — внутрішній шлюз nginx (infra/nginx-yms-internal.conf,
 # слухає лише 127.0.0.1:8081). Це НЕ адмінський /api/: службові маршрути
 # booking-service ходить за префіксом /internal/v1/, а шлюз сам розкладає їх
-# по сервісах за префіксом шляху. Обидва URL однакові саме тому.
+# по сервісах за префіксом шляху. Усі URL однакові саме тому.
+#
+# ANALYTICS_SERVICE_BASE_URL — куди релей outbox (yms:outbox:relay, systemd-
+# таймер нижче) складає доменні події: POST /internal/v1/analytics/events.
 write_env booking-service \
     "MONGODB_URI=mongodb://127.0.0.1:27017" "MONGODB_DATABASE=yms_bookings" \
     "REDIS_URL=redis://127.0.0.1:6379" \
     "STORE_SERVICE_BASE_URL=http://127.0.0.1:8081" \
-    "PARTNER_SERVICE_BASE_URL=http://127.0.0.1:8081"
+    "PARTNER_SERVICE_BASE_URL=http://127.0.0.1:8081" \
+    "ANALYTICS_SERVICE_BASE_URL=http://127.0.0.1:8081"
 
 # IDENTITY_PARTNER_BASE_URL — той самий внутрішній шлюз: створення облікових
 # даних водія йде синхронним викликом на /internal/v1/partner-accounts, який
 # шлюз віддає identity-partner-service. Без цієї змінної працює дефолт із
 # .env, але тримаємо її явно поруч із рештою конфігурації сервісу.
+#
+# BOOKING_SERVICE_BASE_URL — перевірка SUP-06 перед видаленням постачальника:
+# GET /internal/v1/bookings/suppliers/{id}. Поки цього виклику не було,
+# partner-service користувався заглушкою «бронювання є завжди», і жодного
+# постачальника не можна було видалити (409 на щойно створеному записі).
 write_env partner-service \
     "MONGO_DSN=mongodb://127.0.0.1:27017" "MONGO_DB=yms_partners" \
-    "IDENTITY_PARTNER_BASE_URL=http://127.0.0.1:8081"
+    "IDENTITY_PARTNER_BASE_URL=http://127.0.0.1:8081" \
+    "BOOKING_SERVICE_BASE_URL=http://127.0.0.1:8081"
 
 write_env analytics-service \
     "MONGODB_URL=mongodb://127.0.0.1:27017" "MONGODB_DB=yms_analytics"
@@ -111,4 +121,63 @@ for svc in "${SERVICES[@]}"; do
 done
 "${SSH[@]}" 'chown -R www-data:www-data /var/www/yms && chmod -R g+w /var/www/yms/services/*/var 2>/dev/null || true'
 
+# Доставка доменних подій у read-моделі аналітики (DATA-16, KPI-05).
+#
+# RabbitMQ на дроплеті свідомо немає (1 vCPU / 2 ГБ — див. provision-droplet.sh),
+# тому другу половину схеми transactional outbox виконує періодичний релей:
+# booking-service читає неопубліковані записи outbox і віддає їх пакетом на
+# POST /internal/v1/analytics/events. Без цього кроку події лишалися в outbox,
+# read-моделі analytics-service були порожні, і вся аналітика показувала
+# «Немає даних за обраний період».
+#
+# Type=oneshot: systemd не запускає другий екземпляр, поки працює перший, тож
+# прогони не накладаються навіть якщо один затягнеться понад хвилину. Доставка
+# at-least-once, повтори безпечні — analytics-service дедуплікує за eventId.
+log "Релей подій у аналітику (systemd-таймер)"
+"${SSH[@]}" 'bash -s' <<'REMOTE'
+set -euo pipefail
+
+cat > /etc/systemd/system/yms-outbox-relay.service <<'UNIT'
+[Unit]
+Description=YMS «Рампа»: доставка подій outbox у read-моделі аналітики
+After=network.target mongod.service
+Requires=mongod.service
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/yms/services/booking-service
+Environment=APP_ENV=prod
+ExecStart=/usr/bin/php bin/console yms:outbox:relay --no-interaction
+# Код 2 — «пакет доїхав, але частина подій непридатна»: у журналі це
+# попередження, а не аварія служби.
+SuccessExitStatus=2
+TimeoutStartSec=300
+UNIT
+
+cat > /etc/systemd/system/yms-outbox-relay.timer <<'UNIT'
+[Unit]
+Description=YMS «Рампа»: релей outbox → аналітика щохвилини
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=10s
+Unit=yms-outbox-relay.service
+
+[Install]
+WantedBy=timers.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now yms-outbox-relay.timer
+# Перший прогін одразу після деплою: накопичені події доїжджають, не чекаючи
+# хвилини. Помилка тут не валить деплой — таймер однаково повторить.
+systemctl start yms-outbox-relay.service || true
+
+systemctl is-active yms-outbox-relay.timer
+REMOTE
+
 log "Готово"
+echo "Журнал релея: journalctl -u yms-outbox-relay.service -n 50"

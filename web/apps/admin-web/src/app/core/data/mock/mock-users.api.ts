@@ -7,7 +7,12 @@ import {
   StaffUser,
   StaffUserCredentials,
 } from '../../models';
-import { ROLES_REQUIRING_STORES, STAFF_ROLES } from '../../rbac/permissions';
+import {
+  assignableRoles,
+  ROLES_REQUIRING_STORES,
+  STAFF_ROLES,
+} from '../../rbac/permissions';
+import { AuthService } from '../../auth/auth.service';
 import {
   StaffUserDraft,
   StaffUserFilter,
@@ -100,13 +105,15 @@ export function matchesUserFilter(
  * Мок identity-staff-service, розділ «Користувачі» (4.7).
  *
  * Перевіряє те саме, що й бекенд на рівні формату: рівно одна відома роль,
- * унікальний e-mail, обовʼязкові поля, дозволений розмір сторінки. Правила
- * розмежування прав (дерево 4.7, RBAC-24/25) лишаються за бекендом — у мока
- * немає поняття актора, як і в MockSuppliersApi.
+ * унікальний e-mail, обовʼязкові поля, дозволений розмір сторінки, плюс
+ * RBAC-23 — список звужується до ролей, доступних поточному акторові
+ * (так само, як MockStoresApi звужує довідник за скоупом магазинів).
+ * Решта інваріантів дерева 4.7 лишається за бекендом.
  */
 @Injectable()
 export class MockUsersApi extends UsersApi {
   private readonly db = inject(MockDb);
+  private readonly auth = inject(AuthService);
   private readonly latency = inject(MOCK_LATENCY);
 
   list(filter: StaffUserFilter, query: PageQuery): Observable<Page<StaffUser>> {
@@ -114,9 +121,11 @@ export class MockUsersApi extends UsersApi {
       return fail(422, PER_PAGE_PROBLEM, this.latency);
     }
     return respond(() => {
+      const manageable = this.manageableRoles();
+
       // Активні першими, далі за e-mail — той самий порядок, що й у сховищі.
       const matched = [...this.db.state.accounts]
-        .filter((a) => matchesUserFilter(a, filter))
+        .filter((a) => manageable.includes(a.role) && matchesUserFilter(a, filter))
         .sort((a, b) =>
           a.active === b.active
             ? a.email.localeCompare(b.email, 'uk')
@@ -296,6 +305,17 @@ export class MockUsersApi extends UsersApi {
 
   private isKnownRole(role: string): role is StaffRole {
     return (STAFF_ROLES as readonly string[]).includes(role);
+  }
+
+  /**
+   * RBAC-23: ролі, доступні акторові за деревом 4.7. Без сесії (тести
+   * сервісів даних) обмеження не застосовується — як і у MockStoresApi,
+   * де відсутність скоупу означає повний довідник.
+   */
+  private manageableRoles(): readonly StaffRole[] {
+    const role = this.auth.role();
+
+    return role === null ? STAFF_ROLES : assignableRoles(role);
   }
 
   private find(id: string): MockAccount | undefined {

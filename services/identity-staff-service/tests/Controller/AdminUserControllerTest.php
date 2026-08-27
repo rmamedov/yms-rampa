@@ -712,6 +712,47 @@ final class AdminUserControllerTest extends TestCase
     }
 
     /**
+     * RBAC-16: підвищення магазинної ролі до мережевої прибирає скоуп —
+     * інакше він лежав би в базі мертвим і «ожив» би при пониженні назад.
+     */
+    public function testPromotionToNetworkRoleClearsLeftoverScope(): void
+    {
+        $actor = $this->superAdmin();
+        $target = $this->context->createUser('sm@silpo.ua', Role::StoreManager, ['A', 'B']);
+
+        $promoted = $this->json($this->controller->update(
+            $target->id(),
+            $this->request('/api/admin/v1/users/x', $actor, ['role' => 'analyst'], 'PATCH'),
+        ));
+
+        self::assertSame('analyst', $promoted['role']);
+        self::assertSame([], $promoted['scope']['storeIds']);
+        self::assertTrue($promoted['scope']['networkWide']);
+        self::assertFalse($promoted['scope']['zeroAccess']);
+        self::assertSame([], $this->context->users->findById($target->id())?->storeIds());
+    }
+
+    /**
+     * Пониження мережевої ролі до магазинної НЕ вигадує скоуп: користувач
+     * лишається з нулем доступу, поки магазини не привʼязали явно (RBAC-13).
+     */
+    public function testDemotionToStoreRoleLeavesZeroAccess(): void
+    {
+        $actor = $this->superAdmin();
+        $target = $this->context->createUser('analyst@silpo.ua', Role::Analyst);
+
+        $demoted = $this->json($this->controller->update(
+            $target->id(),
+            $this->request('/api/admin/v1/users/x', $actor, ['role' => 'store_operator'], 'PATCH'),
+        ));
+
+        self::assertSame('store_operator', $demoted['role']);
+        self::assertSame([], $demoted['scope']['storeIds']);
+        self::assertTrue($demoted['scope']['zeroAccess']);
+        self::assertSame(StaffUserView::ZERO_ACCESS_WARNING, $demoted['scope']['warning']);
+    }
+
+    /**
      * RBAC-24 / сценарій 8: власну роль не змінюють, себе не деактивують.
      */
     public function testActorCannotDemoteOrDeactivateSelf(): void

@@ -99,7 +99,32 @@ export interface CancellationInfo {
   readonly reason: string | null;
 }
 
-/** Запис журналу переходів (`statusHistory`, DATA-14). */
+/** Контур, у якому діяв виконавець (`Contour` бекенду). */
+export type ActorContour = 'staff' | 'partner' | 'system';
+
+/**
+ * Знімок профілю водія в картці прибуття.
+ *
+ * Це довідкове збагачення поруч із `driverId`: водія могло бути не призначено,
+ * а профіль — деактивовано, тому поле буває порожнім і за наявного `driverId`.
+ */
+export interface DriverRef {
+  readonly driverId: string;
+  readonly fullName: string;
+  readonly phone: string | null;
+  readonly active: boolean;
+}
+
+/**
+ * Запис журналу переходів (`statusHistory`, DATA-14).
+ *
+ * `by` — ідентифікатор облікового запису, показувати його людині безглуздо.
+ * Поруч бекенд віддає роль виконавця на момент дії (`byRole`), її контур
+ * (`byContour`) і готову людиночитану позначку (`byLabel`, напр. «Керівник
+ * магазину», «Планове завдання системи»). Усі три можуть бути null: записи,
+ * зроблені до появи полів, ролі не зберігали — тоді чесне «невідомо», а не
+ * підставлений ідентифікатор.
+ */
 export interface StatusChange {
   readonly from: BookingStatus | null;
   readonly to: BookingStatus;
@@ -107,6 +132,9 @@ export interface StatusChange {
   readonly at: string;
   /** userId ініціатора переходу. */
   readonly by: string;
+  readonly byRole: string | null;
+  readonly byContour: ActorContour | null;
+  readonly byLabel: string | null;
   readonly meta: Readonly<Record<string, unknown>>;
 }
 
@@ -128,8 +156,10 @@ export interface Booking {
   readonly supplierId: string | null;
   readonly supplierName: string;
   readonly vehicle: Vehicle;
-  /** Бекенд віддає лише ідентифікатор водія — ПІБ і телефон недоступні. */
+  /** Ідентифікатор профілю водія — частина документа бронювання. */
   readonly driverId: string | null;
+  /** Знімок профілю водія (ПІБ, телефон); null — водія немає або профіль недоступний. */
+  readonly driver: DriverRef | null;
   readonly orderId: string | null;
   readonly palletsCount: number;
   readonly delayed: DelayedFlag;

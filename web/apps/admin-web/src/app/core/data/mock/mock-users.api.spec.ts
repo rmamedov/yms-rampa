@@ -4,6 +4,9 @@ import { StaffUserDraft, UsersApi } from '../users.api';
 import { MockUsersApi, matchesUserFilter, toStaffUser } from './mock-users.api';
 import { MockDb } from './mock-db';
 import { MOCK_LATENCY } from './mock-support';
+import { AuthApi } from '../auth.api';
+import { MockAuthApi } from './mock-auth.api';
+import { AuthService } from '../../auth/auth.service';
 
 function draft(overrides: Partial<StaffUserDraft> = {}): StaffUserDraft {
   return {
@@ -19,19 +22,26 @@ function draft(overrides: Partial<StaffUserDraft> = {}): StaffUserDraft {
 describe('MockUsersApi — користувачі (розділ 4.7)', () => {
   let api: UsersApi;
   let db: MockDb;
+  let auth: AuthService;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    localStorage.clear();
     TestBed.configureTestingModule({
       providers: [
         MockDb,
+        { provide: AuthApi, useClass: MockAuthApi },
         { provide: UsersApi, useClass: MockUsersApi },
         { provide: MOCK_LATENCY, useValue: 0 },
       ],
     });
     api = TestBed.inject(UsersApi);
     db = TestBed.inject(MockDb);
+    auth = TestBed.inject(AuthService);
     db.reset();
+    await firstValueFrom(auth.login('super.admin@silpo.ua', 'demo'));
   });
+
+  afterEach(() => localStorage.clear());
 
   it('фільтрує за роллю, статусом і шукає за e-mail та імʼям', async () => {
     const managers = await firstValueFrom(
@@ -207,6 +217,22 @@ describe('MockUsersApi — користувачі (розділ 4.7)', () => {
         code: 'RESOURCE_NOT_FOUND',
       });
     }
+  });
+
+  it('RBAC-23: network_manager бачить лише ролі свого дерева призначення', async () => {
+    await firstValueFrom(auth.login('network.manager@silpo.ua', 'demo'));
+
+    const page = await firstValueFrom(
+      api.list({ search: '', role: '', status: '' }, { page: 1, pageSize: 100 }),
+    );
+
+    expect(page.total).toBeGreaterThan(0);
+    expect(
+      page.items.every(
+        (u) => u.role === 'store_manager' || u.role === 'store_operator',
+      ),
+    ).toBe(true);
+    expect(page.items.some((u) => u.role === 'super_admin')).toBe(false);
   });
 
   it('matchesUserFilter звіряє роль, статус і підрядок пошуку', () => {

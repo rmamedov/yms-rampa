@@ -1,6 +1,15 @@
 import { inject, Injectable } from '@angular/core';
 import { Observable, defer, delay, of, throwError } from 'rxjs';
-import { toBooking, toLoginResponse } from '../api/wire.mapper';
+import {
+  toBoardSnapshot,
+  toBooking,
+  toLoginResponse,
+  toSlots,
+  toStoreConfig,
+  toStoreScopes,
+  toSupplierRefs,
+  toWeekDaySlots,
+} from '../api/wire.mapper';
 import {
   WireCompleteRequest,
   WireDelayRequest,
@@ -8,7 +17,7 @@ import {
   WireRejectRequest,
   WireWalkInRequest,
 } from '../api/wire.model';
-import { LoginRequest, LoginResponse } from '../models/auth.model';
+import { LoginRequest, LoginResponse, StoreScope } from '../models/auth.model';
 import {
   Booking,
   CompleteUnloadingPayload,
@@ -66,30 +75,33 @@ export class MockAuthGateway extends AuthGateway {
 export class MockStoreGateway extends StoreGateway {
   private readonly backend = inject(MockBackend);
 
+  override getStores(): Observable<readonly StoreScope[]> {
+    return respond(() => toStoreScopes(this.backend.getStores()));
+  }
+
   override getStoreConfig(storeId: string): Observable<StoreConfig> {
-    return respond(() => this.backend.getStoreConfig(storeId));
+    return respond(() => toStoreConfig(this.backend.getStoreConfig(storeId)));
   }
 
   override getSuppliers(): Observable<readonly SupplierRef[]> {
-    return respond(() => this.backend.getSuppliers());
+    return respond(() => toSupplierRefs(this.backend.getSuppliers()));
   }
 
   override getBoard(storeId: string, dateKey: string): Observable<BoardSnapshot> {
-    return respond(() => {
-      const snapshot = this.backend.getBoard(storeId, dateKey);
-      return { bookings: snapshot.bookings.map(toBooking), now: snapshot.now };
-    });
+    return respond(() => toBoardSnapshot(this.backend.getBoard(storeId, dateKey)));
   }
 
   override getSlots(storeId: string, dateKey: string): Observable<readonly Slot[]> {
-    return respond(() => this.backend.getSlots(storeId, dateKey));
+    return respond(() => toSlots(this.backend.getSlots(storeId, dateKey)));
   }
 
   override getWeek(
     storeId: string,
     mondayKey: string,
   ): Observable<readonly WeekDaySlots[]> {
-    return respond(() => this.backend.getWeek(storeId, mondayKey));
+    return respond(() =>
+      this.backend.getWeek(storeId, mondayKey).map(toWeekDaySlots),
+    );
   }
 
   override markArrived(bookingId: string): Observable<Booking> {

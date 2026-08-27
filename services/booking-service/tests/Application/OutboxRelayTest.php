@@ -155,6 +155,24 @@ final class OutboxRelayTest extends TestCase
     }
 
     /**
+     * Черга, що скінчилася РІВНО на останньому дозволеному пакеті, вичерпана —
+     * попереджати про «решту наступного прогону» тут нема про що.
+     */
+    public function testQueueEmptiedOnTheLastAllowedBatchCountsAsDrained(): void
+    {
+        $outbox = new InMemoryOutboxStore();
+        for ($i = 0; $i < 3; ++$i) {
+            $outbox->append([$this->event(EventType::BookingArrived, \sprintf('2026-08-27T06:%02d:00Z', $i))]);
+        }
+
+        $report = $this->relay($outbox, new RecordingSink())->relay(batchSize: 2, maxBatches: 2);
+
+        self::assertSame(3, $report->delivered);
+        self::assertTrue($report->queueDrained);
+        self::assertSame([], $outbox->pending());
+    }
+
+    /**
      * Сироти й відхилені події НЕ зупиняють чергу — інакше один непридатний
      * запис назавжди заблокував би доставку і аналітика знову спорожніла б.
      * Але вони обовʼязково потрапляють у звіт.
@@ -216,6 +234,67 @@ final class OutboxRelayTest extends TestCase
         }
 
         self::assertSame('Київ', $created['payload']['city']);
+    }
+
+    /**
+     * Сумісність зі старими записами: подія BookingCreated, записана до появи
+     * поля `city`, добирає місто зі снапшота філії того самого бронювання.
+     * Без цього наявні на стенді бронювання ніколи не потрапили б у KPI.
+     */
+    public function testLegacyCreatedEventGetsCityFromBookingSnapshot(): void
+    {
+        $scenario = new Scenario();
+        $booking = $scenario->book();
+        $scenario->outbox->clear();
+
+        // Подія «старого» формату: точно такий payload писався до виправлення.
+        $scenario->outbox->append([DomainEvent::forBooking(
+            EventType::BookingCreated,
+            $booking->id,
+            ['bookingId' => $booking->id, 'storeId' => Scenario::STORE_ID, 'type' => 'scheduled'],
+            $scenario->now(),
+        )]);
+
+        $sink = new RecordingSink();
+        (new OutboxRelay($scenario->outbox, $sink, $scenario->clock, $scenario->bookings))->relay();
+
+        self::assertSame('Київ', $sink->batches[0][0]['payload']['city']);
+    }
+
+    /** Бронювання зникло — подію не вигадуємо, сусід поверне її в `failed`. */
+    public function testLegacyEventOfMissingBookingIsLeftAsIs(): void
+    {
+        $scenario = new Scenario();
+        $scenario->outbox->append([DomainEvent::forBooking(
+            EventType::BookingCreated,
+            'bk-зниклий',
+            ['bookingId' => 'bk-зниклий', 'storeId' => Scenario::STORE_ID],
+            $scenario->now(),
+        )]);
+
+        $sink = new RecordingSink();
+        (new OutboxRelay($scenario->outbox, $sink, $scenario->clock, $scenario->bookings))->relay();
+
+        self::assertArrayNotHasKey('city', $sink->batches[0][0]['payload']);
+    }
+
+    /** Подій, які не є BookingCreated, добір не стосується взагалі. */
+    public function testOtherEventsAreNotEnriched(): void
+    {
+        $scenario = new Scenario();
+        $booking = $scenario->book();
+        $scenario->outbox->clear();
+        $scenario->outbox->append([DomainEvent::forBooking(
+            EventType::BookingArrived,
+            $booking->id,
+            ['bookingId' => $booking->id],
+            $scenario->now(),
+        )]);
+
+        $sink = new RecordingSink();
+        (new OutboxRelay($scenario->outbox, $sink, $scenario->clock, $scenario->bookings))->relay();
+
+        self::assertSame(['bookingId' => $booking->id], $sink->batches[0][0]['payload']);
     }
 
     private function relay(InMemoryOutboxStore $outbox, AnalyticsEventSink $sink): OutboxRelay

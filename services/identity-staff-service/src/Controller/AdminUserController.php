@@ -146,12 +146,27 @@ final readonly class AdminUserController
             // не існує — 404 ще до спроби щось змінити.
             $user = $this->users->getUser($actor, $id);
 
-            if (null !== $role && $role !== $user->role()) {
+            $roleChanged = null !== $role && $role !== $user->role();
+
+            if ($roleChanged) {
                 $user = $this->users->assignRole($actor, $id, $role, $requestId, $ip);
             }
 
-            if (null !== $storeIds) {
-                $user = $this->users->changeScope($actor, $id, $storeIds, $requestId, $ip);
+            // RBAC-16: мережева роль скоупа не має. Переданий для неї перелік
+            // зберігається порожнім, а залишок від попередньої магазинної
+            // ролі прибирається при підвищенні — інакше в базі лежав би
+            // скоуп, який ні на що не впливає, але «ожив» би при пониженні.
+            // Саму зміну скоупа виконуємо, навіть коли перелік порожній:
+            // мовчки проігнорований запит приховав би від адміністратора
+            // відмову RBAC-24 «власний скоуп змінювати не можна».
+            $scope = match (true) {
+                null !== $storeIds => $user->role()->isStoreScoped() ? $storeIds : [],
+                $roleChanged && !$user->role()->isStoreScoped() && [] !== $user->storeIds() => [],
+                default => null,
+            };
+
+            if (null !== $scope) {
+                $user = $this->users->changeScope($actor, $id, $scope, $requestId, $ip);
             }
 
             if (null !== $fullName) {

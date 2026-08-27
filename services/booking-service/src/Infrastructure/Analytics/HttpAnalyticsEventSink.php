@@ -93,9 +93,10 @@ final readonly class HttpAnalyticsEventSink implements AnalyticsEventSink
             throw UpstreamUnavailableException::badResponse(self::SERVICE, 'тіло відповіді не є обʼєктом');
         }
 
+        $entries = $decoded['failed'] ?? null;
         $failed = [];
 
-        foreach (\is_array($decoded['failed'] ?? null) ? $decoded['failed'] : [] as $entry) {
+        foreach (\is_array($entries) ? $entries : [] as $entry) {
             $eventId = \is_array($entry) ? ($entry['eventId'] ?? null) : null;
             $reason = \is_array($entry) ? ($entry['reason'] ?? null) : null;
 

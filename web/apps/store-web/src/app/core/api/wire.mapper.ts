@@ -12,16 +12,35 @@ import {
   StoreScope,
 } from '../models/auth.model';
 import {
+  ActorContour,
   Booking,
   BookingStatus,
   BookingType,
+  DriverRef,
   StatusChange,
 } from '../models/booking.model';
 import {
+  Ramp,
+  ReceivingWindow,
+  Slot,
+  SlotState,
+  StoreConfig,
+  SupplierRef,
+} from '../models/store.model';
+import {
   WireAuthTokenResponse,
   WireBooking,
+  WireDriver,
+  WireRamp,
+  WireReceivingWindow,
+  WireSlot,
   WireStaffUser,
   WireStatusChange,
+  WireStoreBoard,
+  WireStoreBrief,
+  WireStoreConfig,
+  WireSupplierRef,
+  WireWeekDay,
 } from './wire.model';
 
 export function toStatusChange(wire: WireStatusChange): StatusChange {
@@ -30,7 +49,23 @@ export function toStatusChange(wire: WireStatusChange): StatusChange {
     to: wire.to as BookingStatus,
     at: wire.at,
     by: wire.by,
+    // Три поля виконавця приходять поруч із `by` і бувають порожніми: у записів,
+    // зроблених до їх появи, ролі не збереглося. Порожнє лишається порожнім —
+    // підставляти сюди ідентифікатор не можна, це й був дефект колонки «Хто».
+    byRole: wire.byRole ?? null,
+    byContour: (wire.byContour as ActorContour | undefined) ?? null,
+    byLabel: wire.byLabel ?? null,
     meta: wire.meta ?? {},
+  };
+}
+
+export function toDriver(wire: WireDriver | null | undefined): DriverRef | null {
+  if (!wire) return null;
+  return {
+    driverId: wire.driverId,
+    fullName: wire.fullName,
+    phone: wire.phone ?? null,
+    active: wire.active,
   };
 }
 
@@ -51,6 +86,7 @@ export function toBooking(wire: WireBooking): Booking {
     supplierName: wire.supplierName ?? '',
     vehicle: wire.vehicle,
     driverId: wire.driverId,
+    driver: toDriver(wire.driver),
     orderId: wire.orderId,
     palletsCount: wire.palletsCount,
     delayed: wire.delayed,
@@ -106,11 +142,35 @@ export function toLoginResponse(wire: WireAuthTokenResponse): LoginResponse {
   return { tokens: toAuthTokens(wire), profile: toStaffProfile(wire.user) };
 }
 
+// ---------------------------------------------------------------------------
+// Читання контуру магазину
+// ---------------------------------------------------------------------------
+
 /**
- * Магазини скоупу з профілю. Бекенд віддає лише ідентифікатори, тому описові
- * поля лишаються порожніми, доки їх не заповнить снапшот філії з бронювання.
+ * Філія з GET /stores. Саме цей маршрут — джерело правди для перемикача:
+ * він уже враховує права (магазинні ролі отримують свої філії, мережеві — всі
+ * активні), тоді як `scope.storeIds` у профілі мережевої ролі порожній.
  */
-export function toStoreScopes(profile: StaffProfile): StoreScope[] {
+export function toStoreScope(wire: WireStoreBrief): StoreScope {
+  return {
+    storeId: wire.storeId,
+    displayName: wire.displayName,
+    externalId: wire.externalId,
+    city: wire.city,
+    address: wire.address,
+  };
+}
+
+/** Увесь перелік цілком: маршрут не пагінований і не обрізається клієнтом. */
+export function toStoreScopes(wire: readonly WireStoreBrief[]): StoreScope[] {
+  return wire.map(toStoreScope);
+}
+
+/**
+ * Магазини скоупу з профілю — запасний варіант, доки GET /stores не відповів.
+ * Бекенд у профілі віддає лише ідентифікатори, тому описові поля порожні.
+ */
+export function toProfileStoreScopes(profile: StaffProfile): StoreScope[] {
   return profile.storeIds.map((storeId) => ({
     storeId,
     displayName: storeId,
@@ -118,4 +178,80 @@ export function toStoreScopes(profile: StaffProfile): StoreScope[] {
     city: null,
     address: null,
   }));
+}
+
+function toRamp(wire: WireRamp): Ramp {
+  return { rampId: wire.rampId, name: wire.name, active: wire.active };
+}
+
+function toReceivingWindow(wire: WireReceivingWindow): ReceivingWindow {
+  return {
+    dayOfWeek: wire.dayOfWeek,
+    intervals: (wire.intervals ?? []).map((interval) => ({
+      from: interval.from,
+      to: interval.to,
+    })),
+  };
+}
+
+export function toStoreConfig(wire: WireStoreConfig): StoreConfig {
+  return {
+    storeId: wire.storeId,
+    externalId: wire.externalId,
+    displayName: wire.displayName,
+    city: wire.city,
+    address: wire.address,
+    ramps: (wire.ramps ?? []).map(toRamp),
+    slotSizeMinutes: wire.slotSizeMinutes,
+    receivingWindows: (wire.receivingWindows ?? []).map(toReceivingWindow),
+    maxVehicleWeightTons: wire.maxVehicleWeightTons,
+    noShowGraceMinutes: wire.noShowGraceMinutes,
+    leadTimeMinutes: wire.leadTimeMinutes,
+    horizonDays: wire.horizonDays,
+  };
+}
+
+export function toSupplierRef(wire: WireSupplierRef): SupplierRef {
+  return { supplierId: wire.supplierId, name: wire.name };
+}
+
+/** Довідник постачальників цілком — без зрізів і «першої сторінки». */
+export function toSupplierRefs(
+  wire: readonly WireSupplierRef[],
+): SupplierRef[] {
+  return wire.map(toSupplierRef);
+}
+
+export function toSlot(wire: WireSlot): Slot {
+  return {
+    rampId: wire.rampId,
+    slotStart: wire.slotStart,
+    slotEnd: wire.slotEnd,
+    localStart: wire.localStart,
+    state: wire.state as SlotState,
+    selectable: wire.selectable,
+    bookingId: wire.bookingId ?? null,
+    // Обидва поля бекенд додає лише за наявності значення.
+    reservedForSupplierId: wire.reservedForSupplierId ?? null,
+    blockReason: wire.blockReason ?? null,
+  };
+}
+
+export function toSlots(wire: readonly WireSlot[]): Slot[] {
+  return wire.map(toSlot);
+}
+
+export function toWeekDaySlots(wire: WireWeekDay): {
+  dateKey: string;
+  slots: Slot[];
+} {
+  return { dateKey: wire.dateKey, slots: toSlots(wire.slots ?? []) };
+}
+
+/** Дошка прибуттів разом із серверним `now`. */
+export function toBoardSnapshot(wire: WireStoreBoard): {
+  bookings: Booking[];
+  now: string;
+} {
+  return { bookings: toBookings(wire.bookings ?? []), now: wire.now };
 }

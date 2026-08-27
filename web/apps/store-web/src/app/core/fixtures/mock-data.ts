@@ -1,10 +1,12 @@
 import {
   WireBooking,
+  WireDriver,
   WireStaffUser,
   WireStatusChange,
   WireStoreSnapshot,
 } from '../api/wire.model';
 import { StaffRole } from '../models/auth.model';
+import { ActorContour } from '../models/booking.model';
 import { Ramp, StoreConfig, SupplierRef } from '../models/store.model';
 import {
   isoDayOfWeek,
@@ -56,14 +58,27 @@ export const SUPPLIERS: readonly SupplierRef[] = [
   { supplierId: 'sp-10', name: 'ТОВ «Гетьман»' },
 ];
 
-const DRIVER_IDS: readonly string[] = [
-  'dr-01',
-  'dr-02',
-  'dr-03',
-  'dr-04',
-  'dr-05',
-  'dr-06',
+/**
+ * Профілі водіїв. Дошка отримує їх у полі `driver` бронювання — саме так
+ * booking-service збагачує картку прибуття поруч із голим `driverId`.
+ */
+export const DRIVERS: readonly WireDriver[] = [
+  { driverId: 'dr-01', fullName: 'Коваленко Петро', phone: '+380671234567', active: true },
+  { driverId: 'dr-02', fullName: 'Мельник Андрій', phone: '+380502345678', active: true },
+  { driverId: 'dr-03', fullName: 'Бондаренко Ігор', phone: '+380673456789', active: true },
+  { driverId: 'dr-04', fullName: 'Шевчук Олег', phone: '+380934567890', active: true },
+  { driverId: 'dr-05', fullName: 'Ткаченко Василь', phone: null, active: true },
+  // Деактивований профіль лишається в історичних бронюваннях.
+  { driverId: 'dr-06', fullName: 'Гриценко Роман', phone: '+380665678901', active: false },
 ];
+
+const DRIVER_IDS: readonly string[] = DRIVERS.map((d) => d.driverId);
+
+/** Знімок профілю водія за ідентифікатором; null — водія не призначено. */
+export function findDriver(driverId: string | null): WireDriver | null {
+  if (!driverId) return null;
+  return DRIVERS.find((d) => d.driverId === driverId) ?? null;
+}
 
 const PLATE_PREFIXES = ['AA', 'AI', 'AX', 'BC', 'CA', 'KA'];
 const PLATE_SUFFIXES = ['BB', 'IP', 'KX', 'MM', 'OP', 'TT'];
@@ -110,6 +125,7 @@ const STORE_PERMISSIONS: readonly string[] = [
   'booking.reassign_ramp',
 ];
 
+/** `roleLabel` профілю — довідник ролей identity-staff-service. */
 const ROLE_LABELS: Readonly<Record<StaffRole, string>> = {
   super_admin: 'Суперадміністратор',
   network_manager: 'Менеджер мережі',
@@ -120,6 +136,35 @@ const ROLE_LABELS: Readonly<Record<StaffRole, string>> = {
   supplier_operator: 'Оператор постачальника',
   driver: 'Водій',
 };
+
+/**
+ * `byLabel` журналу дій — `Role::label()` booking-service. Це ІНШИЙ довідник,
+ * ніж `roleLabel` профілю: для super_admin identity каже «Суперадміністратор»,
+ * а booking-service — «Адміністратор системи». Мок повторює booking-service,
+ * бо саме він наповнює statusHistory.
+ */
+export const ACTOR_LABELS: Readonly<Record<StaffRole, string>> = {
+  super_admin: 'Адміністратор системи',
+  network_manager: 'Менеджер мережі',
+  store_manager: 'Керівник магазину',
+  store_operator: 'Приймальник магазину',
+  analyst: 'Аналітик',
+  supplier_admin: 'Адміністратор постачальника',
+  supplier_operator: 'Оператор постачальника',
+  driver: 'Водій',
+};
+
+/** Контур ролі (`Role::contour()`): партнерський — постачальники і водії. */
+export function contourOfRole(role: StaffRole): ActorContour {
+  return role === 'supplier_admin' ||
+    role === 'supplier_operator' ||
+    role === 'driver'
+    ? 'partner'
+    : 'staff';
+}
+
+/** Позначка планового завдання (`Contour::System`) — виконавця-людини немає. */
+export const SYSTEM_ACTOR_LABEL = 'Планове завдання системи';
 
 function mockUser(
   id: string,
@@ -164,9 +209,12 @@ export const MOCK_USERS: readonly WireStaffUser[] = [
     'store_operator',
     MOCK_STORES.slice(5, 6).map((s) => s.storeId),
   ),
-  // RBAC-16: мережева роль поза контуром магазину — доступу до store-web немає.
+  // RBAC-16: мережева роль. `storeIds` порожній — скоуп задає РОЛЬ, тому
+  // перелік філій такому користувачеві дає GET /stores (усі активні), а не
+  // профіль. Саме на цьому користувачі видно порожній перемикач, якщо
+  // застосунок будує його з профілю.
   mockUser(
-    'u-outsider',
+    'u-network',
     'Тарас Гнатюк',
     'admin@silpo.ua',
     'network_manager',
@@ -235,14 +283,29 @@ function plate(rng: () => number): string {
   return `${prefix}${digits}${suffix}`;
 }
 
+/**
+ * Запис журналу рівно у формі `StatusChange::toArray()`: поруч із `by`
+ * зберігається роль виконавця, її контур і готова людиночитана позначка.
+ * `role = null` — планове завдання системи (авто-no_show, NOSH-01).
+ */
 function change(
   from: string | null,
   to: string,
   at: string,
   by: string,
+  role: StaffRole | null,
   meta?: Record<string, unknown>,
 ): WireStatusChange {
-  return meta ? { from, to, at, by, meta } : { from, to, at, by };
+  const actor =
+    role === null
+      ? { byRole: null, byContour: 'system', byLabel: SYSTEM_ACTOR_LABEL }
+      : {
+          byRole: role,
+          byContour: contourOfRole(role),
+          byLabel: ACTOR_LABELS[role],
+        };
+  const entry: WireStatusChange = { from, to, at, by, ...actor };
+  return meta ? { ...entry, meta } : entry;
 }
 
 /** HH:mm у Києві для поля `localTime`. */
@@ -344,7 +407,13 @@ export function generateDay(
           slotStartMs - Math.floor(rng() * 20) * 60_000,
         ).toISOString();
         statusHistory.push(
-          change('booked', 'arrived', arrivedAt, driverId ?? 'u-operator'),
+          change(
+            'booked',
+            'arrived',
+            arrivedAt,
+            driverId ?? 'u-operator',
+            driverId ? 'driver' : 'store_operator',
+          ),
         );
       }
       if (status === 'unloading' || status === 'completed') {
@@ -353,7 +422,13 @@ export function generateDay(
             Math.floor(rng() * 12) * 60_000,
         ).toISOString();
         statusHistory.push(
-          change('arrived', 'unloading', unloadingStartedAt, 'u-operator'),
+          change(
+            'arrived',
+            'unloading',
+            unloadingStartedAt,
+            'u-operator',
+            'store_operator',
+          ),
         );
       }
       if (status === 'completed') {
@@ -373,7 +448,7 @@ export function generateDay(
             }
           : null;
         statusHistory.push(
-          change('unloading', 'completed', completedAt, 'u-operator', {
+          change('unloading', 'completed', completedAt, 'u-operator', 'store_operator', {
             unloadedPalletsCount,
           }),
         );
@@ -386,7 +461,7 @@ export function generateDay(
         ).toISOString();
         rejectedAt = { at, by: 'u-operator', reason, comment: null };
         statusHistory.push(
-          change('arrived', 'rejected', at, 'u-operator', { reason }),
+          change('arrived', 'rejected', at, 'u-operator', 'store_operator', { reason }),
         );
       }
       if (status === 'no_show') {
@@ -394,7 +469,7 @@ export function generateDay(
           slotEndMs + config.noShowGraceMinutes * 60_000,
         ).toISOString();
         statusHistory.push(
-          change('booked', 'no_show', at, 'system', { auto: true }),
+          change('booked', 'no_show', at, 'system', null, { auto: true }),
         );
       }
 
@@ -427,6 +502,7 @@ export function generateDay(
           brand: BRANDS[Math.floor(rng() * BRANDS.length)],
         },
         driverId,
+        driver: findDriver(driverId),
         orderId: rng() < 0.85 ? `ORD-${10000 + seq * 37}` : null,
         palletsCount: pallets,
         delayed,
@@ -472,8 +548,14 @@ export function generateDay(
         rejectedAt: null,
         updatedAt: started,
         statusHistory: [
-          change('booked', 'arrived', arrived, target.driverId ?? 'u-operator'),
-          change('arrived', 'unloading', started, 'u-operator'),
+          change(
+            'booked',
+            'arrived',
+            arrived,
+            target.driverId ?? 'u-operator',
+            target.driverId ? 'driver' : 'store_operator',
+          ),
+          change('arrived', 'unloading', started, 'u-operator', 'store_operator'),
         ],
       };
     }
@@ -497,8 +579,14 @@ export function generateDay(
       rejectedAt: null,
       updatedAt: started,
       statusHistory: [
-        change('booked', 'arrived', arrived, target.driverId ?? 'u-operator'),
-        change('arrived', 'unloading', started, 'u-operator'),
+        change(
+          'booked',
+          'arrived',
+          arrived,
+          target.driverId ?? 'u-operator',
+          target.driverId ? 'driver' : 'store_operator',
+        ),
+        change('arrived', 'unloading', started, 'u-operator', 'store_operator'),
       ],
     };
   }
@@ -567,7 +655,9 @@ function buildWalkIns(
     const pallets = 3 + Math.floor(rng() * 8);
     const arrivedAt = slotStart;
     const statusHistory: WireStatusChange[] = [
-      change(null, 'arrived', arrivedAt, 'u-operator', { walkIn: true }),
+      change(null, 'arrived', arrivedAt, 'u-operator', 'store_operator', {
+        walkIn: true,
+      }),
     ];
     let unloadingStartedAt: string | null = null;
     let completedAt: string | null = null;
@@ -578,8 +668,14 @@ function buildWalkIns(
       completedAt = new Date(slotStartMs + 32 * 60_000).toISOString();
       unloadedPalletsCount = pallets;
       statusHistory.push(
-        change('arrived', 'unloading', unloadingStartedAt, 'u-operator'),
-        change('unloading', 'completed', completedAt, 'u-operator', {
+        change(
+          'arrived',
+          'unloading',
+          unloadingStartedAt,
+          'u-operator',
+          'store_operator',
+        ),
+        change('unloading', 'completed', completedAt, 'u-operator', 'store_operator', {
           unloadedPalletsCount,
         }),
       );
@@ -600,6 +696,7 @@ function buildWalkIns(
       supplierName: spec.name,
       vehicle: { plateNumber: plate(rng), weightTons: 5, brand: null },
       driverId: null,
+      driver: null,
       orderId: null,
       palletsCount: pallets,
       delayed: { flag: false, reason: null, eta: null },

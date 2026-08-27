@@ -158,11 +158,29 @@ export class BoardStore implements OnDestroy {
 
   // --- Завантаження -----------------------------------------------------
 
-  /** Повне перезавантаження контексту магазину (STW-04). */
+  /**
+   * Повне перезавантаження контексту магазину (STW-04).
+   *
+   * Спершу — перелік доступних філій: без нього мережева роль не має обраного
+   * магазину, і завантажувати не було б чого.
+   */
   load(): void {
-    const store = this.auth.selectedStore();
-    if (!store) return;
     this.loadingSignal.set(true);
+    this.auth.ensureStores().subscribe({
+      next: () => this.loadSelectedStore(),
+      error: (error: unknown) => {
+        this.loadingSignal.set(false);
+        this.showError(error);
+      },
+    });
+  }
+
+  private loadSelectedStore(): void {
+    const store = this.auth.selectedStore();
+    if (!store) {
+      this.loadingSignal.set(false);
+      return;
+    }
     this.gateway.getStoreConfig(store.storeId).subscribe({
       next: (config) => {
         this.configSignal.set(config);
@@ -174,6 +192,7 @@ export class BoardStore implements OnDestroy {
         this.showError(error);
       },
     });
+    // Довідник постачальників маршрут віддає цілком — беремо як є, без зрізів.
     this.gateway.getSuppliers(store.storeId).subscribe({
       next: (suppliers) => this.suppliersSignal.set(suppliers),
       error: () => this.suppliersSignal.set([]),

@@ -1,9 +1,10 @@
 import { Injectable } from '@angular/core';
-import { AuthTokens, StaffProfile } from '../models/auth.model';
+import { AuthTokens, StaffProfile, StoreScope } from '../models/auth.model';
 
 const TOKENS_KEY = 'yms.store.tokens';
 const PROFILE_KEY = 'yms.store.profile';
 const STORE_KEY = 'yms.store.selectedStoreId';
+const STORES_KEY = 'yms.store.stores';
 const VIEW_MODE_KEY = 'yms.store.viewMode';
 
 /** Токени і користувацькі преференції у localStorage. */
@@ -50,6 +51,23 @@ export class TokenStorageService {
     this.write(PROFILE_KEY, profile);
   }
 
+  /**
+   * Перелік доступних філій із GET /stores — щоб після перезавантаження
+   * перемикач був заповнений одразу, ще до відповіді бекенду.
+   */
+  getStores(): readonly StoreScope[] | null {
+    const list = this.read<StoreScope[]>(STORES_KEY);
+    return Array.isArray(list) ? list : null;
+  }
+
+  setStores(stores: readonly StoreScope[]): void {
+    this.write(STORES_KEY, stores);
+  }
+
+  clearStores(): void {
+    this.remove(STORES_KEY);
+  }
+
   /** last selected store (STW-03). */
   getSelectedStoreId(): string | null {
     try {
@@ -87,5 +105,6 @@ export class TokenStorageService {
   clearSession(): void {
     this.remove(TOKENS_KEY);
     this.remove(PROFILE_KEY);
+    this.remove(STORES_KEY);
   }
 }

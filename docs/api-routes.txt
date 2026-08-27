@@ -49,7 +49,8 @@
  supplier_slot_grid GET /api/supplier/v1/stores/{storeId}/slots 
  supplier_slot_hold_create POST /api/supplier/v1/slots/hold 
  supplier_slot_hold_extend PATCH /api/supplier/v1/slots/hold 
- supplier_slot_hold_release DELETE /api/supplier/v1/slots/hold 
+ supplier_slot_hold_release DELETE /api/supplier/v1/slots/hold
+ internal_supplier_bookings GET /internal/v1/bookings/suppliers/{supplierId}
 ### partner-service
  admin_suppliers_list GET /api/admin/v1/suppliers 
  admin_suppliers_create POST /api/admin/v1/suppliers 
@@ -112,4 +113,5 @@
  admin_analytics_breakdown GET /api/admin/v1/analytics/breakdown 
  admin_analytics_utilization GET /api/admin/v1/analytics/utilization 
  admin_analytics_bookings GET /api/admin/v1/analytics/bookings 
- admin_analytics_export_csv GET /api/admin/v1/analytics/export.csv 
+ admin_analytics_export_csv GET /api/admin/v1/analytics/export.csv
+ internal_analytics_events_ingest POST /internal/v1/analytics/events 

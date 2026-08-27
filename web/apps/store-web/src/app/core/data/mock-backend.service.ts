@@ -8,23 +8,32 @@ import {
   WireLoginRequest,
   WireReassignRequest,
   WireRejectRequest,
+  WireSlot,
   WireStaffUser,
   WireStatusChange,
+  WireStoreBoard,
+  WireStoreBrief,
   WireWalkInRequest,
+  WireWeekDay,
 } from '../api/wire.model';
+import { NETWORK_WIDE_ROLES, StaffRole } from '../models/auth.model';
 import { REASON_OTHER } from '../models/booking.model';
 import { AppError, ProblemDetails } from '../models/problem.model';
-import { Slot, StoreConfig, SupplierRef } from '../models/store.model';
+import { SlotState, StoreConfig, SupplierRef } from '../models/store.model';
 import {
   addDaysToDateKey,
+  formatTime,
   kyivToUtcIso,
   toKyivDateKey,
 } from '../util/date.util';
 import {
+  ACTOR_LABELS,
+  MOCK_STORES,
   MOCK_USERS,
   MockStore,
   SUPPLIERS,
   buildStoreConfig,
+  contourOfRole,
   findMockStore,
   generateDay,
   slotStartsForDate,
@@ -87,9 +96,9 @@ function problem(
  * (`Booking::ALLOWED_TRANSITIONS`), приймає ті самі значення довідників
  * (україномовні backed-enum'и) і кидає ті самі коди помилок.
  *
- * Читальні методи (`getStoreConfig`, `getBoard`, `getSlots`, `getWeek`,
- * `getSuppliers`) реального аналога НЕ мають — це заявка на бекенд, див.
- * коментар у `gateways.ts`.
+ * Читання (`getStores`, `getStoreConfig`, `getSuppliers`, `getBoard`,
+ * `getSlots`, `getWeek`) повторює `App\Controller\Store\StoreReadController`:
+ * колекції — плоскі масиви без пагінації, дошка — обʼєкт із серверним `now`.
  */
 @Injectable({ providedIn: 'root' })
 export class MockBackend {
@@ -151,6 +160,30 @@ export class MockBackend {
 
   // --- Довідники --------------------------------------------------------
 
+  /**
+   * GET /stores очима бекенду: перелік уже враховує права. Мережеві ролі
+   * (RBAC-16) отримують усі активні філії — саме тому їхній порожній
+   * `scope.storeIds` перемикачу не потрібен; магазинні — рівно свій скоуп,
+   * і порожній скоуп означає нуль магазинів, а не «всі» (RBAC-13).
+   */
+  getStores(): readonly WireStoreBrief[] {
+    const user = this.currentUser;
+    const role = user.role as StaffRole;
+    const networkWide =
+      user.scope.networkWide || NETWORK_WIDE_ROLES.includes(role);
+    const visible = networkWide
+      ? MOCK_STORES
+      : MOCK_STORES.filter((store) => user.scope.storeIds.includes(store.storeId));
+    return visible.map((store) => ({
+      storeId: store.storeId,
+      externalId: store.externalId,
+      displayName: store.displayName,
+      city: store.city,
+      address: store.address,
+      ymsStatus: 'active',
+    }));
+  }
+
   getStoreConfig(storeId: string): StoreConfig {
     const cached = this.configs.get(storeId);
     if (cached) return cached;
@@ -159,30 +192,34 @@ export class MockBackend {
     return config;
   }
 
+  /** Довідник постачальників філії — цілком, без пагінації (як і бекенд). */
   getSuppliers(): readonly SupplierRef[] {
     return SUPPLIERS;
   }
 
   // --- Дошка ------------------------------------------------------------
 
-  getBoard(storeId: string, dateKey: string): {
-    bookings: readonly WireBooking[];
-    now: string;
-  } {
+  getBoard(storeId: string, dateKey: string): WireStoreBoard {
     this.simulateRealtime(storeId, dateKey);
-    return { bookings: [...this.day(storeId, dateKey)], now: this.clock() };
+    return {
+      storeId,
+      date: dateKey,
+      now: this.clock(),
+      bookings: [...this.day(storeId, dateKey)],
+    };
   }
 
   /**
    * Обчислює сітку слотів дати з конфігурації + накладає бронювання
-   * (спрощений GRID-01 для потреб магазину).
+   * (спрощений GRID-01 для потреб магазину). Форма відповіді — рівно
+   * `StaffSlotPresenter::slots()`: слот плюс `bookingId`.
    */
-  getSlots(storeId: string, dateKey: string): Slot[] {
+  getSlots(storeId: string, dateKey: string): WireSlot[] {
     const config = this.getStoreConfig(storeId);
     const bookings = this.day(storeId, dateKey);
     const nowMs = new Date(this.clock()).getTime();
     const starts = slotStartsForDate(config, dateKey);
-    const slots: Slot[] = [];
+    const slots: WireSlot[] = [];
 
     for (const ramp of config.ramps) {
       for (const startMinutes of starts) {
@@ -191,13 +228,14 @@ export class MockBackend {
           dateKey,
           startMinutes + config.slotSizeMinutes,
         );
+        // Ключ слота звільняється разом зі скасуванням (EDIT-03).
         const booking = bookings.find(
           (b) =>
             b.rampId === ramp.rampId &&
             b.slotStart === slotStart &&
             b.status !== 'cancelled',
         );
-        let state: Slot['state'] = 'available';
+        let state: SlotState = 'available';
         if (booking) {
           state = 'booked';
         } else if (new Date(slotStart).getTime() < nowMs) {
@@ -207,7 +245,9 @@ export class MockBackend {
           rampId: ramp.rampId,
           slotStart,
           slotEnd,
+          localStart: formatTime(slotStart),
           state,
+          selectable: state === 'available',
           bookingId: booking?.id ?? null,
         });
       }
@@ -215,7 +255,7 @@ export class MockBackend {
     return slots;
   }
 
-  getWeek(storeId: string, mondayKey: string): { dateKey: string; slots: Slot[] }[] {
+  getWeek(storeId: string, mondayKey: string): WireWeekDay[] {
     return Array.from({ length: 7 }, (_, i) => {
       const dateKey = addDaysToDateKey(mondayKey, i);
       return { dateKey, slots: this.getSlots(storeId, dateKey) };
@@ -223,7 +263,7 @@ export class MockBackend {
   }
 
   /** Вільні слоти поточної дати для walk-in (STW-38). */
-  freeSlotsNow(storeId: string): Slot[] {
+  freeSlotsNow(storeId: string): WireSlot[] {
     const nowIso = this.clock();
     const dateKey = toKyivDateKey(nowIso);
     const nowMs = new Date(nowIso).getTime();
@@ -520,6 +560,7 @@ export class MockBackend {
         brand: payload.vehicle.brand ?? null,
       },
       driverId: null,
+      driver: null,
       orderId: payload.orderId?.trim() ? payload.orderId.trim() : null,
       palletsCount: payload.palletsCount,
       delayed: { flag: false, reason: null, eta: null },
@@ -541,7 +582,7 @@ export class MockBackend {
           from: null,
           to: 'arrived',
           at,
-          by: this.currentUser.id,
+          ...this.actorOfCurrentUser(),
           meta: { walkIn: true },
         },
       ],
@@ -584,6 +625,23 @@ export class MockBackend {
     throw problem(404, 'BOOKING_NOT_FOUND', 'Бронювання не знайдено');
   }
 
+  /**
+   * Виконавець запису журналу: ідентифікатор ПЛЮС роль, контур і людиночитана
+   * позначка — рівно те, що бекенд кладе в `StatusChange::toArray()`.
+   */
+  private actorOfCurrentUser(): Pick<
+    WireStatusChange,
+    'by' | 'byRole' | 'byContour' | 'byLabel'
+  > {
+    const role = this.currentUser.role as StaffRole;
+    return {
+      by: this.currentUser.id,
+      byRole: role,
+      byContour: contourOfRole(role),
+      byLabel: ACTOR_LABELS[role],
+    };
+  }
+
   private assertEnum(allowed: ReadonlySet<string>, value: string): void {
     if (!allowed.has(value)) {
       throw problem(
@@ -622,9 +680,13 @@ export class MockBackend {
         { from, to },
       );
     }
-    const entry: WireStatusChange = meta
-      ? { from, to, at, by: this.currentUser.id, meta }
-      : { from, to, at, by: this.currentUser.id };
+    const entry: WireStatusChange = {
+      from,
+      to,
+      at,
+      ...this.actorOfCurrentUser(),
+      ...(meta ? { meta } : {}),
+    };
     return this.replace({
       ...updated,
       updatedAt: at,
@@ -659,11 +721,15 @@ export class MockBackend {
       updatedAt: at,
       statusHistory: [
         ...booking.statusHistory,
+        // Прибуття відмічає сам водій — партнерський контур.
         {
           from: 'booked',
           to: 'arrived',
           at,
           by: booking.driverId ?? 'driver',
+          byRole: 'driver',
+          byContour: 'partner',
+          byLabel: ACTOR_LABELS.driver,
         },
       ],
     };

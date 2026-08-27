@@ -287,6 +287,4 @@ export const UK_DICTIONARY: Record<string, string> = {
   'error.AUTH_ACCOUNT_LOCKED':
     'Обліковий запис тимчасово заблоковано після кількох невдалих спроб',
   'error.ROUTE_NOT_FOUND': 'Невідомий маршрут API',
-  'error.STORE_READ_NOT_IMPLEMENTED':
-    'Бекенд ще не надає читання даних магазину — розділ тимчасово недоступний',
 };

@@ -17,12 +17,21 @@
 // booking-service
 // ---------------------------------------------------------------------------
 
-/** `StatusChange::toArray()` — append-only журнал переходів (DATA-14). */
+/**
+ * `StatusChange::toArray()` — append-only журнал переходів (DATA-14).
+ *
+ * `byRole` / `byContour` / `byLabel` бекенд додає поруч із `by`: сам `by` —
+ * це UUID облікового запису. Усі три поля можуть бути null для записів,
+ * зроблених до їх появи.
+ */
 export interface WireStatusChange {
   readonly from: string | null;
   readonly to: string;
   readonly at: string;
   readonly by: string;
+  readonly byRole?: string | null;
+  readonly byContour?: string | null;
+  readonly byLabel?: string | null;
   readonly meta?: Record<string, unknown>;
 }
 
@@ -73,6 +82,17 @@ export interface WireCancellation {
   readonly reason: string | null;
 }
 
+/**
+ * `DriverInfo::toArray()` — знімок профілю водія поруч із `driverId`.
+ * Поля `driver` може не бути взагалі (водія не призначено, профіль недоступний).
+ */
+export interface WireDriver {
+  readonly driverId: string;
+  readonly fullName: string;
+  readonly phone: string | null;
+  readonly active: boolean;
+}
+
 /** Повна відповідь `BookingPresenter::toArray()`. */
 export interface WireBooking {
   readonly id: string;
@@ -89,6 +109,7 @@ export interface WireBooking {
   readonly supplierName: string | null;
   readonly vehicle: WireVehicle;
   readonly driverId: string | null;
+  readonly driver?: WireDriver | null;
   readonly orderId: string | null;
   readonly palletsCount: number;
   readonly delayed: WireDelayInfo;
@@ -106,6 +127,96 @@ export interface WireBooking {
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly statusHistory: readonly WireStatusChange[];
+}
+
+// --- Читання контуру магазину ---------------------------------------------
+//
+// Джерело істини — booking-service `App\Controller\Store\StoreReadController`
+// і презентери поруч із ним. Колекції приходять ПЛОСКИМ масивом, без обгортки
+// `{items}` і без пагінації: перелік філій, рамп і постачальників мережі — це
+// десятки записів, які віддаються цілком. Виняток — дошка: їй потрібен
+// серверний `now`, тому вона обʼєкт.
+
+/** `StoreBrief::toArray()` — філія в переліку GET /stores. */
+export interface WireStoreBrief {
+  readonly storeId: string;
+  readonly externalId: string;
+  readonly displayName: string;
+  readonly city: string;
+  readonly address: string;
+  /** Статус філії в YMS; у переліку буває лише `active`. */
+  readonly ymsStatus: string;
+}
+
+/** Рампа у конфігурації філії. */
+export interface WireRamp {
+  readonly rampId: string;
+  readonly name: string;
+  readonly active: boolean;
+}
+
+export interface WireReceivingInterval {
+  readonly from: string;
+  readonly to: string;
+}
+
+export interface WireReceivingWindow {
+  /** 1 — понеділок … 7 — неділя. */
+  readonly dayOfWeek: number;
+  readonly intervals: readonly WireReceivingInterval[];
+}
+
+/** `StoreConfigPresenter::toArray()` — GET /stores/{storeId}/config. */
+export interface WireStoreConfig {
+  readonly storeId: string;
+  readonly externalId: string;
+  readonly displayName: string;
+  readonly city: string;
+  readonly address: string;
+  readonly ramps: readonly WireRamp[];
+  readonly slotSizeMinutes: number;
+  readonly receivingWindows: readonly WireReceivingWindow[];
+  readonly maxVehicleWeightTons: number;
+  readonly noShowGraceMinutes: number;
+  readonly leadTimeMinutes: number;
+  readonly horizonDays: number;
+}
+
+/** Постачальник у довіднику GET /stores/{storeId}/suppliers. */
+export interface WireSupplierRef {
+  readonly supplierId: string;
+  readonly name: string;
+}
+
+/**
+ * `StaffSlotPresenter::slots()` — клітинка сітки очима персоналу.
+ * `reservedForSupplierId` і `blockReason` присутні лише тоді, коли мають значення.
+ */
+export interface WireSlot {
+  readonly rampId: string;
+  readonly slotStart: string;
+  readonly slotEnd: string;
+  readonly localStart: string;
+  readonly state: string;
+  readonly selectable: boolean;
+  readonly bookingId: string | null;
+  readonly reservedForSupplierId?: string | null;
+  readonly blockReason?: string | null;
+}
+
+/** `StaffSlotPresenter::week()` — доба сітки з ключем локальної дати. */
+export interface WireWeekDay {
+  readonly dateKey: string;
+  readonly slots: readonly WireSlot[];
+}
+
+/** `StoreBoardPresenter::toArray()` — GET /bookings?storeId=&date=. */
+export interface WireStoreBoard {
+  readonly storeId: string;
+  readonly date: string;
+  /** Серверний час зрізу: на ньому тримаються таймери і доступність дій. */
+  readonly now: string;
+  readonly bookings: readonly WireBooking[];
 }
 
 // --- Тіла запитів контуру магазину ----------------------------------------

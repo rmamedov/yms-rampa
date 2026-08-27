@@ -47,8 +47,19 @@ export interface Slot {
   readonly slotStart: string;
   /** ISO 8601 UTC */
   readonly slotEnd: string;
+  /** HH:mm у таймзоні магазину — підпис клітинки сітки. */
+  readonly localStart: string;
   readonly state: SlotState;
+  /** Чи вільний слот для нового бронювання (для персоналу = state `available`). */
+  readonly selectable: boolean;
+  /** Бронювання, яке займає клітинку; null — вільна. */
   readonly bookingId: string | null;
+  /**
+   * Чужі резерви персоналу видно: приховування (GRID-04) стосується лише
+   * контуру постачальника.
+   */
+  readonly reservedForSupplierId: string | null;
+  readonly blockReason: string | null;
 }
 
 export interface SupplierRef {

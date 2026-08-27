@@ -20,9 +20,6 @@ export interface ProblemDetails {
  *  - booking-service `App\Domain\**\*Exception::ERROR_CODE`;
  *  - identity-staff-service `App\Domain\Auth\Exception\*`;
  *  - api-gateway (nginx): ROUTE_NOT_FOUND, AUTH_TOKEN_INVALID.
- *
- * `STORE_READ_NOT_IMPLEMENTED` — власний код застосунку для маршрутів
- * читання, яких у контурі магазину ще немає.
  */
 export const KNOWN_PROBLEM_CODES = [
   // booking-service
@@ -52,8 +49,6 @@ export const KNOWN_PROBLEM_CODES = [
   'AUTH_ACCOUNT_DISABLED',
   'AUTH_ACCOUNT_LOCKED',
   'ROUTE_NOT_FOUND',
-  // власний код застосунку
-  'STORE_READ_NOT_IMPLEMENTED',
 ] as const;
 
 export type KnownProblemCode = (typeof KNOWN_PROBLEM_CODES)[number];

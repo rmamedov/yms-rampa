@@ -1,5 +1,5 @@
 import { Observable } from 'rxjs';
-import { LoginRequest, LoginResponse } from '../models/auth.model';
+import { LoginRequest, LoginResponse, StoreScope } from '../models/auth.model';
 import {
   Booking,
   CompleteUnloadingPayload,
@@ -32,17 +32,20 @@ export interface WeekDaySlots {
 /**
  * Контракт даних магазину.
  *
- * ЗАПИС повністю відповідає реальним маршрутам booking-service
- * (/api/store/v1/bookings/...).
- *
- * ЧИТАННЯ у контурі магазину бекенд наразі НЕ надає: у `debug:router` немає
- * жодного GET під /api/store/v1, а nginx маршрутизує весь цей префікс у
- * booking-service, де є тільки дії над бронюванням і walk-in. Тому методи
- * читання лишаються в контракті (мок-режим на них тримає весь UI), але
- * HTTP-реалізація повертає явну помилку STORE_READ_NOT_IMPLEMENTED замість
- * мовчазного 404. Перелік потрібних маршрутів — у супровідній заявці на бекенд.
+ * І читання, і запис відповідають реальним маршрутам booking-service під
+ * префіксом /api/store/v1 — див. `App\Controller\Store\StoreReadController`
+ * і `BookingActionController`. Колекції читання приходять плоскими масивами
+ * без пагінації, тому шлюз віддає їх цілком: жодних зрізів і «першої сторінки».
  */
 export abstract class StoreGateway {
+  /**
+   * Філії, доступні користувачеві (STW-03).
+   *
+   * Джерело переліку — саме цей маршрут, а не `profile.storeIds`: у мережевих
+   * ролей (super_admin, network_manager) скоуп задає РОЛЬ, і список
+   * ідентифікаторів у профілі порожній назавжди (RBAC-16).
+   */
+  abstract getStores(): Observable<readonly StoreScope[]>;
   abstract getStoreConfig(storeId: string): Observable<StoreConfig>;
   abstract getSuppliers(storeId: string): Observable<readonly SupplierRef[]>;
   abstract getBoard(storeId: string, dateKey: string): Observable<BoardSnapshot>;
@@ -81,6 +84,3 @@ export abstract class StoreGateway {
   /** WALK-01: реєстрація позапланового прибуття. */
   abstract createWalkIn(payload: WalkInPayload): Observable<Booking>;
 }
-
-/** Коди помилок, які застосунок формує сам, без бекенду. */
-export const STORE_READ_NOT_IMPLEMENTED = 'STORE_READ_NOT_IMPLEMENTED';

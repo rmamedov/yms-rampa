@@ -1,15 +1,30 @@
 import { inject, Injectable } from '@angular/core';
-import { map, Observable, throwError } from 'rxjs';
+import { map, Observable } from 'rxjs';
 import { ApiClient } from '../api/api-client.service';
-import { toBooking } from '../api/wire.mapper';
+import {
+  toBoardSnapshot,
+  toBooking,
+  toSlots,
+  toStoreConfig,
+  toStoreScopes,
+  toSupplierRefs,
+  toWeekDaySlots,
+} from '../api/wire.mapper';
 import {
   WireBooking,
   WireCompleteRequest,
   WireDelayRequest,
   WireRejectRequest,
   WireReassignRequest,
+  WireSlot,
+  WireStoreBoard,
+  WireStoreBrief,
+  WireStoreConfig,
+  WireSupplierRef,
   WireWalkInRequest,
+  WireWeekDay,
 } from '../api/wire.model';
+import { StoreScope } from '../models/auth.model';
 import {
   Booking,
   CompleteUnloadingPayload,
@@ -18,19 +33,22 @@ import {
   RejectPayload,
   WalkInPayload,
 } from '../models/booking.model';
-import { AppError } from '../models/problem.model';
 import { Slot, StoreConfig, SupplierRef } from '../models/store.model';
-import {
-  BoardSnapshot,
-  STORE_READ_NOT_IMPLEMENTED,
-  StoreGateway,
-  WeekDaySlots,
-} from './gateways';
+import { BoardSnapshot, StoreGateway, WeekDaySlots } from './gateways';
+
+/** Скільки діб просить екран «Розклад тижня» (стеля бекенду — 14). */
+const WEEK_DAYS = 7;
 
 /**
  * Реальний контур магазину: booking-service через api-gateway, префікс
- * /api/store/v1. Перелік маршрутів обмежений тим, що справді існує:
+ * /api/store/v1.
  *
+ *   GET  /api/store/v1/stores
+ *   GET  /api/store/v1/stores/{storeId}/config
+ *   GET  /api/store/v1/stores/{storeId}/suppliers
+ *   GET  /api/store/v1/stores/{storeId}/slots?date=
+ *   GET  /api/store/v1/stores/{storeId}/slots?from=&days=
+ *   GET  /api/store/v1/bookings?storeId=&date=
  *   POST /api/store/v1/bookings/{bookingId}/arrived
  *   POST /api/store/v1/bookings/{bookingId}/unloading
  *   POST /api/store/v1/bookings/{bookingId}/completed
@@ -39,50 +57,70 @@ import {
  *   POST /api/store/v1/bookings/{bookingId}/delay
  *   POST /api/store/v1/bookings/{bookingId}/reassign
  *   POST /api/store/v1/bookings/walk-in
+ *
+ * Читання віддає колекції ПЛОСКИМИ масивами без пагінації, тому шлюз мапить
+ * відповідь цілком: обрізати перелік філій, постачальників чи слотів нічим
+ * і нікуди — сторінок просто немає.
  */
 @Injectable()
 export class HttpStoreGateway extends StoreGateway {
   private readonly api = inject(ApiClient);
 
-  // --- Читання: маршрутів у контурі магазину немає -----------------------
+  // --- Читання -----------------------------------------------------------
+
+  override getStores(): Observable<readonly StoreScope[]> {
+    return this.api
+      .get<readonly WireStoreBrief[]>('/stores')
+      .pipe(map((wire) => toStoreScopes(wire ?? [])));
+  }
 
   override getStoreConfig(storeId: string): Observable<StoreConfig> {
-    return this.notImplemented(
-      `GET /api/store/v1/stores/${storeId}/config — конфігурація магазину (рампи, вікна прийому, ліміт тоннажу)`,
-    );
+    return this.api
+      .get<WireStoreConfig>(`/stores/${encodeURIComponent(storeId)}/config`)
+      .pipe(map(toStoreConfig));
   }
 
   override getSuppliers(storeId: string): Observable<readonly SupplierRef[]> {
-    return this.notImplemented(
-      `GET /api/store/v1/stores/${storeId}/suppliers — довідник постачальників для walk-in`,
-    );
+    return this.api
+      .get<
+        readonly WireSupplierRef[]
+      >(`/stores/${encodeURIComponent(storeId)}/suppliers`)
+      .pipe(map((wire) => toSupplierRefs(wire ?? [])));
   }
 
   override getBoard(
     storeId: string,
     dateKey: string,
   ): Observable<BoardSnapshot> {
-    return this.notImplemented(
-      `GET /api/store/v1/bookings?storeId=${storeId}&date=${dateKey} — перелік бронювань магазину на дату`,
-    );
+    return this.api
+      .get<WireStoreBoard>('/bookings', { storeId, date: dateKey })
+      .pipe(map(toBoardSnapshot));
   }
 
   override getSlots(
     storeId: string,
     dateKey: string,
   ): Observable<readonly Slot[]> {
-    return this.notImplemented(
-      `GET /api/store/v1/stores/${storeId}/slots?date=${dateKey} — сітка слотів магазину`,
-    );
+    return this.api
+      .get<
+        readonly WireSlot[]
+      >(`/stores/${encodeURIComponent(storeId)}/slots`, { date: dateKey })
+      .pipe(map((wire) => toSlots(wire ?? [])));
   }
 
+  /**
+   * Тиждень живе на тому самому маршруті, що й доба: `from` + `days` замість
+   * `date`. Відповідь — масив діб із ключем локальної дати.
+   */
   override getWeek(
     storeId: string,
     mondayKey: string,
   ): Observable<readonly WeekDaySlots[]> {
-    return this.notImplemented(
-      `GET /api/store/v1/stores/${storeId}/slots?from=${mondayKey}&days=7 — сітка слотів на тиждень`,
-    );
+    return this.api
+      .get<
+        readonly WireWeekDay[]
+      >(`/stores/${encodeURIComponent(storeId)}/slots`, { from: mondayKey, days: WEEK_DAYS })
+      .pipe(map((wire) => (wire ?? []).map(toWeekDaySlots)));
   }
 
   // --- Дії над бронюванням ----------------------------------------------
@@ -164,21 +202,5 @@ export class HttpStoreGateway extends StoreGateway {
 
   private action(path: string, body?: unknown): Observable<Booking> {
     return this.api.post<WireBooking>(path, body).pipe(map(toBooking));
-  }
-
-  private notImplemented<T>(wanted: string): Observable<T> {
-    return throwError(
-      () =>
-        new AppError(
-          {
-            type: 'about:blank',
-            title: 'Not Implemented',
-            status: 501,
-            code: STORE_READ_NOT_IMPLEMENTED,
-            detail: `Бекенд ще не надає цей маршрут: ${wanted}`,
-          },
-          `error.${STORE_READ_NOT_IMPLEMENTED}`,
-        ),
-    );
   }
 }
