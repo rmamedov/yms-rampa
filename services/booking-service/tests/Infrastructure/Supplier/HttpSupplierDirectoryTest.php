@@ -276,7 +276,13 @@ final class HttpSupplierDirectoryTest extends TestCase
         self::assertSame(2, $client->getRequestsCount());
     }
 
-    public function testDirectoryAsksNeighbourForTheStoreItNeeds(): void
+    /**
+     * Довідник для walk-in НЕ звужується до філії: прибуття тому й позапланове,
+     * що постачальник міг не мати доступу саме до цього магазину. Фільтр за
+     * storeId сховав би від приймальника справжнього контрагента, і той завів
+     * би машину як «поза системою».
+     */
+    public function testDirectoryDoesNotNarrowSuppliersToTheStore(): void
     {
         $captured = '';
         $client = new MockHttpClient(function (string $method, string $url) use (&$captured): MockResponse {
@@ -287,7 +293,8 @@ final class HttpSupplierDirectoryTest extends TestCase
 
         (new HttpSupplierDirectory($client, self::BASE_URL))->listForStore(self::STORE_ID);
 
-        self::assertStringContainsString('/internal/v1/suppliers?storeId='.self::STORE_ID, $captured);
+        self::assertStringContainsString('/internal/v1/suppliers?', $captured);
+        self::assertStringNotContainsString('storeId=', $captured);
         self::assertStringContainsString('limit=100', $captured);
         self::assertStringNotContainsString('/api/', $captured);
     }

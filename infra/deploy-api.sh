@@ -180,4 +180,8 @@ systemctl is-active yms-outbox-relay.timer
 REMOTE
 
 log "Готово"
-echo "Журнал релея: journalctl -u yms-outbox-relay.service -n 50"
+echo "Журнал релея:      journalctl -u yms-outbox-relay.service -n 50"
+echo "Карантин подій:    cd /var/www/yms/services/booking-service && \\"
+echo "                   sudo -u www-data php bin/console yms:outbox:relay --requeue-failed"
+echo "                   (події, яких аналітика не прийняла, лишаються в outbox"
+echo "                    з причиною; після виправлення формату — цей ключ)"

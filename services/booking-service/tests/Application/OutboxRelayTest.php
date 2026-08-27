@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Application;
 
 use App\Application\Outbox\AnalyticsEventSink;
+use App\Application\Outbox\EventOutcome;
 use App\Application\Outbox\OutboxRelay;
 use App\Application\Outbox\SinkReport;
 use App\Domain\Event\DomainEvent;
@@ -173,32 +174,117 @@ final class OutboxRelayTest extends TestCase
     }
 
     /**
-     * Сироти й відхилені події НЕ зупиняють чергу — інакше один непридатний
-     * запис назавжди заблокував би доставку і аналітика знову спорожніла б.
-     * Але вони обовʼязково потрапляють у звіт.
+     * НАЙВАЖЛИВІШЕ. Відхилена подія НЕ позначається опублікованою.
+     *
+     * Саме через це на стенді зникло 536 подій: релей рахував доставленим весь
+     * пакет, який сусід прийняв, а не ті події, які сусід реально застосував.
      */
-    public function testProblemEventsAreReportedButDoNotBlockTheQueue(): void
+    public function testRejectedEventIsNotMarkedPublished(): void
     {
         $outbox = new InMemoryOutboxStore();
         $outbox->append([$this->event(EventType::BookingArrived, '2026-08-27T06:00:00Z')]);
 
-        $sink = new class implements AnalyticsEventSink {
-            public function deliver(array $events): SinkReport
-            {
-                return new SinkReport(
-                    orphan: 1,
-                    failed: [['eventId' => 'ob-000001', 'reason' => 'Подія без поля city.']],
-                );
-            }
-        };
+        $report = $this->relay($outbox, $this->verdictSink([
+            ['outcome' => EventOutcome::Rejected, 'reason' => 'Подія без поля rampId.'],
+        ]))->relay();
 
-        $report = $this->relay($outbox, $sink)->relay();
+        self::assertSame(0, $report->delivered, 'Відхилена подія не є доставленою.');
+        self::assertSame(1, $report->quarantined);
+
+        $records = $outbox->all();
+        self::assertNull($records[0]->publishedAt, 'Опублікованою відхилену подію позначати не можна.');
+        self::assertTrue($records[0]->isQuarantined());
+        self::assertStringContainsString('Подія без поля rampId.', (string) $records[0]->failureReason);
+        self::assertSame(1, $records[0]->attempts);
+    }
+
+    /** Сирота — теж не доставка: у карантин, а не в «опубліковані». */
+    public function testOrphanEventGoesToQuarantine(): void
+    {
+        $outbox = new InMemoryOutboxStore();
+        $outbox->append([$this->event(EventType::BookingArrived, '2026-08-27T06:00:00Z')]);
+
+        $report = $this->relay($outbox, $this->verdictSink([
+            ['outcome' => EventOutcome::Orphan, 'reason' => 'Немає BookingCreated.'],
+        ]))->relay();
+
+        self::assertSame(0, $report->delivered);
+        self::assertSame(1, $outbox->countQuarantined());
+        self::assertSame(1, $report->quarantineTotal);
+    }
+
+    /**
+     * Дублікат і «не стосується read-моделі» — це успішна доставка: подія
+     * свою роботу зробила, тримати її в черзі вічно немає сенсу.
+     */
+    public function testDuplicateAndIgnoredCountAsDelivered(): void
+    {
+        $outbox = new InMemoryOutboxStore();
+        $outbox->append([
+            $this->event(EventType::BookingCreated, '2026-08-27T06:00:00Z'),
+            $this->event(EventType::SlotReleased, '2026-08-27T06:01:00Z'),
+        ]);
+
+        $report = $this->relay($outbox, $this->verdictSink([
+            ['outcome' => EventOutcome::Duplicate, 'reason' => null],
+            ['outcome' => EventOutcome::Ignored, 'reason' => null],
+        ]))->relay();
+
+        self::assertSame(2, $report->delivered);
+        self::assertSame(0, $outbox->countQuarantined());
+        self::assertSame([], $outbox->pending());
+    }
+
+    /**
+     * Карантин не блокує чергу: один непридатний запис не має зупиняти
+     * доставку решти — інакше аналітика знову спорожніє.
+     */
+    public function testQuarantinedRecordDoesNotBlockTheQueue(): void
+    {
+        $outbox = new InMemoryOutboxStore();
+        $outbox->append([
+            $this->event(EventType::BookingArrived, '2026-08-27T06:00:00Z'),
+            $this->event(EventType::BookingArrived, '2026-08-27T06:01:00Z'),
+        ]);
+
+        $this->relay($outbox, $this->verdictSink([
+            ['outcome' => EventOutcome::Rejected, 'reason' => 'Немає rampId.'],
+            ['outcome' => EventOutcome::Applied, 'reason' => null],
+        ]))->relay();
+
+        // Наступний прогін черги вже не бачить ані застосованої, ані
+        // карантинної події — і не крутиться на них вічно.
+        self::assertSame([], $outbox->pending());
+        self::assertSame(1, $outbox->countQuarantined());
+    }
+
+    /**
+     * Після виправлення формату подій карантин повертається в чергу і
+     * проводиться повторно — саме заради цього він і зберігається.
+     */
+    public function testQuarantineCanBeRequeuedAndDeliveredAfterFix(): void
+    {
+        $outbox = new InMemoryOutboxStore();
+        $outbox->append([$this->event(EventType::BookingArrived, '2026-08-27T06:00:00Z')]);
+
+        $relay = $this->relay($outbox, $this->verdictSink([
+            ['outcome' => EventOutcome::Rejected, 'reason' => 'Немає rampId.'],
+        ]));
+        $relay->relay();
+        self::assertSame(1, $outbox->countQuarantined());
+
+        // Формат виправлено — повертаємо в чергу і проводимо ще раз.
+        self::assertSame(1, $relay->requeueQuarantined());
+        self::assertCount(1, $outbox->pending());
+
+        $report = $this->relay($outbox, $this->verdictSink([
+            ['outcome' => EventOutcome::Applied, 'reason' => null],
+        ]))->relay();
 
         self::assertSame(1, $report->delivered);
-        self::assertSame([], $outbox->pending());
-        self::assertTrue($report->sink->hasProblems());
-        self::assertSame(1, $report->sink->orphan);
-        self::assertSame('Подія без поля city.', $report->sink->failed[0]['reason']);
+        self::assertSame(0, $outbox->countQuarantined());
+        // Лічильник спроб накопичується: видно, що запис проводили двічі.
+        self::assertSame(2, $outbox->all()[0]->attempts);
     }
 
     /**
@@ -302,6 +388,33 @@ final class OutboxRelayTest extends TestCase
         return new OutboxRelay($outbox, $sink, new FrozenClock('2026-08-27T08:00:00Z'));
     }
 
+    /**
+     * Приймач із наперед заданим присудом на кожну позицію пакета.
+     *
+     * @param list<array{outcome: EventOutcome, reason: string|null}> $verdicts
+     */
+    private function verdictSink(array $verdicts): AnalyticsEventSink
+    {
+        return new class($verdicts) implements AnalyticsEventSink {
+            /** @param list<array{outcome: EventOutcome, reason: string|null}> $verdicts */
+            public function __construct(private array $verdicts)
+            {
+            }
+
+            public function deliver(array $events): SinkReport
+            {
+                $rows = [];
+
+                foreach (array_keys($events) as $index) {
+                    $verdict = $this->verdicts[$index] ?? ['outcome' => EventOutcome::Applied, 'reason' => null];
+                    $rows[] = ['index' => $index] + $verdict;
+                }
+
+                return SinkReport::fromRows($rows);
+            }
+        };
+    }
+
     private function event(EventType $type, string $occurredAt): DomainEvent
     {
         return DomainEvent::forBooking(
@@ -326,6 +439,13 @@ final class RecordingSink implements AnalyticsEventSink
     {
         $this->batches[] = $events;
 
-        return new SinkReport(applied: \count($events));
+        return SinkReport::fromRows(array_map(
+            static fn (int $index): array => [
+                'index' => $index,
+                'outcome' => EventOutcome::Applied,
+                'reason' => null,
+            ],
+            array_keys($events),
+        ));
     }
 }

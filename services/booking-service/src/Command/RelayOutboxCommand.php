@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\Application\Outbox\EventOutcome;
 use App\Application\Outbox\OutboxRelay;
 use App\Domain\Exception\UpstreamUnavailableException;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -24,11 +25,14 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * Приклад:
  *   php bin/console yms:outbox:relay
  *   php bin/console yms:outbox:relay --batch-size=50 --max-batches=5
+ *   php bin/console yms:outbox:relay --requeue-failed   # після виправлення подій
  *
  * Код виходу:
  *   0 — черга порожня або все доставлено;
  *   1 — сусід недоступний: НІЧОГО не втрачено, записи лишилися в черзі;
- *   2 — пакет доїхав, але частина подій непридатна (див. попередження).
+ *   2 — частина подій пішла в карантин (див. попередження). Це теж не втрата:
+ *       такі записи лишаються в outbox із причиною і повертаються в чергу
+ *       ключем --requeue-failed.
  */
 #[AsCommand(
     name: 'yms:outbox:relay',
@@ -58,6 +62,13 @@ final class RelayOutboxCommand extends Command
             'Стеля пакетів за один прогін (решта поїде наступного разу)',
             (string) OutboxRelay::DEFAULT_MAX_BATCHES,
         );
+
+        $this->addOption(
+            'requeue-failed',
+            null,
+            InputOption::VALUE_NONE,
+            'Спершу повернути в чергу всі записи з карантину (після виправлення формату подій)',
+        );
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -66,6 +77,11 @@ final class RelayOutboxCommand extends Command
 
         $batchSize = max(1, (int) $input->getOption('batch-size'));
         $maxBatches = max(1, (int) $input->getOption('max-batches'));
+
+        if (true === $input->getOption('requeue-failed')) {
+            $requeued = $this->relay->requeueQuarantined();
+            $io->note(\sprintf('Повернуто з карантину в чергу: %d.', $requeued));
+        }
 
         try {
             $report = $this->relay->relay($batchSize, $maxBatches);
@@ -77,7 +93,10 @@ final class RelayOutboxCommand extends Command
         }
 
         if ($report->isEmpty()) {
-            $io->success('Черга outbox порожня — доставляти нічого.');
+            $io->success(\sprintf(
+                'Черга outbox порожня — доставляти нічого. У карантині: %d.',
+                $report->quarantineTotal,
+            ));
 
             return Command::SUCCESS;
         }
@@ -85,37 +104,39 @@ final class RelayOutboxCommand extends Command
         $sink = $report->sink;
 
         $io->success(\sprintf(
-            'Доставлено подій: %d (пакетів %d). Аналітика: застосовано %d, дублікатів %d, проігноровано %d, сиріт %d.',
+            'Доставлено подій: %d (пакетів %d). Аналітика: застосовано %d, дублікатів %d, проігноровано %d.',
             $report->delivered,
             $report->batches,
-            $sink->applied,
-            $sink->duplicate,
-            $sink->ignored,
-            $sink->orphan,
+            $sink->count(EventOutcome::Applied),
+            $sink->count(EventOutcome::Duplicate),
+            $sink->count(EventOutcome::Ignored),
         ));
 
         if (!$report->queueDrained) {
             $io->note('Стелю пакетів вичерпано — решта черги поїде наступного прогону.');
         }
 
-        if (!$sink->hasProblems()) {
+        if (0 === $report->quarantined) {
             return Command::SUCCESS;
         }
 
         // Мовчазної втрати подій бути не повинно: у журнал systemd має
-        // потрапити рівно те, що аналітика НЕ прийняла.
-        if ($sink->orphan > 0) {
-            $io->warning(\sprintf(
-                'Подій без BookingCreated (сиріт): %d. Ці бронювання не потраплять у KPI.',
-                $sink->orphan,
-            ));
-        }
+        // потрапити рівно те, що аналітика НЕ прийняла, і що з ним сталося.
+        $io->warning(\sprintf(
+            'У карантин відправлено подій: %d (сиріт %d, відхилено %d). Усього в карантині: %d. '
+            .'Події НЕ втрачені — після виправлення формату поверніть їх у чергу: '
+            .'php bin/console yms:outbox:relay --requeue-failed',
+            $report->quarantined,
+            $sink->count(EventOutcome::Orphan),
+            $sink->count(EventOutcome::Rejected),
+            $report->quarantineTotal,
+        ));
 
-        foreach ($sink->failed as $failure) {
-            $io->warning(\sprintf(
-                'Подію %s відхилено: %s',
-                $failure['eventId'] ?? '(без eventId)',
-                $failure['reason'],
+        foreach ($sink->undelivered() as $row) {
+            $io->writeln(\sprintf(
+                '  <comment>%s</comment>: %s',
+                $row['outcome']->label(),
+                $row['reason'] ?? 'причину не вказано',
             ));
         }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\Analytics;
 
 use App\Application\Outbox\AnalyticsEventSink;
+use App\Application\Outbox\EventOutcome;
 use App\Application\Outbox\SinkReport;
 use App\Domain\Exception\UpstreamUnavailableException;
 use JsonException;
@@ -19,7 +20,8 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  *
  *   POST {base}/internal/v1/analytics/events
  *        {"events":[{"eventId","name","occurredAt","payload"}, …]}
- *   200  {"received","applied","duplicate","ignored","orphan","failed":[…]}
+ *   200  {"received","applied","duplicate","ignored","orphan","rejected",
+ *         "results":[{"index","eventId","outcome","reason"}, …]}
  *   422  problem+json — тіло не є пакетом подій (наша помилка, не сусідова).
  *
  * Базовий URL — внутрішній шлюз nginx (ANALYTICS_SERVICE_BASE_URL, типово
@@ -77,10 +79,21 @@ final readonly class HttpAnalyticsEventSink implements AnalyticsEventSink
             throw UpstreamUnavailableException::analyticsService(\sprintf('HTTP %d', $status));
         }
 
-        return self::report($body);
+        return self::report($body, \count($events));
     }
 
-    private static function report(string $body): SinkReport
+    /**
+     * Присуд споживача за КОЖНОЮ подією.
+     *
+     * Неповний або відсутній `results` — це порушення контракту, а не привід
+     * «здогадатися»: релей прибирає з черги лише те, що сусід прийняв, тож без
+     * поіменного звіту він або втратив би відхилені події, або вічно
+     * перевідправляв би застосовані. Тому тут виняток, і жоден запис не
+     * змінює стану.
+     *
+     * @param int $expected скільки подій було надіслано
+     */
+    private static function report(string $body, int $expected): SinkReport
     {
         try {
             /** @var mixed $decoded */
@@ -93,33 +106,48 @@ final readonly class HttpAnalyticsEventSink implements AnalyticsEventSink
             throw UpstreamUnavailableException::badResponse(self::SERVICE, 'тіло відповіді не є обʼєктом');
         }
 
-        $entries = $decoded['failed'] ?? null;
-        $failed = [];
+        $entries = $decoded['results'] ?? null;
 
-        foreach (\is_array($entries) ? $entries : [] as $entry) {
-            $eventId = \is_array($entry) ? ($entry['eventId'] ?? null) : null;
-            $reason = \is_array($entry) ? ($entry['reason'] ?? null) : null;
+        if (!\is_array($entries)) {
+            throw UpstreamUnavailableException::badResponse(
+                self::SERVICE,
+                'у відповіді немає переліку results із присудом за кожною подією',
+            );
+        }
 
-            $failed[] = [
-                'eventId' => \is_string($eventId) ? $eventId : null,
-                'reason' => \is_string($reason) ? $reason : 'причину не вказано',
+        $rows = [];
+
+        foreach ($entries as $entry) {
+            if (!\is_array($entry)) {
+                throw UpstreamUnavailableException::badResponse(self::SERVICE, 'елемент results не є обʼєктом');
+            }
+
+            $index = $entry['index'] ?? null;
+            $outcome = \is_string($entry['outcome'] ?? null) ? EventOutcome::tryFrom($entry['outcome']) : null;
+
+            if (!\is_int($index) || null === $outcome) {
+                throw UpstreamUnavailableException::badResponse(
+                    self::SERVICE,
+                    'елемент results без коректних полів index і outcome',
+                );
+            }
+
+            $reason = $entry['reason'] ?? null;
+            $rows[] = [
+                'index' => $index,
+                'outcome' => $outcome,
+                'reason' => \is_string($reason) && '' !== $reason ? $reason : null,
             ];
         }
 
-        return new SinkReport(
-            applied: self::counter($decoded, 'applied'),
-            duplicate: self::counter($decoded, 'duplicate'),
-            ignored: self::counter($decoded, 'ignored'),
-            orphan: self::counter($decoded, 'orphan'),
-            failed: $failed,
-        );
-    }
+        if (\count($rows) !== $expected) {
+            throw UpstreamUnavailableException::badResponse(self::SERVICE, \sprintf(
+                'надіслано подій %d, а присудів у results %d',
+                $expected,
+                \count($rows),
+            ));
+        }
 
-    /** @param array<array-key, mixed> $payload */
-    private static function counter(array $payload, string $key): int
-    {
-        $value = $payload[$key] ?? 0;
-
-        return \is_int($value) ? $value : 0;
+        return SinkReport::fromRows($rows);
     }
 }

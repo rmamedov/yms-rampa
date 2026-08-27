@@ -55,18 +55,32 @@ export class WalkInDialogComponent implements OnInit {
   readonly slotKey = signal<string | null>(null);
   readonly submitted = signal(false);
   readonly slots = signal<readonly Slot[]>([]);
+  /**
+   * Сітка ще не відповіла. Без цього стану форма відкривалась із написом
+   * «немає вільних слотів» ще до першого запиту — тобто повідомляла про
+   * відсутність того, чого не встигла спитати.
+   */
+  readonly slotsLoading = signal(true);
 
+  /**
+   * Усі вільні слоти доби, які ще не минули: перелік НЕ обрізається — інакше
+   * приймальник не знайшов би слот, який насправді є (STW-38).
+   * `selectable` рахує бекенд, тому фільтр не дублює його логіку.
+   */
   readonly options = computed<FreeSlotOption[]>(() => {
     const ramps = this.store.ramps();
     const nowMs = Date.now();
     return this.slots()
       .filter(
         (slot) =>
-          slot.state === 'available' &&
+          slot.selectable &&
           new Date(slot.slotEnd).getTime() > nowMs - 30 * 60_000,
       )
-      .sort((a, b) => a.slotStart.localeCompare(b.slotStart))
-      .slice(0, 40)
+      .sort(
+        (a, b) =>
+          a.slotStart.localeCompare(b.slotStart) ||
+          a.rampId.localeCompare(b.rampId),
+      )
       .map((slot) => ({
         value: `${slot.rampId}|${slot.slotStart}`,
         rampId: slot.rampId,
@@ -102,10 +116,21 @@ export class WalkInDialogComponent implements OnInit {
 
   ngOnInit(): void {
     const store = this.auth.selectedStore();
-    if (!store) return;
-    this.gateway
-      .getSlots(store.storeId, toKyivDateKey(new Date()))
-      .subscribe({ next: (slots) => this.slots.set(slots) });
+    if (!store) {
+      this.slotsLoading.set(false);
+      return;
+    }
+    this.gateway.getSlots(store.storeId, toKyivDateKey(new Date())).subscribe({
+      next: (slots) => {
+        this.slots.set(slots);
+        this.slotsLoading.set(false);
+      },
+      // Без сітки форма лишається відкритою і чесно каже, що вибирати нічого.
+      error: () => {
+        this.slots.set([]);
+        this.slotsLoading.set(false);
+      },
+    });
   }
 
   setMode(external: boolean): void {

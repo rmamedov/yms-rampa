@@ -93,7 +93,10 @@ final readonly class EventProjector
         return new BookingFact(
             bookingId: $bookingId,
             storeId: $event->requiredString('storeId'),
-            city: $event->requiredString('city'),
+            // Місто — розріз, а не ідентичність факту: філія без міста в
+            // довіднику не привід викинути бронювання з усіх KPI разом із
+            // рештою його подій, які після цього стали б сиротами.
+            city: $event->optionalString('city') ?? BookingFact::UNKNOWN_CITY,
             supplierId: $event->requiredString('supplierId'),
             rampId: $event->requiredString('rampId'),
             slotStart: $event->requiredDate('slotStart'),

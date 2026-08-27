@@ -96,6 +96,76 @@ async function storeSignIn(page: Page): Promise<void> {
   });
 }
 
+/** Напис, яким застосунок позначає ще не добудований зріз. */
+const LOADING_TEXT = 'Завантаження…';
+
+/**
+ * Чекає, доки екран добудує зріз.
+ *
+ * `page.waitForLoadState('networkidle')` для цього не годиться: всередині
+ * застосунку навігації немає, тому Playwright віддає стан ОСТАННЬОГО переходу
+ * і повертається миттєво — ще до того, як застосунок устиг послати запит.
+ * Знімок, зроблений одразу після дії, показував не результат дії, а те, що
+ * лишилося на екрані від попереднього зрізу.
+ */
+async function waitForScreen(page: Page): Promise<void> {
+  await expect(
+    page.locator('.page > p.muted').filter({ hasText: LOADING_TEXT }),
+    'екран не має лишатися в стані завантаження',
+  ).toHaveCount(0, { timeout: 30_000 });
+}
+
+/** Виконує дію і чекає саме на ту відповідь дошки, яку ця дія має спричинити. */
+async function withBoardResponse(
+  page: Page,
+  matches: (url: string) => boolean,
+  action: () => Promise<void>,
+): Promise<void> {
+  await Promise.all([
+    page.waitForResponse(
+      (r) => r.url().includes('/api/store/v1/bookings?') && matches(r.url()),
+      { timeout: 30_000 },
+    ),
+    action(),
+  ]);
+  await waitForScreen(page);
+}
+
+/** Кнопка швидкого переходу дати («Вчора» / «Сьогодні» / «Завтра»). */
+async function goToDate(page: Page, label: string, dateKey: string): Promise<void> {
+  await withBoardResponse(
+    page,
+    (url) => url.includes(`date=${dateKey}`),
+    async () => {
+      await page.getByRole('button', { name: label, exact: true }).first().click();
+    },
+  );
+}
+
+/** Перезавантаження сторінки разом із очікуванням дошки. */
+async function reloadBoard(page: Page): Promise<void> {
+  await page.reload();
+  await page.waitForLoadState('networkidle');
+  await waitForScreen(page);
+}
+
+/** Відкриває форму позапланового прибуття і дочікується сітки вільних слотів. */
+async function openWalkIn(page: Page) {
+  await Promise.all([
+    page.waitForResponse((r) => /\/stores\/[^/]+\/slots\?date=/.test(r.url()), {
+      timeout: 30_000,
+    }),
+    page.getByRole('button', { name: 'Позапланове прибуття' }).click(),
+  ]);
+  const dialog = page.locator('[role=dialog]');
+  await expect(dialog, 'форма позапланового прибуття має відкритися').toBeVisible();
+  await expect(
+    dialog.locator('.muted').filter({ hasText: LOADING_TEXT }),
+    'форма не має лишатися з незавантаженою сіткою слотів',
+  ).toHaveCount(0, { timeout: 30_000 });
+  return dialog;
+}
+
 /**
  * Вхід + гарантія, що ми справді на дошці. Якщо застосунок відмовив у доступі
  * або дошка не завантажилась, тест падає тут із поясненням причини.
@@ -112,6 +182,7 @@ async function openBoard(page: Page, store?: SandboxStore): Promise<void> {
 
   await page.waitForSelector('h1', { timeout: 15_000 });
   await page.waitForLoadState('networkidle');
+  await waitForScreen(page);
 
   const text = await pageText(page);
   expect(
@@ -136,8 +207,18 @@ async function selectStore(page: Page, store: SandboxStore): Promise<void> {
       values,
       `у перемикачі має бути філія ${store.externalId} (${store.address})`,
     ).toContain(store.storeId);
-    await select.selectOption(store.storeId);
-    await page.waitForLoadState('networkidle');
+    await withBoardResponse(
+      page,
+      (url) => url.includes(`storeId=${store.storeId}`),
+      async () => {
+        await select.selectOption(store.storeId);
+      },
+    );
+    // Перемикач має показувати ту саму філію, дані якої лягли на дошку.
+    expect(
+      await select.inputValue(),
+      `перемикач має стояти на філії ${store.externalId}, дані якої показує дошка`,
+    ).toBe(store.storeId);
   } else {
     const label = await page.locator('.appbar__storename').innerText().catch(() => '');
     expect(
@@ -150,9 +231,14 @@ async function selectStore(page: Page, store: SandboxStore): Promise<void> {
 /** Переводить дошку на потрібну дату через календарне поле. */
 async function setBoardDate(page: Page, dateKey: string): Promise<void> {
   const picker = page.locator('input[type=date]').first();
-  await picker.fill(dateKey);
-  await picker.dispatchEvent('change');
-  await page.waitForLoadState('networkidle');
+  await withBoardResponse(
+    page,
+    (url) => url.includes(`date=${dateKey}`),
+    async () => {
+      await picker.fill(dateKey);
+      await picker.dispatchEvent('change');
+    },
+  );
 }
 
 /** Картка бронювання за держномером (у DOM вона є і в колонці, і в мобільному списку). */
@@ -333,12 +419,17 @@ test.describe('M-01 Вхід і вибір магазину', () => {
     );
     expect(values.length, 'для перемикання потрібно 2+ магазини').toBeGreaterThan(1);
 
-    await select.selectOption(values[1]);
-    await page.waitForLoadState('networkidle');
+    await withBoardResponse(
+      page,
+      (url) => url.includes(`storeId=${values[1]}`),
+      async () => {
+        await select.selectOption(values[1]);
+      },
+    );
     const chosen = await select.inputValue();
+    expect(chosen, 'перемикач має показувати щойно обрану філію').toBe(values[1]);
 
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadBoard(page);
     expect(
       await page.locator('.appbar__select').inputValue(),
       'вибір магазину має зберігатися між перезавантаженнями',
@@ -433,8 +524,7 @@ test.describe('M-02 Дошка «Сьогодні»', () => {
 test.describe('M-03 Дії магазину', () => {
   /** Спільний хід: знайти картку, натиснути дію, перевірити стан ПІСЛЯ перезавантаження. */
   async function expectStatusAfterReload(page: Page, plate: string, status: string): Promise<void> {
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadBoard(page);
     const card = cardByPlate(page, plate);
     await expect(
       card,
@@ -628,8 +718,7 @@ test.describe('M-03 Дії магазину', () => {
     await dialog.getByRole('button', { name: 'Зберегти' }).click();
     await page.waitForTimeout(1500);
 
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadBoard(page);
     const card = cardByPlate(page, plate);
     await expect(card, 'на картці має бути позначка затримки').toContainText('Затримка до');
     const after = (await readBooking(ctx, supplierToken, booking.id)) as unknown as {
@@ -663,8 +752,7 @@ test.describe('M-03 Дії магазину', () => {
     await dialog.getByRole('button', { name: 'Підтвердити' }).click();
     await page.waitForTimeout(1500);
 
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadBoard(page);
     const column = page.locator('.board__col').filter({ hasText: plate }).first();
     await expect(
       column.locator('.board__colhead'),
@@ -703,8 +791,7 @@ test.describe('M-04 Позапланове прибуття', () => {
     expect(expected.length, 'для перевірки потрібен хоч один постачальник').toBeGreaterThan(0);
 
     await openBoard(page, primaryStore());
-    await page.getByRole('button', { name: 'Позапланове прибуття' }).click();
-    await expect(page.locator('[role=dialog]')).toBeVisible();
+    await openWalkIn(page);
 
     const shown = await optionTexts(page, '#wi-supplier');
     const missing = expected.filter((s) => !shown.some((t) => t.includes(s.name)));
@@ -717,12 +804,15 @@ test.describe('M-04 Позапланове прибуття', () => {
   });
 
   test('M-04.2 X-05 валідація полів форми', async ({ page }) => {
-    await openBoard(page, primaryStore());
-    await page.getByRole('button', { name: 'Позапланове прибуття' }).click();
-    const dialog = page.locator('[role=dialog]');
-    await expect(dialog).toBeVisible();
+    const store = primaryStore();
+    await openBoard(page, store);
+    const dialog = await openWalkIn(page);
 
     await dialog.getByRole('button', { name: 'Зареєструвати прибуття' }).click();
+    await expect(
+      dialog.locator('.form-error').first(),
+      'порожня форма має пояснити, чого саме бракує',
+    ).toBeVisible();
     const errors = (await dialog.locator('.form-error').allInnerTexts()).join(' | ');
     expect(errors, 'постачальник').toContain('Оберіть постачальника або вкажіть назву');
     expect(errors, 'номер авто').toContain('Вкажіть номер авто');
@@ -739,8 +829,10 @@ test.describe('M-04 Позапланове прибуття', () => {
       '34 палети мають відхилятися',
     ).toContain('Кількість палет — від 1 до 33');
 
-    // Тоннаж понад ліміт філії має відхилятися з окремим текстом.
-    const limit = stores[0].maxVehicleWeightTons;
+    // Тоннаж понад ліміт філії має відхилятися з окремим текстом. Ліміт — саме
+    // тієї філії, яку показує дошка: форма перевіряє її, а не довільну філію
+    // пісочниці (у 2227 ліміт 10 т, у 2229 — 40, і «10 + 5» тут ні про що).
+    const limit = store.maxVehicleWeightTons;
     await dialog.locator('#wi-weight').fill(String(limit + 5));
     await dialog.locator('#wi-weight').dispatchEvent('input');
     await dialog.getByRole('button', { name: 'Зареєструвати прибуття' }).click();
@@ -753,8 +845,7 @@ test.describe('M-04 Позапланове прибуття', () => {
   test('M-04.3 реєстрація постачальника зі списку → статус «на місці»', async ({ page }) => {
     test.setTimeout(120_000);
     await openBoard(page, primaryStore());
-    await page.getByRole('button', { name: 'Позапланове прибуття' }).click();
-    const dialog = page.locator('[role=dialog]');
+    const dialog = await openWalkIn(page);
 
     const suppliers = await optionTexts(page, '#wi-supplier');
     expect(suppliers.length, 'у формі має бути з чого вибрати').toBeGreaterThan(0);
@@ -780,8 +871,7 @@ test.describe('M-04 Позапланове прибуття', () => {
     created.push(body.id);
     registerArtifact('walk-in', body.id, `${plate} · UITEST-walkin`);
 
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadBoard(page);
     const card = cardByPlate(page, plate);
     await expect(card, 'позапланове прибуття має зʼявитися на дошці').toBeVisible();
     await expect(card.locator('.badge').first(), 'статус «на місці»').toContainText(
@@ -793,8 +883,7 @@ test.describe('M-04 Позапланове прибуття', () => {
   test('M-04.4 реєстрація постачальника «поза системою»', async ({ page }) => {
     test.setTimeout(120_000);
     await openBoard(page, primaryStore());
-    await page.getByRole('button', { name: 'Позапланове прибуття' }).click();
-    const dialog = page.locator('[role=dialog]');
+    const dialog = await openWalkIn(page);
 
     await dialog.getByRole('button', { name: 'Поза системою' }).click();
     await expect(dialog.locator('#wi-external'), 'має зʼявитися поле назви').toBeVisible();
@@ -819,8 +908,7 @@ test.describe('M-04 Позапланове прибуття', () => {
     created.push(body.id);
     registerArtifact('walk-in', body.id, `${plate} · ${name}`);
 
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadBoard(page);
     const card = cardByPlate(page, plate);
     await expect(card, 'назва постачальника поза системою має бути на картці').toContainText(name);
     await expect(card.locator('.badge').first()).toContainText('Очікує на території');
@@ -954,15 +1042,13 @@ test.describe('M-06 Інші дати і тиждень', () => {
     const booking = await makeBooking('tomorrow', { dateKey: kyivDateKey(1) });
 
     await openBoard(page, booking.store);
-    await page.getByRole('button', { name: 'Завтра', exact: true }).click();
-    await page.waitForLoadState('networkidle');
+    await goToDate(page, 'Завтра', kyivDateKey(1));
     await expect(
       cardByPlate(page, booking.vehicle.plateNumber),
       'завтрашнє бронювання має бути видно на завтрашній дошці',
     ).toBeVisible();
 
-    await page.getByRole('button', { name: 'Сьогодні', exact: true }).first().click();
-    await page.waitForLoadState('networkidle');
+    await goToDate(page, 'Сьогодні', kyivDateKey());
     expect(
       await page.locator('article.bcard').filter({ hasText: booking.vehicle.plateNumber }).count(),
       'на сьогоднішній дошці завтрашнього бронювання бути не має',
@@ -971,8 +1057,7 @@ test.describe('M-06 Інші дати і тиждень', () => {
 
   test('M-06.2 минула дата — лише перегляд', async ({ page }) => {
     await openBoard(page);
-    await page.getByRole('button', { name: 'Вчора', exact: true }).click();
-    await page.waitForLoadState('networkidle');
+    await goToDate(page, 'Вчора', kyivDateKey(-1));
     expect(
       await pageText(page),
       'на минулій даті має бути попередження про режим лише перегляду',
@@ -982,8 +1067,11 @@ test.describe('M-06 Інші дати і тиждень', () => {
   test('M-06.3 тижневий розклад тільки для читання', async ({ page }) => {
     test.setTimeout(120_000);
     await openBoard(page);
-    await page.getByRole('link', { name: 'Розклад тижня' }).click();
-    await page.waitForLoadState('networkidle');
+    await Promise.all([
+      page.waitForResponse((r) => /\/slots\?.*from=/.test(r.url()), { timeout: 30_000 }),
+      page.getByRole('link', { name: 'Розклад тижня' }).click(),
+    ]);
+    await waitForScreen(page);
 
     const text = await pageText(page);
     expect(text, 'заголовок тижня').toContain('Розклад тижня');
@@ -1002,8 +1090,11 @@ test.describe('M-06 Інші дати і тиждень', () => {
       ).toBe(0);
     }
 
-    await page.getByRole('button', { name: 'Наступний тиждень' }).click();
-    await page.waitForLoadState('networkidle');
+    await Promise.all([
+      page.waitForResponse((r) => /\/slots\?.*from=/.test(r.url()), { timeout: 30_000 }),
+      page.getByRole('button', { name: 'Наступний тиждень' }).click(),
+    ]);
+    await waitForScreen(page);
     expect(await page.locator('.week__day').count(), 'наступний тиждень теж має будуватися').toBe(7);
   });
 });
@@ -1098,8 +1189,7 @@ test.describe('M-08 Обмеження прав', () => {
     await page.evaluate((id) => {
       localStorage.setItem('yms.store.selectedStoreId', id);
     }, fake);
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadBoard(page);
 
     const text = await pageText(page);
     expect(text, 'підмінений ідентифікатор не має потрапляти в інтерфейс').not.toContain(fake);

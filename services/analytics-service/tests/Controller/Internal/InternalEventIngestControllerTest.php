@@ -7,7 +7,9 @@ namespace App\Tests\Controller\Internal;
 use App\Controller\Admin\AnalyticsController;
 use App\Controller\Internal\InternalEventIngestController;
 use App\Domain\Analytics\AnalyticsDashboard;
+use App\Domain\Booking\RejectionReason;
 use App\Domain\Exception\MalformedEventException;
+use App\Domain\Fact\BookingFact;
 use App\Domain\Projection\EventProjector;
 use App\Infrastructure\Http\AnalyticsQueryFactory;
 use App\Infrastructure\InMemory\FrozenClock;
@@ -56,8 +58,14 @@ final class InternalEventIngestControllerTest extends TestCase
         self::assertSame(2, $payload['applied']);
         self::assertSame(1, $payload['ignored']);
         self::assertSame(0, $payload['orphan']);
-        self::assertSame([], $payload['failed']);
+        self::assertSame(0, $payload['rejected']);
         self::assertSame(1, $this->facts->countAll());
+
+        // Присуд за КОЖНОЮ подією: без нього відправник не знає, що можна
+        // прибрати зі своєї черги, а що ні.
+        self::assertSame([0, 1, 2], array_column($payload['results'], 'index'));
+        self::assertSame(['ob-1', 'ob-2', 'ob-3'], array_column($payload['results'], 'eventId'));
+        self::assertSame(['applied', 'applied', 'ignored'], array_column($payload['results'], 'outcome'));
     }
 
     /**
@@ -86,21 +94,33 @@ final class InternalEventIngestControllerTest extends TestCase
     {
         $payload = $this->ingest([
             $this->created('ob-1', 'b1'),
-            // BookingCreated без обовʼязкового `city` — факт створити нізвідки.
+            // BookingCreated без обовʼязкового palletsCount — факт неповний.
             [
                 'eventId' => 'ob-2',
                 'name' => 'BookingCreated',
                 'occurredAt' => '2026-03-16T06:00:00Z',
-                'payload' => ['bookingId' => 'b2', 'storeId' => 'store-1', 'type' => 'scheduled'],
+                'payload' => [
+                    'bookingId' => 'b2',
+                    'storeId' => 'store-1',
+                    'city' => 'Київ',
+                    'supplierId' => 'sup-1',
+                    'rampId' => 'ramp-1',
+                    'slotStart' => '2026-03-16T08:00:00Z',
+                    'slotEnd' => '2026-03-16T08:30:00Z',
+                    'type' => 'scheduled',
+                ],
             ],
             $this->arrived('ob-3', 'b1'),
         ]);
 
         self::assertSame(3, $payload['received']);
         self::assertSame(2, $payload['applied']);
-        self::assertCount(1, $payload['failed']);
-        self::assertSame('ob-2', $payload['failed'][0]['eventId']);
-        self::assertStringContainsString('city', $payload['failed'][0]['reason']);
+        self::assertSame(1, $payload['rejected']);
+
+        $rejected = $payload['results'][1];
+        self::assertSame('rejected', $rejected['outcome']);
+        self::assertSame('ob-2', $rejected['eventId']);
+        self::assertStringContainsString('palletsCount', $rejected['reason']);
     }
 
     /** Подія без BookingCreated — сирота, і сусід має це чесно повідомити. */
@@ -110,6 +130,8 @@ final class InternalEventIngestControllerTest extends TestCase
         $payload = $this->ingest([$this->arrived('ob-1', 'b-unknown')]);
 
         self::assertSame(1, $payload['orphan']);
+        self::assertSame('orphan', $payload['results'][0]['outcome']);
+        self::assertNotNull($payload['results'][0]['reason']);
         self::assertSame(0, $this->facts->countAll());
     }
 
@@ -119,8 +141,34 @@ final class InternalEventIngestControllerTest extends TestCase
         $payload = $this->ingest([$this->created('ob-1', 'b1'), 'не подія']);
 
         self::assertSame(1, $payload['applied']);
-        self::assertCount(1, $payload['failed']);
-        self::assertNull($payload['failed'][0]['eventId']);
+        self::assertSame(1, $payload['rejected']);
+        self::assertSame('rejected', $payload['results'][1]['outcome']);
+        self::assertNull($payload['results'][1]['eventId']);
+    }
+
+    /**
+     * Присуд повертається на КОЖНУ надіслану подію і в тому самому порядку —
+     * саме за позицією відправник звіряє їх зі своєю чергою.
+     */
+    #[Test]
+    public function everySentEventGetsItsOwnVerdict(): void
+    {
+        $events = [
+            $this->created('ob-1', 'b1'),
+            $this->arrived('ob-2', 'b1'),
+            $this->arrived('ob-2', 'b1'),
+            $this->arrived('ob-3', 'b-unknown'),
+            'не подія',
+        ];
+
+        $payload = $this->ingest($events);
+
+        self::assertCount(\count($events), $payload['results']);
+        self::assertSame(
+            ['applied', 'applied', 'duplicate', 'orphan', 'rejected'],
+            array_column($payload['results'], 'outcome'),
+        );
+        self::assertSame([0, 1, 2, 3, 4], array_column($payload['results'], 'index'));
     }
 
     #[Test]
@@ -137,6 +185,68 @@ final class InternalEventIngestControllerTest extends TestCase
         $this->expectException(MalformedEventException::class);
 
         ($this->controller)($this->request('{'));
+    }
+
+    /**
+     * Філія без міста в довіднику (наслідок синхронізації MCP) не позбавляє
+     * бронювання всіх KPI: факт створюється, а місто отримує явну групу.
+     * До цього така подія відхилялася, а решта подій бронювання ставали
+     * сиротами — на стенді так загубилися 4 бронювання.
+     */
+    #[Test]
+    public function bookingWithoutCityIsStillProjected(): void
+    {
+        $created = $this->created('ob-1', 'b1');
+        unset($created['payload']['city']);
+
+        $payload = $this->ingest([$created, $this->arrived('ob-2', 'b1')]);
+
+        self::assertSame(2, $payload['applied']);
+        self::assertSame(0, $payload['rejected']);
+        self::assertSame(0, $payload['orphan']);
+        self::assertSame(1, $this->facts->countAll());
+        self::assertSame(BookingFact::UNKNOWN_CITY, $this->facts->findByBookingId('b1')?->city);
+    }
+
+    /** Порожній рядок — те саме, що відсутнє поле. */
+    #[Test]
+    public function emptyCityFallsBackToTheExplicitGroup(): void
+    {
+        $created = $this->created('ob-1', 'b1');
+        $created['payload']['city'] = '';
+
+        $this->ingest([$created]);
+
+        self::assertSame(BookingFact::UNKNOWN_CITY, $this->facts->findByBookingId('b1')?->city);
+    }
+
+    /**
+     * BookingReassigned з payload booking-service застосовується: rampId тепер
+     * є в кожній події бронювання. Раніше саме ця подія відхилялася найчастіше.
+     */
+    #[Test]
+    public function reassignmentFromPublisherPayloadIsApplied(): void
+    {
+        $payload = $this->ingest([
+            $this->created('ob-1', 'b1'),
+            [
+                'eventId' => 'ob-2',
+                'name' => 'BookingReassigned',
+                'occurredAt' => '2026-03-16T07:00:00Z',
+                'payload' => [
+                    'bookingId' => 'b1',
+                    'storeId' => 'store-1',
+                    'city' => 'Київ',
+                    'rampId' => 'ramp-2',
+                    'supplierId' => 'sup-1',
+                    'reason' => 'ramp',
+                    'previousRampId' => 'ramp-1',
+                ],
+            ],
+        ]);
+
+        self::assertSame(2, $payload['applied']);
+        self::assertSame('ramp-2', $this->facts->findByBookingId('b1')?->rampId());
     }
 
     /**
@@ -184,7 +294,104 @@ final class InternalEventIngestControllerTest extends TestCase
         self::assertEquals(10, $after['kpi']['kpi03_waitingTime']['medianMinutes']);
     }
 
+    /**
+     * Розріз причин відмов наповнюється з payload видавця. Раніше причина
+     * лежала всередині вкладеного `rejectedAt`, тому розріз був порожній.
+     */
+    #[Test]
+    public function rejectionReasonBreakdownFillsFromPublisherPayload(): void
+    {
+        $analytics = $this->analyticsController();
+
+        $this->ingest([
+            $this->created('ob-1', 'b1'),
+            $this->arrived('ob-2', 'b1'),
+            [
+                'eventId' => 'ob-3',
+                'name' => 'BookingRejected',
+                'occurredAt' => '2026-03-16T08:05:00Z',
+                'payload' => [
+                    'bookingId' => 'b1',
+                    'storeId' => 'store-1',
+                    'city' => 'Київ',
+                    'rampId' => 'ramp-1',
+                    'supplierId' => 'sup-1',
+                    'rejectedAt' => '2026-03-16T08:05:00Z',
+                    'reason' => 'відсутні документи',
+                    'comment' => null,
+                ],
+            ],
+        ]);
+
+        $request = $this->kpiRequest();
+        $request->query->set('dimension', 'rejection_reason');
+        $breakdown = $this->decode($analytics->breakdown($request));
+
+        self::assertFalse($breakdown['empty']);
+        // Причина зіставляється з довідником аналітики, а не звалюється в «Інше».
+        self::assertSame([RejectionReason::DocumentsMissing->value], array_column($breakdown['rows'], 'key'));
+    }
+
+    /** Кожна причина з довідника видавця має власну групу, а не «Інше». */
+    #[Test]
+    public function everyPublisherRejectionReasonIsRecognised(): void
+    {
+        self::assertSame(RejectionReason::WeightExceeded, RejectionReason::fromCode('перевищення тоннажу'));
+        self::assertSame(RejectionReason::CargoMismatch, RejectionReason::fromCode('невідповідність вантажу'));
+        self::assertSame(RejectionReason::DocumentsMissing, RejectionReason::fromCode('відсутні документи'));
+        self::assertSame(RejectionReason::Other, RejectionReason::fromCode('інше'));
+        // Машинні коди самої аналітики теж лишаються дійсними.
+        self::assertSame(RejectionReason::WeightExceeded, RejectionReason::fromCode('weight_exceeded'));
+        // Незнайома причина, як і раніше, не ламає read-модель.
+        self::assertSame(RejectionReason::Other, RejectionReason::fromCode('щось нове'));
+    }
+
+    /**
+     * ANL-04: лічильник часткових розвантажень. Раніше видавець клав під
+     * `partialUnload` обʼєкт, а лічильник читає булеве — і завжди бачив false.
+     */
+    #[Test]
+    public function partialUnloadCounterFillsFromPublisherPayload(): void
+    {
+        $analytics = $this->analyticsController();
+
+        $this->ingest([
+            $this->created('ob-1', 'b1'),
+            $this->arrived('ob-2', 'b1'),
+            [
+                'eventId' => 'ob-3',
+                'name' => 'UnloadingCompleted',
+                'occurredAt' => '2026-03-16T08:25:00Z',
+                'payload' => [
+                    'bookingId' => 'b1',
+                    'storeId' => 'store-1',
+                    'city' => 'Київ',
+                    'rampId' => 'ramp-1',
+                    'supplierId' => 'sup-1',
+                    'completedAt' => '2026-03-16T08:25:00Z',
+                    'palletsCount' => 10,
+                    'unloadedPalletsCount' => 6,
+                    'partialUnload' => true,
+                    'partialUnloadDetails' => ['flag' => true, 'reason' => 'бій/брак', 'comment' => null],
+                ],
+            ],
+        ]);
+
+        $kpi = $this->decode($analytics->kpi($this->kpiRequest()));
+
+        self::assertSame(1, $kpi['kpi']['counters']['partialUnloadCount']);
+        self::assertSame(6, $kpi['kpi']['counters']['unloadedPallets']);
+    }
+
     // --- допоміжне ----------------------------------------------------------
+
+    private function analyticsController(): AnalyticsController
+    {
+        return new AnalyticsController(
+            new AnalyticsDashboard($this->facts, new InMemorySlotFactRepository()),
+            new AnalyticsQueryFactory(new FrozenClock(new \DateTimeImmutable('2026-03-20T10:00:00+00:00'))),
+        );
+    }
 
     /**
      * @param list<mixed> $events

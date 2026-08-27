@@ -466,11 +466,16 @@ final class Booking
         $this->unloadedPalletsCount = $unloaded;
         $this->partialUnload = $unloaded < $this->palletsCount ? $partialUnload : null;
 
+        // `partialUnload` — саме ПРАПОРЕЦЬ, а подробиці окремим полем. Раніше
+        // під цим ключем лежав обʼєкт причини, і кожен споживач, який читав
+        // його як булеве (аналітика — ANL-04), бачив false: лічильник
+        // часткових розвантажень назавжди лишався нульовим.
         return $this->event(EventType::UnloadingCompleted, $now, [
             'completedAt' => $this->completedAt->format('Y-m-d\TH:i:s\Z'),
             'palletsCount' => $this->palletsCount,
             'unloadedPalletsCount' => $unloaded,
-            'partialUnload' => $this->partialUnload?->toArray(),
+            'partialUnload' => null !== $this->partialUnload,
+            'partialUnloadDetails' => $this->partialUnload?->toArray(),
         ]);
     }
 
@@ -541,8 +546,16 @@ final class Booking
         $this->transition($actor, BookingStatus::Rejected, $now, ['reason' => $reason->value]);
         $this->rejection = new Rejection($now, $actor->userId, $reason, $comment);
 
+        // Форма подання така сама, як у BookingCancelled: мітка часу окремим
+        // полем, подробиці — вкладеним обʼєктом. Раніше під ключем `rejectedAt`
+        // лежав ВЕСЬ обʼєкт відмови, тому споживачі не знаходили ні дати, ні
+        // причини: аналітика показувала порожній розріз причин відмов
+        // (`reason` вона читає верхнім рівнем, як і notification-service).
         return $this->event(EventType::BookingRejected, $now, [
-            'rejectedAt' => $this->rejection->toArray(),
+            'rejectedAt' => $this->rejection->at->format('Y-m-d\TH:i:s\Z'),
+            'reason' => $this->rejection->reason->value,
+            'comment' => $this->rejection->comment,
+            'rejection' => $this->rejection->toArray(),
         ]);
     }
 
@@ -903,10 +916,15 @@ final class Booking
             'type' => $this->type->value,
             'storeId' => $this->storeId,
             // Місто зі снапшота філії (DATA-13): analytics-service будує з нього
-            // розріз «місто» і без цього поля не може створити факт бронювання
-            // взагалі. Беремо саме снапшот, а не поточний довідник, — розріз має
-            // лишатися таким, яким філія була на момент поставки.
+            // розріз «місто». Беремо саме снапшот, а не поточний довідник, —
+            // розріз має лишатися таким, яким філія була на момент поставки.
             'city' => $this->storeSnapshot->city,
+            // Рампа потрібна в КОЖНІЙ події, а не лише в BookingCreated:
+            // BookingReassigned без неї аналітика відкидає цілком (на стенді
+            // так загубилися 192 події — переведення водія й авто взагалі не
+            // несли rampId, бо його додавали лише в тих подіях, де він
+            // «очевидно» потрібен). Спільне поле знімає цей клас помилок.
+            'rampId' => $this->rampId,
             'supplierId' => $this->supplierId,
             'status' => $this->status->value,
         ], $payload), $now);

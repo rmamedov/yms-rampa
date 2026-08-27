@@ -80,6 +80,17 @@ final readonly class MongoIndexInstaller
                     'key' => ['publishedAt' => 1, 'occurredAt' => 1],
                     'partialFilterExpression' => ['publishedAt' => null],
                 ],
+                // Карантин (записи, які споживач не прийняв) читається і
+                // рахується щохвилини разом із чергою. Ключ саме такий, бо
+                // partialFilterExpression не приймає $ne — тому «є дата».
+                [
+                    'name' => 'relay_quarantine',
+                    'key' => ['failedAt' => 1, 'occurredAt' => 1],
+                    'partialFilterExpression' => ['failedAt' => ['$type' => 'date']],
+                ],
+                // TTL прибирає лише ОПУБЛІКОВАНІ записи: у карантині
+                // publishedAt лишається null, тому такий запис не зникне сам
+                // і його можна перепровести після виправлення формату подій.
                 [
                     'name' => 'published_ttl',
                     'key' => ['publishedAt' => 1],

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Infrastructure\Analytics;
 
+use App\Application\Outbox\EventOutcome;
 use App\Domain\Exception\UpstreamUnavailableException;
 use App\Infrastructure\Analytics\HttpAnalyticsEventSink;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -30,7 +31,7 @@ final class HttpAnalyticsEventSinkTest extends TestCase
         $client = new MockHttpClient(function (string $method, string $url, array $options) use (&$captured): MockResponse {
             $captured = ['method' => $method, 'url' => $url, 'options' => $options];
 
-            return new MockResponse($this->body(['applied' => 2]));
+            return new MockResponse($this->body(['applied', 'applied']));
         });
 
         $report = $this->sink($client)->deliver([$this->envelope('ob-1'), $this->envelope('ob-2')]);
@@ -44,7 +45,7 @@ final class HttpAnalyticsEventSinkTest extends TestCase
         $body = json_decode((string) $captured['options']['body'], true, 8, \JSON_THROW_ON_ERROR);
 
         self::assertSame(['ob-1', 'ob-2'], array_column($body['events'], 'eventId'));
-        self::assertSame(2, $report->applied);
+        self::assertSame(2, $report->count(EventOutcome::Applied));
     }
 
     /** Порожній пакет мережу не чіпає взагалі. */
@@ -63,24 +64,67 @@ final class HttpAnalyticsEventSinkTest extends TestCase
         self::assertFalse($report->hasProblems());
     }
 
-    public function testReadsAllCountersAndFailuresFromResponse(): void
+    /** Присуд читається для КОЖНОЇ події і зіставляється за позицією в пакеті. */
+    public function testReadsPerEventOutcomes(): void
     {
-        $client = new MockHttpClient(new MockResponse($this->body([
-            'applied' => 3,
-            'duplicate' => 1,
-            'ignored' => 2,
-            'orphan' => 1,
-            'failed' => [['eventId' => 'ob-9', 'reason' => 'Подія без поля city.']],
-        ])));
+        $client = new MockHttpClient(new MockResponse($this->body(
+            ['applied', 'duplicate', 'ignored', 'orphan', 'rejected'],
+            [4 => 'Подія без поля city.'],
+        )));
 
-        $report = $this->sink($client)->deliver([$this->envelope('ob-1')]);
+        $report = $this->sink($client)->deliver([
+            $this->envelope('ob-1'), $this->envelope('ob-2'), $this->envelope('ob-3'),
+            $this->envelope('ob-4'), $this->envelope('ob-5'),
+        ]);
 
-        self::assertSame(3, $report->applied);
-        self::assertSame(1, $report->duplicate);
-        self::assertSame(2, $report->ignored);
-        self::assertSame(1, $report->orphan);
-        self::assertSame([['eventId' => 'ob-9', 'reason' => 'Подія без поля city.']], $report->failed);
+        self::assertSame(EventOutcome::Applied, $report->outcomeAt(0));
+        self::assertSame(EventOutcome::Duplicate, $report->outcomeAt(1));
+        self::assertSame(EventOutcome::Ignored, $report->outcomeAt(2));
+        self::assertSame(EventOutcome::Orphan, $report->outcomeAt(3));
+        self::assertSame(EventOutcome::Rejected, $report->outcomeAt(4));
+        self::assertSame('Подія без поля city.', $report->reasonAt(4));
         self::assertTrue($report->hasProblems());
+        self::assertCount(2, $report->undelivered());
+    }
+
+    /**
+     * Відповідь без поіменного звіту — порушення контракту, а не привід
+     * «здогадатися»: без нього релей не знає, що можна прибрати з черги.
+     */
+    public function testResponseWithoutResultsIsRejected(): void
+    {
+        $client = new MockHttpClient(new MockResponse('{"received":1,"applied":1}'));
+
+        try {
+            $this->sink($client)->deliver([$this->envelope('ob-1')]);
+            self::fail('Очікувався UpstreamUnavailableException.');
+        } catch (UpstreamUnavailableException $error) {
+            self::assertSame(UpstreamUnavailableException::BAD_RESPONSE_CODE, $error->errorCode());
+            self::assertStringContainsString('results', $error->getMessage());
+        }
+    }
+
+    /** Присудів менше, ніж подій, — теж порушення: чиясь доля лишилася б невідомою. */
+    public function testIncompleteResultsAreRejected(): void
+    {
+        $client = new MockHttpClient(new MockResponse($this->body(['applied'])));
+
+        $this->expectException(UpstreamUnavailableException::class);
+        $this->expectExceptionMessage('надіслано подій 2, а присудів у results 1');
+
+        $this->sink($client)->deliver([$this->envelope('ob-1'), $this->envelope('ob-2')]);
+    }
+
+    public function testUnknownOutcomeIsRejected(): void
+    {
+        $client = new MockHttpClient(new MockResponse(
+            '{"results":[{"index":0,"eventId":"ob-1","outcome":"хтозна","reason":null}]}',
+        ));
+
+        $this->expectException(UpstreamUnavailableException::class);
+        $this->expectExceptionMessage('index і outcome');
+
+        $this->sink($client)->deliver([$this->envelope('ob-1')]);
     }
 
     public function testUnreachableNeighbourRaisesUpstreamException(): void
@@ -121,17 +165,6 @@ final class HttpAnalyticsEventSinkTest extends TestCase
         }
     }
 
-    /** Сусід відповів без лічильників — це не аварія, а нуль. */
-    public function testMissingCountersDefaultToZero(): void
-    {
-        $client = new MockHttpClient(new MockResponse('{"received":1}'));
-
-        $report = $this->sink($client)->deliver([$this->envelope('ob-1')]);
-
-        self::assertSame(0, $report->applied);
-        self::assertSame([], $report->failed);
-    }
-
     private function sink(MockHttpClient $client): HttpAnalyticsEventSink
     {
         return new HttpAnalyticsEventSink($client, self::BASE_URL);
@@ -148,16 +181,28 @@ final class HttpAnalyticsEventSinkTest extends TestCase
         ];
     }
 
-    /** @param array<string, mixed> $overrides */
-    private function body(array $overrides): string
+    /**
+     * Тіло відповіді за контрактом сусіда: присуд на кожну надіслану подію.
+     *
+     * @param list<string>        $outcomes присуди за позиціями
+     * @param array<int, string>  $reasons  пояснення, ключ — та сама позиція
+     */
+    private function body(array $outcomes, array $reasons = []): string
     {
-        return json_encode($overrides + [
-            'received' => 1,
-            'applied' => 0,
-            'duplicate' => 0,
-            'ignored' => 0,
-            'orphan' => 0,
-            'failed' => [],
+        $results = [];
+
+        foreach ($outcomes as $index => $outcome) {
+            $results[] = [
+                'index' => $index,
+                'eventId' => 'ob-'.($index + 1),
+                'outcome' => $outcome,
+                'reason' => $reasons[$index] ?? null,
+            ];
+        }
+
+        return json_encode([
+            'received' => \count($outcomes),
+            'results' => $results,
         ], \JSON_THROW_ON_ERROR);
     }
 }

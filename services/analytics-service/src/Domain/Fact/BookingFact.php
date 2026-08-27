@@ -21,6 +21,18 @@ use App\Domain\Booking\RejectionReason;
  */
 final class BookingFact
 {
+    /**
+     * Місто, якого немає в довіднику філій.
+     *
+     * У мережі є філії з порожнім містом (наслідок синхронізації MCP —
+     * див. docs/ui-issues.md, ISSUE-03), тож подія BookingCreated може чесно
+     * не мати чим заповнити розріз. Відкидати через це ВЕСЬ факт не можна:
+     * бронювання все одно рахується в KPI-02, KPI-03, KPI-04 і в лічильниках,
+     * а місто — лише один із розрізів KPI-05. Тому замість втрати факту
+     * зʼявляється явна, видима в інтерфейсі група.
+     */
+    public const string UNKNOWN_CITY = 'Місто не вказано';
+
     private BookingStatus $status;
     private ?\DateTimeImmutable $arrivedAt = null;
     private ?\DateTimeImmutable $unloadingStartedAt = null;

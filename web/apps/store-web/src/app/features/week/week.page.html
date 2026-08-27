@@ -38,7 +38,7 @@
                   <span
                     class="week__slot"
                     [class]="'week__slot week__slot--' + slot.state"
-                    [title]="'slotState.' + slot.state | t"
+                    [title]="slotTitle(slot)"
                   ></span>
                 }
               </div>

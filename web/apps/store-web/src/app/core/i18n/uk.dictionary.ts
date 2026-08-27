@@ -89,7 +89,9 @@ export const UK_DICTIONARY: Record<string, string> = {
   'card.orderId': 'Замовлення',
   'card.pallets': 'Палети',
   'card.driver': 'Водій',
+  'card.driverName': 'Водій {name}',
   'card.driverId': 'Водій {id}',
+  'card.driverInactive': 'профіль деактивовано',
   'card.noDriver': 'Водія не призначено',
   'card.walkIn': 'Позапланове',
   'card.arrivedAt': 'Прибув о {time}',
@@ -246,11 +248,13 @@ export const UK_DICTIONARY: Record<string, string> = {
   // --- Журнал ---
   'log.title': 'Журнал дій',
   'log.empty': 'Записів немає',
-  'log.actor': 'Хто (ID користувача)',
+  'log.actor': 'Хто',
+  'log.actorId': 'ID {id}',
+  'log.actorUnknown': 'Невідомо',
   'log.time': 'Коли',
   'log.change': 'Зміна',
   'log.sourceNote':
-    'Журнал побудовано з історії статусів бронювання. Окремого журналу дій із ПІБ виконавця бекенд поки не надає.',
+    'Журнал побудовано з історії статусів бронювання. Виконавця названо роллю на момент дії; ПІБ показуємо лише для ваших власних дій — імені інших співробітників бекенд у журналі не зберігає.',
 
   // --- Помилки: коди рівно ті, які повертає бекенд у problem+json ---
   'error.generic': 'Сталася помилка. Спробуйте ще раз.',

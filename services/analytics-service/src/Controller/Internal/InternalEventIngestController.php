@@ -21,10 +21,19 @@ use Symfony\Component\Routing\Attribute\Route;
  *   {"events":[{"eventId","name","occurredAt","payload":{…}}, …]}
  *
  *   200 {"received":N,"applied":a,"duplicate":d,"ignored":i,"orphan":o,
- *        "failed":[{"eventId":"…","reason":"…"}]}
+ *        "rejected":r,
+ *        "results":[{"index":0,"eventId":"…",
+ *                    "outcome":"applied|duplicate|ignored|orphan|rejected",
+ *                    "reason":null|"…"}, …]}
  *   422 problem+json code=EVENT_BATCH_MALFORMED — тіло не є обʼєктом
  *       з масивом `events` (той самий статус, що й для окремої непридатної
  *       події, — ProblemJsonExceptionListener бере його з MalformedEventException).
+ *
+ * ЧОМУ ЗВІТ ЗА КОЖНОЮ ПОДІЄЮ, А НЕ САМІ ЛІЧИЛЬНИКИ. Відправник має право
+ * прибрати зі своєї черги лише те, що аналітика справді прийняла. За самими
+ * лічильниками він цього не знає і мусить або втратити відхилені події, або
+ * вічно перевідправляти вже застосовані. `results` знімає цей вибір: кожна
+ * подія повертається зі своїм присудом і причиною.
  *
  * ЧОМУ ПАКЕТ, А НЕ ОДНА ПОДІЯ. Релей ходить сюди за розкладом і несе десятки
  * подій за раз; окремий HTTP-запит на кожну коштував би більше, ніж уся
@@ -53,6 +62,9 @@ final readonly class InternalEventIngestController
     {
     }
 
+    /** Подія, яку не вдалося навіть розібрати. Не входить у ProjectionOutcome. */
+    public const string REJECTED = 'rejected';
+
     #[Route('', name: 'internal_analytics_events_ingest', methods: ['POST'])]
     public function __invoke(Request $request): JsonResponse
     {
@@ -62,27 +74,30 @@ final readonly class InternalEventIngestController
             array_map(static fn (ProjectionOutcome $o): string => $o->value, ProjectionOutcome::cases()),
             0,
         );
-        $failed = [];
+        $counters[self::REJECTED] = 0;
+        $results = [];
 
         foreach ($events as $index => $event) {
+            $eventId = is_array($event) && is_string($event['eventId'] ?? null) ? $event['eventId'] : null;
+
             if (!is_array($event)) {
-                $failed[] = [
-                    'eventId' => null,
-                    'reason' => sprintf('Елемент %d не є обʼєктом події.', $index),
-                ];
+                ++$counters[self::REJECTED];
+                $results[] = $this->result($index, null, self::REJECTED, sprintf(
+                    'Елемент %d не є обʼєктом події.',
+                    $index,
+                ));
 
                 continue;
             }
 
             /** @var array<string, mixed> $event */
             try {
-                ++$counters[$this->consumer->consumeArray($event)->outcome->value];
+                $projection = $this->consumer->consumeArray($event);
+                ++$counters[$projection->outcome->value];
+                $results[] = $this->result($index, $eventId, $projection->outcome->value, $projection->reason);
             } catch (MalformedEventException $exception) {
-                $eventId = $event['eventId'] ?? null;
-                $failed[] = [
-                    'eventId' => is_string($eventId) ? $eventId : null,
-                    'reason' => $exception->getMessage(),
-                ];
+                ++$counters[self::REJECTED];
+                $results[] = $this->result($index, $eventId, self::REJECTED, $exception->getMessage());
             }
         }
 
@@ -92,8 +107,28 @@ final readonly class InternalEventIngestController
             'duplicate' => $counters[ProjectionOutcome::Duplicate->value],
             'ignored' => $counters[ProjectionOutcome::Ignored->value],
             'orphan' => $counters[ProjectionOutcome::Orphan->value],
-            'failed' => $failed,
+            'rejected' => $counters[self::REJECTED],
+            'results' => $results,
         ]);
+    }
+
+    /**
+     * Рядок звіту за окремою подією.
+     *
+     * `index` — позиція в надісланому масиві. Саме за нею відправник звіряє
+     * події зі своїми записами: він сам склав цей пакет, тож позиція надійніша
+     * за eventId, якого в зіпсованому елементі може не бути взагалі.
+     *
+     * @return array{index: int, eventId: string|null, outcome: string, reason: string|null}
+     */
+    private function result(int $index, ?string $eventId, string $outcome, ?string $reason): array
+    {
+        return [
+            'index' => $index,
+            'eventId' => $eventId,
+            'outcome' => $outcome,
+            'reason' => $reason,
+        ];
     }
 
     /**

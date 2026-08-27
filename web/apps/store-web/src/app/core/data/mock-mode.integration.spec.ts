@@ -5,6 +5,7 @@ import { AuthGateway, StoreGateway } from './gateways';
 import { MockAuthGateway, MockStoreGateway } from './mock.gateways';
 import { MockBackend } from './mock-backend.service';
 import { BoardStore } from './board.store';
+import { SUPPLIERS } from '../fixtures/mock-data';
 import { toKyivDateKey } from '../util/date.util';
 
 /**
@@ -50,9 +51,51 @@ describe('Мок-режим наскрізно', () => {
     tick(200);
     expect(auth.hasStoreAccess()).toBe(true);
     expect(auth.stores().length).toBe(2);
-    // До завантаження конфігурації підписом лишається ідентифікатор філії.
+    // До відповіді GET /stores підписом лишається ідентифікатор філії.
     expect(auth.selectedStore()?.displayName).toBe(
       auth.selectedStore()?.storeId,
+    );
+  });
+
+  it('перелік магазинів приходить із GET /stores разом із назвами', () => {
+    auth.login({ email: 'operator@silpo.ua', password: 'demo' }).subscribe();
+    tick(200);
+    auth.ensureStores().subscribe();
+    tick(200);
+
+    expect(auth.stores().length).toBe(2);
+    expect(auth.selectedStore()?.displayName).toContain('Сільпо');
+    expect(auth.selectedStore()?.externalId).toBeTruthy();
+  });
+
+  // Дефект перемикача: у мережевої ролі profile.storeIds порожній, і дошка
+  // не вантажилась узагалі, бо магазин не був обраний.
+  it('мережева роль отримує непорожній перемикач і робочу дошку', () => {
+    auth.login({ email: 'admin@silpo.ua', password: 'demo' }).subscribe();
+    tick(200);
+    expect(auth.hasStoreAccess()).toBe(true);
+    expect(auth.profile()?.storeIds).toEqual([]);
+
+    board.setDate(toKyivDateKey(NOW));
+    board.load();
+    tick(500);
+
+    expect(auth.stores().length).toBeGreaterThan(1);
+    expect(auth.showStoreSwitcher()).toBe(true);
+    expect(auth.selectedStore()).not.toBeNull();
+    expect(board.config()).not.toBeNull();
+    expect(board.bookings().length).toBeGreaterThan(0);
+  });
+
+  it('довідник постачальників форми walk-in приходить повністю', () => {
+    auth.login({ email: 'operator@silpo.ua', password: 'demo' }).subscribe();
+    tick(200);
+    board.setDate(toKyivDateKey(NOW));
+    board.load();
+    tick(500);
+
+    expect(board.suppliers().map((s) => s.supplierId)).toEqual(
+      SUPPLIERS.map((s) => s.supplierId),
     );
   });
 

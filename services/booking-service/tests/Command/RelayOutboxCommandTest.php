@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Command;
 
 use App\Application\Outbox\AnalyticsEventSink;
+use App\Application\Outbox\EventOutcome;
 use App\Application\Outbox\OutboxRelay;
 use App\Application\Outbox\SinkReport;
 use App\Command\RelayOutboxCommand;
@@ -29,28 +30,19 @@ final class RelayOutboxCommandTest extends TestCase
         $scenario = new Scenario();
         $scenario->book();
 
-        $tester = $this->tester($scenario, new class implements AnalyticsEventSink {
-            public function deliver(array $events): SinkReport
-            {
-                return new SinkReport(applied: \count($events));
-            }
-        });
+        $tester = $this->tester($scenario, $this->sink(EventOutcome::Applied));
 
         self::assertSame(Command::SUCCESS, $tester->execute([]));
         self::assertStringContainsString('Доставлено подій:', $tester->getDisplay());
         self::assertSame([], $scenario->outbox->pending());
+        self::assertSame(0, $scenario->outbox->countQuarantined());
     }
 
     public function testEmptyQueueIsReportedAndSucceeds(): void
     {
         $scenario = new Scenario();
 
-        $tester = $this->tester($scenario, new class implements AnalyticsEventSink {
-            public function deliver(array $events): SinkReport
-            {
-                return new SinkReport();
-            }
-        });
+        $tester = $this->tester($scenario, $this->sink(EventOutcome::Applied));
 
         self::assertSame(Command::SUCCESS, $tester->execute([]));
         self::assertStringContainsString('Черга outbox порожня', $tester->getDisplay());
@@ -79,30 +71,63 @@ final class RelayOutboxCommandTest extends TestCase
     }
 
     /**
-     * Проблемні події не мовчать: сироти і відхилення потрапляють у вивід,
-     * а код виходу відрізняється від успішного прогону.
+     * Проблемні події не мовчать: у вивід потрапляє і кількість, і причина,
+     * і підказка, як їх перепровести. Код виходу відрізняється від успішного.
      */
-    public function testProblemEventsAreLoudAndChangeTheExitCode(): void
+    public function testQuarantinedEventsAreLoudAndChangeTheExitCode(): void
     {
         $scenario = new Scenario();
         $scenario->book();
 
-        $tester = $this->tester($scenario, new class implements AnalyticsEventSink {
-            public function deliver(array $events): SinkReport
-            {
-                return new SinkReport(
-                    orphan: 1,
-                    failed: [['eventId' => 'ob-000001', 'reason' => 'Подія без поля city.']],
-                );
-            }
-        });
+        $tester = $this->tester($scenario, $this->sink(EventOutcome::Rejected, 'Подія без поля city.'));
 
         self::assertSame(Command::INVALID, $tester->execute([]));
 
         $display = $tester->getDisplay();
-        self::assertStringContainsString('сиріт', $display);
-        self::assertStringContainsString('ob-000001', $display);
+        self::assertStringContainsString('У карантин відправлено подій', $display);
         self::assertStringContainsString('Подія без поля city.', $display);
+        self::assertStringContainsString('--requeue-failed', $display);
+        self::assertStringContainsString('НЕ втрачені', $display);
+    }
+
+    /**
+     * Головна гарантія: жодна відхилена подія не позначається доставленою.
+     * Саме через це на стенді безслідно зникли 536 подій.
+     */
+    public function testRejectedEventsStayInOutboxAndAreNotPublished(): void
+    {
+        $scenario = new Scenario();
+        $scenario->book();
+        $total = \count($scenario->outbox->pending());
+
+        $tester = $this->tester($scenario, $this->sink(EventOutcome::Rejected, 'Немає rampId.'));
+        $tester->execute([]);
+
+        self::assertSame($total, $scenario->outbox->countQuarantined());
+
+        foreach ($scenario->outbox->all() as $record) {
+            self::assertNull($record->publishedAt);
+            self::assertTrue($record->isQuarantined());
+            self::assertStringContainsString('Немає rampId.', (string) $record->failureReason);
+        }
+    }
+
+    /** Після виправлення формату карантин повертається в чергу одним ключем. */
+    public function testRequeueFailedReturnsQuarantineToTheQueue(): void
+    {
+        $scenario = new Scenario();
+        $scenario->book();
+        $total = \count($scenario->outbox->pending());
+
+        $this->tester($scenario, $this->sink(EventOutcome::Rejected, 'Немає rampId.'))->execute([]);
+        self::assertSame($total, $scenario->outbox->countQuarantined());
+
+        $tester = $this->tester($scenario, $this->sink(EventOutcome::Applied));
+        self::assertSame(Command::SUCCESS, $tester->execute(['--requeue-failed' => true]));
+
+        self::assertStringContainsString('Повернуто з карантину в чергу', $tester->getDisplay());
+        self::assertSame(0, $scenario->outbox->countQuarantined());
+        self::assertSame([], $scenario->outbox->pending());
     }
 
     private function tester(Scenario $scenario, AnalyticsEventSink $sink): CommandTester
@@ -110,5 +135,29 @@ final class RelayOutboxCommandTest extends TestCase
         return new CommandTester(new RelayOutboxCommand(
             new OutboxRelay($scenario->outbox, $sink, $scenario->clock),
         ));
+    }
+
+    /** Приймач з однаковим присудом на всі події пакета. */
+    private function sink(EventOutcome $outcome, ?string $reason = null): AnalyticsEventSink
+    {
+        return new class($outcome, $reason) implements AnalyticsEventSink {
+            public function __construct(
+                private EventOutcome $outcome,
+                private ?string $reason,
+            ) {
+            }
+
+            public function deliver(array $events): SinkReport
+            {
+                return SinkReport::fromRows(array_map(
+                    fn (int $index): array => [
+                        'index' => $index,
+                        'outcome' => $this->outcome,
+                        'reason' => $this->reason,
+                    ],
+                    array_keys($events),
+                ));
+            }
+        };
     }
 }

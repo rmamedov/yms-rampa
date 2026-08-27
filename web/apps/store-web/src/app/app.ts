@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/auth/auth.service';
 import { BoardStore } from './core/data/board.store';
@@ -8,7 +9,7 @@ import { StoreScope } from './core/models/auth.model';
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe],
+  imports: [FormsModule, RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './app.html',
 })
@@ -20,6 +21,10 @@ export class App {
   readonly profile = this.auth.profile;
   readonly stores = this.auth.stores;
   readonly selectedStore = this.auth.selectedStore;
+  /** Значення перемикача філії: рівно те, що вважає обраним сесія. */
+  readonly selectedStoreId = computed(
+    () => this.auth.selectedStore()?.storeId ?? null,
+  );
   readonly showSwitcher = this.auth.showStoreSwitcher;
   readonly showChrome = computed(
     () => this.auth.isAuthenticated() && this.auth.hasStoreAccess(),

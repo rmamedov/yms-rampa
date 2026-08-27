@@ -86,7 +86,8 @@ final class OutboxTest extends TestCase
         $event = $scenario->outbox->eventsOfType('UnloadingCompleted')[0];
 
         self::assertSame(5, $event->payload['unloadedPalletsCount']);
-        self::assertSame('бій/брак', $event->payload['partialUnload']['reason']);
+        self::assertTrue($event->payload['partialUnload']);
+        self::assertSame('бій/брак', $event->payload['partialUnloadDetails']['reason']);
     }
 
     public function testPendingRecordsAreReturnedInOccurrenceOrder(): void

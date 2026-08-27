@@ -51,6 +51,61 @@ final class InMemoryOutboxStore implements OutboxStore
         $this->records[$recordId] = new OutboxRecord($record->id, $record->event, $publishedAt, $record->attempts + 1);
     }
 
+    public function markFailed(string $recordId, string $reason, DateTimeImmutable $failedAt): void
+    {
+        $record = $this->records[$recordId] ?? null;
+
+        if (null === $record) {
+            return;
+        }
+
+        $this->records[$recordId] = new OutboxRecord(
+            $record->id,
+            $record->event,
+            attempts: $record->attempts + 1,
+            failedAt: $failedAt,
+            failureReason: $reason,
+        );
+    }
+
+    public function quarantined(int $limit = 100): array
+    {
+        $quarantined = array_values(array_filter(
+            $this->records,
+            static fn (OutboxRecord $record) => $record->isQuarantined(),
+        ));
+
+        usort($quarantined, static fn (OutboxRecord $a, OutboxRecord $b) => [$a->event->occurredAt, $a->id] <=> [$b->event->occurredAt, $b->id]);
+
+        return \array_slice($quarantined, 0, $limit);
+    }
+
+    public function countQuarantined(): int
+    {
+        return \count(array_filter(
+            $this->records,
+            static fn (OutboxRecord $record) => $record->isQuarantined(),
+        ));
+    }
+
+    public function requeueFailed(): int
+    {
+        $requeued = 0;
+
+        foreach ($this->records as $id => $record) {
+            if (!$record->isQuarantined()) {
+                continue;
+            }
+
+            // Лічильник спроб зберігається навмисно: видно, скільки разів
+            // запис уже намагалися провести.
+            $this->records[$id] = new OutboxRecord($record->id, $record->event, attempts: $record->attempts);
+            ++$requeued;
+        }
+
+        return $requeued;
+    }
+
     /**
      * @return list<OutboxRecord>
      */

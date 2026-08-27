@@ -10,22 +10,26 @@ namespace App\Application\Outbox;
 final readonly class RelayReport
 {
     public function __construct(
-        /** Скільки записів outbox позначено опублікованими. */
+        /** Скільки записів споживач ПРИЙНЯВ — саме вони пішли з черги. */
         public int $delivered,
-        /** Скільки пакетів реально пішло сусідові. */
+        /** Скільки записів цього прогону відправлено в карантин. */
+        public int $quarantined,
+        /** Скільки пакетів реально пішло споживачеві. */
         public int $batches,
-        /** Що сусід зробив з подіями. */
+        /** Присуд за кожною подією. */
         public SinkReport $sink,
         /**
          * true — черга вичерпана до кінця; false — упертися в стелю пакетів,
          * решта поїде наступного прогону.
          */
         public bool $queueDrained,
+        /** Скільки записів у карантині ВСЬОГО, разом із попередніми прогонами. */
+        public int $quarantineTotal = 0,
     ) {
     }
 
     public function isEmpty(): bool
     {
-        return 0 === $this->delivered;
+        return 0 === $this->delivered && 0 === $this->quarantined;
     }
 }

@@ -30,12 +30,14 @@ use App\Domain\Shared\Clock;
  * прогону. Повторна доставка безпечна: analytics-service дедуплікує події за
  * eventId.
  *
- * ЧОМУ ЗАПИС ПОЗНАЧАЄТЬСЯ ОПУБЛІКОВАНИМ НАВІТЬ ПРИ `orphan` / `failed`.
- * Черга впорядкована за часом виникнення, тому подія, для якої немає
- * BookingCreated, уже ніколи його не дочекається — залишити її неопублікованою
- * означало б назавжди зупинити релей на одному непридатному записі і знову
- * лишити аналітику без даних. Тому пакет, який сусід ПРИЙНЯВ, вважається
- * доставленим, а проблемні події гучно потрапляють у звіт і в журнал команди.
+ * ЩО РОБИТЬСЯ З ПОДІЯМИ, ЯКИХ СПОЖИВАЧ НЕ ПРИЙНЯВ (сирота, нерозбірливий
+ * payload). Опублікованими вони НЕ позначаються — це була найдорожча помилка
+ * першої версії: перший прогін на стенді «доставив» 1301 подію, з яких
+ * застосовано 765, а решта зникла з черги без сліду і без можливості
+ * перепровести. Тепер такий запис іде в КАРАНТИН (OutboxStore::markFailed):
+ * він не блокує чергу, зберігає причину й лічильник спроб, лишається видимим
+ * у звіті кожного прогону і повертається в чергу командою
+ * `yms:outbox:relay --requeue-failed` після виправлення формату подій.
  *
  * Про добір поля `city` для подій, записаних до появи цього релея, —
  * див. self::withCity.
@@ -77,6 +79,7 @@ final readonly class OutboxRelay
         int $maxBatches = self::DEFAULT_MAX_BATCHES,
     ): RelayReport {
         $delivered = 0;
+        $quarantined = 0;
         $batches = 0;
         $sink = new SinkReport();
         // Розрізняємо «черга скінчилася» і «упертися в стелю пакетів»:
@@ -92,14 +95,38 @@ final readonly class OutboxRelay
                 break;
             }
 
-            $sink = $sink->plus($this->sink->deliver(array_map($this->envelope(...), $records)));
+            $report = $this->sink->deliver(array_map($this->envelope(...), $records));
+            $sink = $sink->plus($report);
             ++$batches;
 
-            $publishedAt = $this->clock->now();
+            $now = $this->clock->now();
 
-            foreach ($records as $record) {
-                $this->outbox->markPublished($record->id, $publishedAt);
-                ++$delivered;
+            foreach ($records as $index => $record) {
+                $outcome = $report->outcomeAt($index);
+
+                // Присуду немає — контракт порушено. Транспорт це вже мав
+                // відсікти винятком; якщо ні, запис лишається в черзі
+                // недоторканим: краще повторна доставка, ніж утрата.
+                if (null === $outcome) {
+                    continue;
+                }
+
+                if ($outcome->isDelivered()) {
+                    $this->outbox->markPublished($record->id, $now);
+                    ++$delivered;
+
+                    continue;
+                }
+
+                // Сирота або відхилення: у карантин із причиною, а НЕ в
+                // «опубліковані». Запис лишається видимим і придатним до
+                // перепроведення (--requeue-failed) після виправлення payload.
+                $this->outbox->markFailed(
+                    $record->id,
+                    \sprintf('%s: %s', $outcome->label(), $report->reasonAt($index) ?? 'причину не вказано'),
+                    $now,
+                );
+                ++$quarantined;
             }
 
             // Порція неповна — черга вичерпана, наступний запит був би марним.
@@ -112,10 +139,22 @@ final readonly class OutboxRelay
 
         return new RelayReport(
             delivered: $delivered,
+            quarantined: $quarantined,
             batches: $batches,
             sink: $sink,
             queueDrained: $queueDrained,
+            quarantineTotal: $this->outbox->countQuarantined(),
         );
+    }
+
+    /**
+     * Повернути карантин у чергу — після того, як формат подій виправлено.
+     *
+     * @return int скільки записів повернено
+     */
+    public function requeueQuarantined(): int
+    {
+        return $this->outbox->requeueFailed();
     }
 
     /**
@@ -179,7 +218,10 @@ final readonly class OutboxRelay
         // подію як є: сусід чесно поверне її в переліку `failed`.
         $booking = $this->bookings?->find($record->event->aggregateId);
 
-        if (null === $booking) {
+        // Бронювання зникло (жорстке чищення стенду) або сама філія не має
+        // міста в довіднику — вигадувати нічого не будемо. Аналітика такий
+        // факт приймає і відносить у групу «Місто не вказано».
+        if (null === $booking || '' === $booking->storeSnapshot->city) {
             return $payload;
         }
 

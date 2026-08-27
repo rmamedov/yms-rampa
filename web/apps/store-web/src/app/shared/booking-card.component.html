@@ -50,11 +50,22 @@
   </dl>
 
   <!--
-    Бекенд віддає лише driverId: ПІБ і телефон водія в контурі магазину
-    недоступні (див. заявку на бекенд у README контракту).
+    Дошка віддає знімок профілю водія (`driver`) поруч із `driverId`. Профілю
+    може не бути (водія не призначено, профіль недоступний) — тоді лишається
+    ідентифікатор, а якщо немає і його, кажемо про це прямо.
   -->
   <p class="bcard__driver">
-    @if (b.driverId) {
+    @if (b.driver; as driver) {
+      <span>{{ 'card.driverName' | t: { name: driver.fullName } }}</span>
+      @if (driver.phone) {
+        <a class="bcard__phone" [href]="'tel:' + driver.phone">{{
+          driver.phone
+        }}</a>
+      }
+      @if (!driver.active) {
+        <span class="muted">{{ 'card.driverInactive' | t }}</span>
+      }
+    } @else if (b.driverId) {
       <span>{{ 'card.driverId' | t: { id: b.driverId } }}</span>
     } @else {
       <span class="muted">{{ 'card.noDriver' | t }}</span>

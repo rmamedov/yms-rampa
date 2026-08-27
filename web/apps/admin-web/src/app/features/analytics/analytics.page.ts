@@ -173,11 +173,33 @@ export class AnalyticsPage {
     this.load();
   }
 
-  protected percent(value: number | undefined): string {
-    return value === undefined ? '—' : `${value.toFixed(1)}%`;
+  /**
+   * Показник може бути НЕ ВИЗНАЧЕНИЙ, і це нормальний стан: утилізація рамп
+   * повертає null, поки немає інвентарю слото-хвилин. Раніше тут падало
+   * `null.toFixed()`, і одне порожнє значення валило рендер УСЬОГО дашборда —
+   * користувач бачив порожню сторінку замість решти KPI.
+   */
+  /**
+   * Розріз приходить із бекенду лише з ідентифікатором рядка, тому в таблиці
+   * стояли UUID. Назви беремо з довідників, які сторінка вже завантажила для
+   * фільтрів; якщо назви немає — лишається ідентифікатор, це чесніше за порожньо.
+   */
+  protected rowLabel(dimension: string, key: string): string {
+    const source =
+      dimension === 'store'
+        ? this.storeOptions()
+        : dimension === 'supplier'
+          ? this.supplierOptions()
+          : this.cityOptions();
+
+    return source.find((o) => o.value === key)?.label ?? key;
   }
 
-  protected barWidth(value: number | undefined): string {
+  protected percent(value: number | null | undefined): string {
+    return value === null || value === undefined ? '—' : `${value.toFixed(1)}%`;
+  }
+
+  protected barWidth(value: number | null | undefined): string {
     return `${Math.round(Math.min(100, Math.max(0, value ?? 0)))}%`;
   }
 

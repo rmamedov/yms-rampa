@@ -112,9 +112,14 @@ final class HttpSupplierDirectory implements SupplierDirectory
         $suppliers = [];
 
         for ($offset = 0; $offset < self::MAX_SCAN; $offset += self::PAGE_SIZE) {
+            // storeId навмисно НЕ передаємо: сусід за ним відфільтрував би
+            // список до постачальників, яким уже дозволено возити в цю філію.
+            // Для walk-in це неправильно за визначенням — прибуття тому й
+            // позапланове, що постачальник міг не мати доступу. Приймальник
+            // мусить бачити всіх активних, інакше заведе «поза системою»
+            // замість справжнього контрагента.
             $payload = $this->gateway->getJson(\sprintf(
-                '/internal/v1/suppliers?storeId=%s&limit=%d&offset=%d',
-                rawurlencode($storeId),
+                '/internal/v1/suppliers?limit=%d&offset=%d',
                 self::PAGE_SIZE,
                 $offset,
             ));

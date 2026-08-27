@@ -156,7 +156,7 @@
         <tbody>
           @for (row of breakdown()?.rows ?? []; track row.key) {
             <tr>
-              <td class="mono">{{ row.key }}</td>
+              <td>{{ rowLabel(row.dimension, row.key) }}</td>
               <td>{{ row.kpi.counters.total }}</td>
               <td>
                 <div class="bar">

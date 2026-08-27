@@ -132,16 +132,24 @@
     </div>
   }
 
-  <div class="mobile-list">
-    @for (booking of store.listView(); track booking.id) {
-      <app-booking-card
-        [booking]="booking"
-        [atRisk]="isAtRisk(booking)"
-        [overrun]="isOverrun(booking)"
-        (action)="onAction(booking, $event)"
-      />
-    }
-  </div>
+  <!--
+    Мобільний список — те саме, що дошка, лише для вузьких екранів, тому він
+    підпорядкований тим самим станам. Раніше він стояв поза цією розвилкою і
+    доки вантажилась нова дата, показував картки ПОПЕРЕДНЬОЇ — поруч із написом
+    «Завантаження…», але з виглядом актуальних даних.
+  -->
+  @if (!store.loading() && store.filteredBookings().length > 0) {
+    <div class="mobile-list">
+      @for (booking of store.listView(); track booking.id) {
+        <app-booking-card
+          [booking]="booking"
+          [atRisk]="isAtRisk(booking)"
+          [overrun]="isOverrun(booking)"
+          (action)="onAction(booking, $event)"
+        />
+      }
+    </div>
+  }
 </section>
 
 @if (dialog() === 'complete' && selected()) {

@@ -348,4 +348,88 @@ describe('MockBackend — дошка і дії магазину', () => {
       true,
     );
   });
+
+  it('віддає слот у формі StaffSlotPresenter (localStart, selectable, bookingId)', () => {
+    const slots = backend.getSlots(STORE_ID, TODAY);
+    expect(slots.length).toBeGreaterThan(0);
+    for (const slot of slots) {
+      expect(Object.keys(slot).sort()).toEqual([
+        'bookingId',
+        'localStart',
+        'rampId',
+        'selectable',
+        'slotEnd',
+        'slotStart',
+        'state',
+      ]);
+      expect(slot.localStart).toMatch(/^\d{2}:\d{2}$/);
+      // Обирати можна рівно вільні клітинки.
+      expect(slot.selectable).toBe(slot.state === 'available');
+    }
+    const booked = slots.find((s) => s.state === 'booked');
+    expect(booked?.bookingId).toBeTruthy();
+  });
+
+  it('дошка приходить обʼєктом зі storeId, date і серверним now', () => {
+    const board = backend.getBoard(STORE_ID, TODAY);
+    expect(board.storeId).toBe(STORE_ID);
+    expect(board.date).toBe(TODAY);
+    expect(board.now).toBe(NOW);
+    expect(Array.isArray(board.bookings)).toBe(true);
+  });
+
+  it('журнал дій записує роль, контур і позначку виконавця (DATA-14)', () => {
+    const created = walkIn();
+    const arrived = toBooking(created).statusHistory[0];
+    expect(arrived.by).toBe('u-operator');
+    expect(arrived.byRole).toBe('store_operator');
+    expect(arrived.byContour).toBe('staff');
+    // Позначка — з довідника booking-service, а не ідентифікатор.
+    expect(arrived.byLabel).toBe('Приймальник магазину');
+  });
+
+  it('бронювання дошки несе знімок профілю водія поруч із driverId', () => {
+    const withDriver = backend
+      .getBoard(STORE_ID, TODAY)
+      .bookings.find((b) => b.driverId !== null);
+    expect(withDriver).toBeDefined();
+    const booking = toBooking(withDriver as WireBooking);
+    expect(booking.driver?.driverId).toBe(booking.driverId);
+    expect(booking.driver?.fullName.length).toBeGreaterThan(0);
+  });
+});
+
+describe('MockBackend — перелік магазинів (GET /stores)', () => {
+  let backend: MockBackend;
+
+  beforeEach(() => {
+    backend = new MockBackend();
+    backend.clock = () => NOW;
+  });
+
+  it('магазинна роль отримує рівно свої філії', () => {
+    const user = backend.login({ email: 'operator@silpo.ua', password: 'x' }).user;
+    expect(backend.getStores().map((s) => s.storeId)).toEqual([
+      ...user.scope.storeIds,
+    ]);
+  });
+
+  // Саме тут ламався перемикач: у профілю мережевої ролі скоуп порожній,
+  // тому перелік має давати маршрут, а не профіль (RBAC-16).
+  it('мережева роль отримує всі активні філії попри порожній скоуп', () => {
+    const user = backend.login({ email: 'admin@silpo.ua', password: 'x' }).user;
+    expect(user.scope.storeIds).toEqual([]);
+
+    const stores = backend.getStores();
+    expect(stores.length).toBeGreaterThan(1);
+    expect(stores.every((s) => s.ymsStatus === 'active')).toBe(true);
+    expect(Object.keys(stores[0]).sort()).toEqual([
+      'address',
+      'city',
+      'displayName',
+      'externalId',
+      'storeId',
+      'ymsStatus',
+    ]);
+  });
 });

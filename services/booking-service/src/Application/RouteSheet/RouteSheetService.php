@@ -273,8 +273,14 @@ final readonly class RouteSheetService
         $booking->assignDriver($driverId, $now);
 
         $this->bookings->save($booking, [
+            // Подія збирається тут вручну, повз Booking::event(), тому спільні
+            // поля доводиться перелічувати явно. `rampId` обовʼязковий:
+            // BookingReassigned без нього аналітика відкидає цілком.
             DomainEvent::forBooking(EventType::BookingReassigned, $booking->id, [
                 'bookingId' => $booking->id,
+                'storeId' => $booking->storeId,
+                'rampId' => $booking->rampId(),
+                'supplierId' => $booking->supplierId,
                 'reason' => 'driver_assignment',
                 'previousDriverId' => $previousDriverId,
                 'driverId' => $driverId,

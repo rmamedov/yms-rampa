@@ -3,7 +3,6 @@ import { Observable, map, of, shareReplay, tap, throwError } from 'rxjs';
 import {
   AuthTokens,
   LoginRequest,
-  NETWORK_WIDE_ROLES,
   StaffProfile,
   STORE_ROLES,
   StoreScope,
@@ -60,13 +59,6 @@ export class AuthService {
     return profile !== null && STORE_ROLES.includes(profile.role);
   });
 
-  /** RBAC-16: скоуп таких ролей задає роль, а не перелік `storeIds`. */
-  readonly isNetworkWide = computed(() => {
-    const profile = this.profileSignal();
-    if (profile === null) return false;
-    return profile.networkWide || NETWORK_WIDE_ROLES.includes(profile.role);
-  });
-
   readonly stores = computed<readonly StoreScope[]>(() => {
     const labels = this.labelsSignal();
     const fromServer = this.scopeSignal();
@@ -96,6 +88,22 @@ export class AuthService {
   readonly isManager = computed(
     () => this.profileSignal()?.role === 'store_manager',
   );
+
+  constructor() {
+    // STW-02: збережений вибір філії перевіряється за відомим переліком одразу
+    // на старті сесії.
+    //
+    // Без цього підмінений у localStorage ідентифікатор переживав
+    // перезавантаження: перелік філій піднімався з кешу, `ensureStores()`
+    // замикався накоротко і `restoreStoreSelection()` не викликався жодного
+    // разу. На екрані застосунок відкочувався на першу дозволену філію, але в
+    // сховищі лишався чужий ідентифікатор — і повертався в роботу, щойно
+    // перелік оновлювався.
+    const cached = this.scopeSignal();
+    if (cached !== null) {
+      this.restoreStoreSelection(cached.map((s) => s.storeId));
+    }
+  }
 
   login(request: LoginRequest): Observable<StaffProfile> {
     return this.gateway.login(request).pipe(

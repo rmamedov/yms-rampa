@@ -673,6 +673,18 @@
   overflow-x: auto;
 }
 
+/* Колонка «Хто» журналу дій: підпис — людиночитаний, ID — технічний рядок. */
+.log__actor {
+  display: block;
+  font-weight: var(--fw-medium);
+}
+
+.log__actorid {
+  display: block;
+  font-size: var(--fs-xs);
+  word-break: break-all;
+}
+
 .mobile-list {
   display: none;
   flex-direction: column;

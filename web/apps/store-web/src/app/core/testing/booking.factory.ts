@@ -22,6 +22,12 @@ export function makeBooking(overrides: Partial<Booking> = {}): Booking {
     supplierName: 'ТОВ «Молокія»',
     vehicle: { plateNumber: 'AA1234BB', weightTons: 5, brand: 'MAN' },
     driverId: 'dr-01',
+    driver: {
+      driverId: 'dr-01',
+      fullName: 'Коваленко Петро',
+      phone: '+380671234567',
+      active: true,
+    },
     orderId: 'ORD-1001',
     palletsCount: 26,
     delayed: { flag: false, reason: null, eta: null },

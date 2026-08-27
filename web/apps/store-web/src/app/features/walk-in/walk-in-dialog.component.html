@@ -108,7 +108,9 @@
 
   <div class="field">
     <label class="field__label" for="wi-slot">{{ 'walkIn.slot' | t }}</label>
-    @if (options().length === 0) {
+    @if (slotsLoading()) {
+      <p class="muted">{{ 'common.loading' | t }}</p>
+    } @else if (options().length === 0) {
       <p class="form-error">{{ 'walkIn.noFreeSlots' | t }}</p>
     } @else {
       <select

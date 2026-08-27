@@ -6,8 +6,21 @@ import {
 } from '@angular/common/http/testing';
 import { HttpStoreGateway } from './http-store.gateway';
 import { HttpAuthGateway } from './http-auth.gateway';
-import { StoreGateway, AuthGateway } from './gateways';
-import { WireAuthTokenResponse, WireBooking } from '../api/wire.model';
+import {
+  BoardSnapshot,
+  StoreGateway,
+  AuthGateway,
+  WeekDaySlots,
+} from './gateways';
+import {
+  WireAuthTokenResponse,
+  WireBooking,
+  WireSlot,
+  WireStoreBrief,
+  WireStoreConfig,
+} from '../api/wire.model';
+import { StoreScope } from '../models/auth.model';
+import { Slot, StoreConfig, SupplierRef } from '../models/store.model';
 import { AppError } from '../models/problem.model';
 
 const BASE = '/api/store/v1';
@@ -51,6 +64,124 @@ const WIRE_BOOKING: WireBooking = {
   updatedAt: '2026-08-27T06:50:00Z',
   statusHistory: [
     { from: 'booked', to: 'arrived', at: '2026-08-27T06:50:00Z', by: 'dr-01' },
+  ],
+};
+
+// --- Зрізи реальних відповідей стенду --------------------------------------
+
+const WIRE_STORES: readonly WireStoreBrief[] = [
+  {
+    storeId: 'st-1',
+    externalId: '2207',
+    displayName: 'Сільпо, бульв. Кельнський, 1',
+    city: 'Дніпро',
+    address: 'бульв. Кельнський, 1',
+    ymsStatus: 'active',
+  },
+  {
+    storeId: 'st-2',
+    externalId: '2262',
+    displayName: 'Сільпо, бульв. Слави, 5',
+    city: 'Дніпро',
+    address: 'бульв. Слави, 5',
+    ymsStatus: 'active',
+  },
+];
+
+const WIRE_CONFIG: WireStoreConfig = {
+  storeId: 'st-1',
+  externalId: '2207',
+  displayName: 'Сільпо, бульв. Кельнський, 1',
+  city: 'Дніпро',
+  address: 'бульв. Кельнський, 1',
+  ramps: [
+    { rampId: 'ramp-1', name: 'Рампа 1', active: true },
+    { rampId: 'ramp-2', name: 'Рампа 2', active: false },
+  ],
+  slotSizeMinutes: 30,
+  receivingWindows: [
+    { dayOfWeek: 1, intervals: [{ from: '08:00', to: '14:00' }] },
+    { dayOfWeek: 2, intervals: [{ from: '08:00', to: '14:00' }] },
+  ],
+  maxVehicleWeightTons: 20,
+  noShowGraceMinutes: 30,
+  leadTimeMinutes: 60,
+  horizonDays: 14,
+};
+
+const WIRE_SLOTS: readonly WireSlot[] = [
+  {
+    rampId: 'ramp-1',
+    slotStart: '2026-08-28T05:00:00Z',
+    slotEnd: '2026-08-28T05:30:00Z',
+    localStart: '08:00',
+    state: 'booked',
+    selectable: false,
+    bookingId: 'bk-77',
+  },
+  {
+    rampId: 'ramp-2',
+    slotStart: '2026-08-28T05:00:00Z',
+    slotEnd: '2026-08-28T05:30:00Z',
+    localStart: '08:00',
+    state: 'available',
+    selectable: true,
+    bookingId: null,
+  },
+  {
+    rampId: 'ramp-2',
+    slotStart: '2026-08-28T05:30:00Z',
+    slotEnd: '2026-08-28T06:00:00Z',
+    localStart: '08:30',
+    state: 'reserved',
+    selectable: false,
+    bookingId: null,
+    reservedForSupplierId: 'sp-09',
+  },
+  {
+    rampId: 'ramp-1',
+    slotStart: '2026-08-28T06:00:00Z',
+    slotEnd: '2026-08-28T06:30:00Z',
+    localStart: '09:00',
+    state: 'blocked',
+    selectable: false,
+    bookingId: null,
+    blockReason: 'санітарна година',
+  },
+];
+
+/** Бронювання дошки: зі знімком водія і журналом обох поколінь. */
+const WIRE_BOOKING_WITH_DRIVER: WireBooking = {
+  ...WIRE_BOOKING,
+  status: 'arrived',
+  delayed: { flag: true, reason: 'затори', eta: '2026-08-28T07:15:00Z' },
+  driver: {
+    driverId: 'dr-01',
+    fullName: 'Коваленко Петро',
+    phone: '+380671234567',
+    active: true,
+  },
+  statusHistory: [
+    // Старий запис: ролі виконавця бекенд тоді не зберігав.
+    {
+      from: null,
+      to: 'booked',
+      at: '2026-08-26T05:00:00Z',
+      by: 'sp-01',
+      byRole: null,
+      byContour: null,
+      byLabel: null,
+    },
+    {
+      from: 'booked',
+      to: 'arrived',
+      at: '2026-08-27T06:50:00Z',
+      by: 'u-77',
+      byRole: 'store_manager',
+      byContour: 'staff',
+      byLabel: 'Керівник магазину',
+      meta: { source: 'store' },
+    },
   ],
 };
 
@@ -207,14 +338,281 @@ describe('HttpStoreGateway — контракт /api/store/v1', () => {
     );
   });
 
-  it('читальні маршрути не б’ють у мережу, а повідомляють про брак бекенду', (done) => {
-    gateway.getBoard('s-1', '2026-08-27').subscribe({
+  // -------------------------------------------------------------------------
+  // Читання. Перевіряється і маршрут, і мапінг кожної відповіді у моделі.
+  // Тіла відповідей — зрізи реального стенду.
+  // -------------------------------------------------------------------------
+
+  function expectGet(url: string): ReturnType<HttpTestingController['expectOne']> {
+    const request = http.expectOne(url);
+    expect(request.request.method).toBe('GET');
+    return request;
+  }
+
+  it('GET /stores → перелік філій під StoreScope', () => {
+    let received: readonly StoreScope[] = [];
+    gateway.getStores().subscribe((stores) => (received = stores));
+
+    expectGet(`${BASE}/stores`).flush(WIRE_STORES);
+
+    expect(received).toEqual([
+      {
+        storeId: 'st-1',
+        externalId: '2207',
+        displayName: 'Сільпо, бульв. Кельнський, 1',
+        city: 'Дніпро',
+        address: 'бульв. Кельнський, 1',
+      },
+      {
+        storeId: 'st-2',
+        externalId: '2262',
+        displayName: 'Сільпо, бульв. Слави, 5',
+        city: 'Дніпро',
+        address: 'бульв. Слави, 5',
+      },
+    ]);
+  });
+
+  it('GET /stores віддає перелік цілком, без зрізів', () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({
+      storeId: `st-${i + 1}`,
+      externalId: String(2200 + i),
+      displayName: `Сільпо №${2200 + i}`,
+      city: 'Київ',
+      address: `вул. Тестова, ${i + 1}`,
+      ymsStatus: 'active',
+    }));
+    let received: readonly StoreScope[] = [];
+    gateway.getStores().subscribe((stores) => (received = stores));
+    expectGet(`${BASE}/stores`).flush(many);
+
+    expect(received).toHaveLength(30);
+    expect(received.at(-1)?.externalId).toBe('2229');
+  });
+
+  it('GET /stores/{id}/config → StoreConfig із рампами і вікнами прийому', () => {
+    let received: StoreConfig | null = null;
+    gateway.getStoreConfig('st-1').subscribe((config) => (received = config));
+
+    expectGet(`${BASE}/stores/st-1/config`).flush(WIRE_CONFIG);
+
+    expect(received).toEqual(WIRE_CONFIG);
+    const config = received as unknown as StoreConfig;
+    expect(config.ramps.map((r) => r.rampId)).toEqual(['ramp-1', 'ramp-2']);
+    expect(config.receivingWindows[0]).toEqual({
+      dayOfWeek: 1,
+      intervals: [{ from: '08:00', to: '14:00' }],
+    });
+    expect(config.slotSizeMinutes).toBe(30);
+    expect(config.maxVehicleWeightTons).toBe(20);
+    expect(config.horizonDays).toBe(14);
+  });
+
+  it('GET /stores/{id}/suppliers → повний довідник для walk-in', () => {
+    const wire = Array.from({ length: 21 }, (_, i) => ({
+      supplierId: `sup-${i + 1}`,
+      name: `Постачальник ${i + 1}`,
+    }));
+    let received: readonly SupplierRef[] = [];
+    gateway.getSuppliers('st-1').subscribe((list) => (received = list));
+
+    expectGet(`${BASE}/stores/st-1/suppliers`).flush(wire);
+
+    // Довідник не пагінований — жодного постачальника губити не можна.
+    expect(received).toHaveLength(21);
+    expect(received[0]).toEqual({ supplierId: 'sup-1', name: 'Постачальник 1' });
+    expect(received.at(-1)).toEqual({
+      supplierId: 'sup-21',
+      name: 'Постачальник 21',
+    });
+  });
+
+  it('GET /bookings?storeId=&date= → бронювання плюс серверний now', () => {
+    let received: BoardSnapshot | null = null;
+    gateway.getBoard('st-1', '2026-08-28').subscribe((s) => (received = s));
+
+    const request = expectGet(
+      `${BASE}/bookings?storeId=st-1&date=2026-08-28`,
+    );
+    expect(request.request.params.get('storeId')).toBe('st-1');
+    expect(request.request.params.get('date')).toBe('2026-08-28');
+    request.flush({
+      storeId: 'st-1',
+      date: '2026-08-28',
+      now: '2026-08-28T06:30:00Z',
+      bookings: [WIRE_BOOKING_WITH_DRIVER],
+    });
+
+    const snapshot = received as unknown as BoardSnapshot;
+    expect(snapshot.now).toBe('2026-08-28T06:30:00Z');
+    expect(snapshot.bookings).toHaveLength(1);
+    const booking = snapshot.bookings[0];
+    expect(booking.id).toBe(BOOKING_ID);
+    expect(booking.type).toBe('scheduled');
+    expect(booking.rampId).toBe('r1');
+    expect(booking.supplierName).toBe('ТОВ «Молокія»');
+    expect(booking.orderId).toBe('ORD-1001');
+    expect(booking.palletsCount).toBe(26);
+    expect(booking.delayed).toEqual({
+      flag: true,
+      reason: 'затори',
+      eta: '2026-08-28T07:15:00Z',
+    });
+    expect(booking.arrivedAt).toBe('2026-08-27T06:50:00Z');
+    // Знімок профілю водія поруч із голим driverId.
+    expect(booking.driverId).toBe('dr-01');
+    expect(booking.driver).toEqual({
+      driverId: 'dr-01',
+      fullName: 'Коваленко Петро',
+      phone: '+380671234567',
+      active: true,
+    });
+  });
+
+  it('журнал дій отримує роль, контур і позначку виконавця поруч із by', () => {
+    let received: BoardSnapshot | null = null;
+    gateway.getBoard('st-1', '2026-08-28').subscribe((s) => (received = s));
+    expectGet(`${BASE}/bookings?storeId=st-1&date=2026-08-28`).flush({
+      storeId: 'st-1',
+      date: '2026-08-28',
+      now: '2026-08-28T06:30:00Z',
+      bookings: [WIRE_BOOKING_WITH_DRIVER],
+    });
+
+    const history = (received as unknown as BoardSnapshot).bookings[0]
+      .statusHistory;
+    expect(history[0]).toEqual({
+      from: null,
+      to: 'booked',
+      at: '2026-08-26T05:00:00Z',
+      by: 'sp-01',
+      // Запис зроблено до появи полів виконавця — чесне «невідомо».
+      byRole: null,
+      byContour: null,
+      byLabel: null,
+      meta: {},
+    });
+    expect(history[1]).toEqual({
+      from: 'booked',
+      to: 'arrived',
+      at: '2026-08-27T06:50:00Z',
+      by: 'u-77',
+      byRole: 'store_manager',
+      byContour: 'staff',
+      byLabel: 'Керівник магазину',
+      meta: { source: 'store' },
+    });
+  });
+
+  it('GET /stores/{id}/slots?date= → сітка доби з bookingId клітинки', () => {
+    let received: readonly Slot[] = [];
+    gateway.getSlots('st-1', '2026-08-28').subscribe((s) => (received = s));
+
+    const request = expectGet(
+      `${BASE}/stores/st-1/slots?date=2026-08-28`,
+    );
+    expect(request.request.params.get('date')).toBe('2026-08-28');
+    request.flush(WIRE_SLOTS);
+
+    expect(received).toEqual([
+      {
+        rampId: 'ramp-1',
+        slotStart: '2026-08-28T05:00:00Z',
+        slotEnd: '2026-08-28T05:30:00Z',
+        localStart: '08:00',
+        state: 'booked',
+        selectable: false,
+        bookingId: 'bk-77',
+        reservedForSupplierId: null,
+        blockReason: null,
+      },
+      {
+        rampId: 'ramp-2',
+        slotStart: '2026-08-28T05:00:00Z',
+        slotEnd: '2026-08-28T05:30:00Z',
+        localStart: '08:00',
+        state: 'available',
+        selectable: true,
+        bookingId: null,
+        reservedForSupplierId: null,
+        blockReason: null,
+      },
+      // Необовʼязкові поля бекенд додає лише за наявності значення.
+      {
+        rampId: 'ramp-2',
+        slotStart: '2026-08-28T05:30:00Z',
+        slotEnd: '2026-08-28T06:00:00Z',
+        localStart: '08:30',
+        state: 'reserved',
+        selectable: false,
+        bookingId: null,
+        reservedForSupplierId: 'sp-09',
+        blockReason: null,
+      },
+      {
+        rampId: 'ramp-1',
+        slotStart: '2026-08-28T06:00:00Z',
+        slotEnd: '2026-08-28T06:30:00Z',
+        localStart: '09:00',
+        state: 'blocked',
+        selectable: false,
+        bookingId: null,
+        reservedForSupplierId: null,
+        blockReason: 'санітарна година',
+      },
+    ]);
+  });
+
+  it('GET /stores/{id}/slots?from=&days=7 → тиждень діб із ключем дати', () => {
+    let received: readonly WeekDaySlots[] = [];
+    gateway.getWeek('st-1', '2026-08-24').subscribe((w) => (received = w));
+
+    const request = expectGet(
+      `${BASE}/stores/st-1/slots?from=2026-08-24&days=7`,
+    );
+    expect(request.request.params.get('from')).toBe('2026-08-24');
+    expect(request.request.params.get('days')).toBe('7');
+    request.flush(
+      Array.from({ length: 7 }, (_, i) => ({
+        dateKey: `2026-08-${24 + i}`,
+        slots: i === 6 ? [] : WIRE_SLOTS.slice(0, 2),
+      })),
+    );
+
+    expect(received).toHaveLength(7);
+    expect(received.map((d) => d.dateKey)).toEqual([
+      '2026-08-24',
+      '2026-08-25',
+      '2026-08-26',
+      '2026-08-27',
+      '2026-08-28',
+      '2026-08-29',
+      '2026-08-30',
+    ]);
+    expect(received[0].slots[0].localStart).toBe('08:00');
+    expect(received[0].slots[0].bookingId).toBe('bk-77');
+    // Вихідний без вікна прийому — доба є, слотів немає.
+    expect(received[6].slots).toEqual([]);
+  });
+
+  it('помилка читання приходить як AppError із кодом бекенду', (done) => {
+    gateway.getBoard('чужий', '2026-08-28').subscribe({
       error: (error: unknown) => {
-        expect((error as AppError).code).toBe('STORE_READ_NOT_IMPLEMENTED');
+        expect((error as AppError).code).toBe('ACCESS_DENIED');
+        expect((error as AppError).status).toBe(403);
         done();
       },
     });
-    http.expectNone(() => true);
+    expectGet(`${BASE}/bookings?storeId=%D1%87%D1%83%D0%B6%D0%B8%D0%B9&date=2026-08-28`).flush(
+      {
+        type: 'about:blank',
+        title: 'Forbidden',
+        status: 403,
+        code: 'ACCESS_DENIED',
+        detail: 'Немає доступу до цього магазину',
+      },
+      { status: 403, statusText: 'Forbidden' },
+    );
   });
 });
 

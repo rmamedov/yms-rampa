@@ -8,7 +8,7 @@ const IP = '104.248.132.130';
 export const HOSTS = {
   supplier: `https://yms.${IP}.sslip.io`,
   driver: `https://driver.${IP}.sslip.io`,
-  store: `https://store.${IP}.sslip.io`,
+  store: process.env.STORE_HOST ?? `https://store.${IP}.sslip.io`,
   admin: `https://admin.${IP}.sslip.io`,
 };
 

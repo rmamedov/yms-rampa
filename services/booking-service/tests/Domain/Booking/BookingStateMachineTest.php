@@ -163,8 +163,11 @@ final class BookingStateMachineTest extends TestCase
 
         self::assertSame(2, $booking->unloadedPalletsCount());
         self::assertNotNull($booking->partialUnload());
-        self::assertSame('немає місця', $event->payload['partialUnload']['reason']);
-        self::assertTrue($event->payload['partialUnload']['flag']);
+        // `partialUnload` — прапорець (його читають як булеве), подробиці —
+        // окремим полем.
+        self::assertTrue($event->payload['partialUnload']);
+        self::assertSame('немає місця', $event->payload['partialUnloadDetails']['reason']);
+        self::assertTrue($event->payload['partialUnloadDetails']['flag']);
     }
 
     public function testPartialUnloadOtherReasonRequiresComment(): void

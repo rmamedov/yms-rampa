@@ -10,6 +10,7 @@ import { Router } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { BoardStore } from '../../core/data/board.store';
 import { StoreGateway, WeekDaySlots } from '../../core/data/gateways';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { Slot } from '../../core/models/store.model';
 import {
@@ -40,6 +41,7 @@ export class WeekPage implements OnInit {
   private readonly gateway = inject(StoreGateway);
   private readonly auth = inject(AuthService);
   private readonly board = inject(BoardStore);
+  private readonly i18n = inject(I18nService);
   private readonly router = inject(Router);
 
   readonly monday = signal(startOfKyivWeek(toKyivDateKey(new Date())));
@@ -75,7 +77,13 @@ export class WeekPage implements OnInit {
     if (!this.board.config()) {
       this.board.load();
     }
-    this.fetch();
+    // Без переліку філій магазин не обрано (мережева роль) — тягнути тиждень
+    // не було б звідки.
+    this.loading.set(true);
+    this.auth.ensureStores().subscribe({
+      next: () => this.fetch(),
+      error: () => this.loading.set(false),
+    });
   }
 
   shiftWeek(weeks: number): void {
@@ -92,6 +100,11 @@ export class WeekPage implements OnInit {
     return day.slots
       .filter((s) => s.rampId === rampId)
       .sort((a, b) => a.slotStart.localeCompare(b.slotStart));
+  }
+
+  /** Підказка клітинки: локальний час слота + його стан. */
+  slotTitle(slot: Slot): string {
+    return `${slot.localStart} · ${this.i18n.translate(`slotState.${slot.state}`)}`;
   }
 
   private fetch(): void {
