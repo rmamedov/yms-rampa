@@ -54,9 +54,14 @@
         [disabled]="isSelf()"
         (change)="setRole($event)"
       >
-        <option value="">{{ 'common.notSet' | t }}</option>
+        <!-- `selected` на самих опціях, а не `value` на select: опції
+             приходять із дерева призначення і рендеряться в тому ж циклі,
+             тому прив'язка до select не встигла б їх знайти. -->
+        <option value="" [selected]="role() === ''">{{ 'common.notSet' | t }}</option>
         @for (option of roleOptions(); track option) {
-          <option [value]="option">{{ 'role.' + option | t }}</option>
+          <option [value]="option" [selected]="role() === option">
+            {{ 'role.' + option | t }}
+          </option>
         }
       </select>
       <div class="field-hint">{{ 'users.field.role.hint' | t }}</div>

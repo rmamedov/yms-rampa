@@ -18,6 +18,7 @@ import { StaffUserFilter, UsersApi } from '../../core/data/users.api';
 import { ToastService } from '../../core/ui/toast.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { assignableRoles } from '../../core/rbac/permissions';
+import { formatDateTime } from '../../core/utils/time.util';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { PaginationComponent } from '../../shared/ui/pagination.component';
 import { EmptyStateComponent } from '../../shared/ui/empty-state.component';
@@ -54,6 +55,9 @@ export class UserListPage {
 
   /** RBAC-23: у фільтрі лише ролі, якими актор має право керувати. */
   protected readonly roleOptions = computed(() => assignableRoles(this.auth.role()));
+
+  /** ADM-03: час показуємо в Europe/Kyiv, як у решті списків адмінки. */
+  protected readonly formatDateTime = formatDateTime;
 
   constructor() {
     this.load();

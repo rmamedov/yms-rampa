@@ -123,7 +123,9 @@ export class UserDetailPage {
         if (!id || id === 'new') {
           this.isNew.set(true);
           this.user.set(null);
-          this.role.set(this.roleOptions()[0] ?? '');
+          // Роль НЕ підставляється за замовчуванням: перший пункт дерева
+          // super_admin — надто небезпечне «значення за замовчуванням».
+          this.role.set('');
           return;
         }
         this.isNew.set(false);

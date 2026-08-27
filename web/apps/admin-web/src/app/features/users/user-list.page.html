@@ -21,9 +21,11 @@
   <div style="min-width: 200px">
     <label for="user-role">{{ 'users.col.role' | t }}</label>
     <select id="user-role" [value]="roleFilter()" (change)="setRoleFilter($event)">
-      <option value="">{{ 'common.all' | t }}</option>
+      <option value="" [selected]="roleFilter() === ''">{{ 'common.all' | t }}</option>
       @for (role of roleOptions(); track role) {
-        <option [value]="role">{{ 'role.' + role | t }}</option>
+        <option [value]="role" [selected]="roleFilter() === role">
+          {{ 'role.' + role | t }}
+        </option>
       }
     </select>
   </div>
@@ -78,7 +80,9 @@
               >{{ (row.active ? 'users.status.active' : 'users.status.inactive') | t }}</span
             >
           </td>
-          <td class="mono">{{ row.lastLoginAt ?? ('common.never' | t) }}</td>
+          <td class="muted">
+            {{ row.lastLoginAt ? formatDateTime(row.lastLoginAt) : ('common.never' | t) }}
+          </td>
         </tr>
       } @empty {
         <tr>

@@ -17,7 +17,14 @@ import {
   minutesToTime,
   timeToMinutes,
 } from './time.util';
-import { validateReason } from './validators.util';
+import {
+  validateHoldMax,
+  validateHorizon,
+  validateLeadTime,
+  validateMaxWeight,
+  validateNoShowGrace,
+  validateReason,
+} from './validators.util';
 
 /**
  * Стан форми конфігурації магазину до відправки.
@@ -382,5 +389,18 @@ export function configBlockingErrors(draft: ConfigFormState | null): string[] {
       (e) => e.messageKey,
     ),
   );
+
+  // Межі обмежень теж блокують збереження: інакше форма пропускає значення,
+  // які сервер відхилить, і користувач отримує загальне «некоректна
+  // конфігурація» замість підказки біля конкретного поля.
+  const limits = [
+    draft.maxVehicleWeightTons === null ? null : validateMaxWeight(draft.maxVehicleWeightTons),
+    validateLeadTime(draft.leadTimeMinutes),
+    validateHorizon(draft.bookingHorizonDays),
+    validateNoShowGrace(draft.noShowGraceMinutes),
+    validateHoldMax(draft.holdMaxMinutes),
+  ].filter((e): e is string => e !== null);
+  errors.push(...limits);
+
   return [...new Set(errors)];
 }
