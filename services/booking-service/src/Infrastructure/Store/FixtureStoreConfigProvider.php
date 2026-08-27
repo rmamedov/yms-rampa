@@ -9,6 +9,7 @@ use App\Domain\Slot\Ramp;
 use App\Domain\Slot\ReceivingWindow;
 use App\Domain\Slot\StoreConfig;
 use App\Domain\Slot\TimeInterval;
+use App\Domain\Store\GeoPoint;
 use App\Domain\Store\StoreConfigProvider;
 use App\Domain\Store\StoreNotFoundException;
 use App\Domain\Store\StorePolicy;
@@ -54,6 +55,7 @@ final class FixtureStoreConfigProvider implements StoreConfigProvider
     /**
      * Типова філія: вікно прийому 08:00–14:00 у будні та суботу,
      * слот 30 хв, дві рампи, ліміт 20 т, lead time 60 хв, горизонт 14 днів.
+     * Координати — Хрещатик, 12: без них контур водія лишився б без маршруту.
      */
     public static function defaultSettings(string $storeId): StoreSettings
     {
@@ -67,7 +69,10 @@ final class FixtureStoreConfigProvider implements StoreConfigProvider
                 storeId: $storeId,
                 receivingWindows: $windows,
                 slotSizeMinutes: 30,
-                ramps: [new Ramp('r1', 'Рампа 1'), new Ramp('r2', 'Рампа 2')],
+                ramps: [
+                    new Ramp('r1', 'Рампа 1', number: 1),
+                    new Ramp('r2', 'Рампа 2', number: 2),
+                ],
                 maxVehicleWeightTons: 20.0,
                 leadTimeMinutes: 60,
                 bookingHorizonDays: 14,
@@ -79,6 +84,7 @@ final class FixtureStoreConfigProvider implements StoreConfigProvider
                 city: 'Київ',
                 address: 'вул. Хрещатик, 12',
             ),
+            location: new GeoPoint(50.44740, 30.52210),
         );
     }
 }

@@ -222,6 +222,53 @@ final readonly class SupplierService
         return $this->suppliers->count($query, $status);
     }
 
+    /**
+     * Сторінка службового довідника постачальників для booking-service
+     * (форма позапланового прибуття, WALK-01).
+     *
+     * Вибірка джерела — лише АКТИВНІ постачальники (SUP-02): призупиненого
+     * не можна обрати в новому прибутті так само, як не можна забронювати.
+     *
+     * `total` рахує саме джерело, а не відфільтрований результат: предикат
+     * доступу до філії (SUP-03) — доменне правило знімка, а не запит до
+     * сховища, тож чесно порахувати відфільтровану кількість без повного
+     * сканування неможливо. Тому клієнт гортає сторінки за `hasMore`, а не
+     * за кількістю отриманих елементів — інакше він зупинився б на першій же
+     * сторінці, де фільтр не пропустив нікого.
+     *
+     * @param string|null $storeId філія, для якої добирається постачальник;
+     *                             null — без перевірки доступу до філії
+     *
+     * @return array{items: list<SupplierAccessSnapshot>, total: int, limit: int, offset: int, hasMore: bool}
+     */
+    public function catalogPage(?string $storeId = null, int $limit = 100, int $offset = 0): array
+    {
+        $limit = max(1, min(200, $limit));
+        $offset = max(0, $offset);
+
+        $snapshots = array_map(
+            SupplierAccessSnapshot::fromSupplier(...),
+            $this->suppliers->search(null, SupplierStatus::Active, $limit, $offset),
+        );
+
+        if (null !== $storeId && '' !== $storeId) {
+            $snapshots = array_values(array_filter(
+                $snapshots,
+                static fn (SupplierAccessSnapshot $s): bool => $s->allows($storeId),
+            ));
+        }
+
+        $total = $this->suppliers->count(null, SupplierStatus::Active);
+
+        return [
+            'items' => $snapshots,
+            'total' => $total,
+            'limit' => $limit,
+            'offset' => $offset,
+            'hasMore' => $offset + $limit < $total,
+        ];
+    }
+
     private function assertNameFree(string $name, ?string $exceptId): void
     {
         $existing = $this->suppliers->findByName($name);

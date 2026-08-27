@@ -11,6 +11,7 @@ use App\Domain\Slot\Ramp;
 use App\Domain\Slot\ReceivingWindow;
 use App\Domain\Slot\StoreConfig;
 use App\Domain\Slot\TimeInterval;
+use App\Domain\Store\GeoPoint;
 use App\Domain\Store\StoreConfigProvider;
 use App\Domain\Store\StoreNotFoundException;
 use App\Domain\Store\StorePolicy;
@@ -81,6 +82,9 @@ final readonly class HttpStoreConfigProvider implements StoreConfigProvider
                 rampId: (string) ($ramp['rampId'] ?? ''),
                 name: (string) ($ramp['name'] ?? $ramp['rampId'] ?? ''),
                 active: (bool) ($ramp['active'] ?? true),
+                // Номер рампи потрібен контуру водія: на воротах написано «2»,
+                // а не «ramp-2» (DRV-21).
+                number: isset($ramp['number']) && is_numeric($ramp['number']) ? (int) $ramp['number'] : null,
             );
         }
 
@@ -135,6 +139,10 @@ final readonly class HttpStoreConfigProvider implements StoreConfigProvider
             // Персонал мережі ознакою не обмежений — її читає лише SlotGridService.
             ymsActive: 'active' === (string) ($payload['ymsStatus'] ?? 'active')
                 && (bool) ($payload['visibleToSuppliers'] ?? true),
+            // Координати філії (DRV-21). Сусід віддає їх у тому ж блоці snapshot;
+            // якщо їх немає або вони поламані — лишається null, і контур водія
+            // відкриває навігатор за текстовою адресою.
+            location: GeoPoint::tryFrom($snapshot['latitude'] ?? null, $snapshot['longitude'] ?? null),
         );
     }
 

@@ -101,6 +101,31 @@ final class BranchPresenter
     }
 
     /**
+     * Службовий рядок переліку магазинів для booking-service
+     * (GET /internal/v1/stores).
+     *
+     * Форма навмисно повторює «шапку» StoreSettingsPresenter::settings():
+     * storeId + ymsStatus + снапшот філії. Так споживач розбирає перелік і
+     * картку одним і тим самим кодом, а перелік лишається вужчим за адмінський
+     * row() — між сервісами їдуть лише поля, потрібні перемикачу філії.
+     *
+     * @return array<string, mixed>
+     */
+    public static function internalRow(Branch $branch): array
+    {
+        return [
+            'storeId' => $branch->id(),
+            'ymsStatus' => $branch->ymsStatus()->value,
+            'snapshot' => [
+                'externalId' => $branch->externalId(),
+                'displayName' => $branch->effectiveDisplayName(),
+                'city' => $branch->city(),
+                'address' => $branch->effectiveAddress(),
+            ],
+        ];
+    }
+
+    /**
      * Представлення для supplier-web: без службових MCP-полів, з адресою за STC-07.
      *
      * @return array<string, mixed>

@@ -29,6 +29,8 @@ use App\Domain\Shared\Timezone;
  *   - `validFrom`/`validTo` правила резерву — ЛОКАЛЬНІ ДАТИ Y-m-d, а не мітки часу:
  *     booking-service порівнює їх рядково з датою слота;
  *   - `name` рампи ніколи не null (підставляється «Рампа N»);
+ *   - у `snapshot` додано `latitude`/`longitude` з блоку MCP: без координат
+ *     застосунок водія будує маршрут за текстовою адресою, а не за точкою;
  *   - межі блокувань — мітки часу в UTC (DATA-01), бо блокування задається
  *     діапазоном часу, а не датою.
  */
@@ -57,11 +59,16 @@ final class StoreSettingsPresenter
             'ymsStatus' => $branch->ymsStatus()->value,
             'visibleToSuppliers' => $branch->visibleToSuppliers(),
             // DATA-13: снапшот філії, який booking-service вморожує в документ бронювання.
+            // Координати — з блоку MCP: вони обовʼязкові для придатності філії
+            // (BranchEligibility), тож у активного магазину вони є завжди. Саме за
+            // ними контур водія будує маршрут у навігаторі, а не за текстовою адресою.
             'snapshot' => [
                 'externalId' => $branch->externalId(),
                 'displayName' => $branch->effectiveDisplayName(),
                 'city' => $branch->city(),
                 'address' => $branch->effectiveAddress(),
+                'latitude' => $branch->mcpData()->location?->latitude,
+                'longitude' => $branch->mcpData()->location?->longitude,
             ],
             // Версія чинної конфігурації — для інвалідації кешу подією StoreConfigChanged (SLOT-04).
             'configVersion' => $configuration->version,

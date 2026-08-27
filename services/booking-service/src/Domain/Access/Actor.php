@@ -133,6 +133,44 @@ final readonly class Actor
     }
 
     /**
+     * Чи має актор операційні повноваження магазину ХОЧ ДЕСЬ.
+     *
+     * Питання має сенс лише для маршрутів без конкретної філії — насамперед
+     * для переліку доступних магазинів. Мережева роль проходить за роллю,
+     * магазинна — за належністю до контуру магазину; порожній скоуп її НЕ
+     * відсіює тут, бо це не «немає прав», а «прав рівно на нуль магазинів»:
+     * відповіддю буде порожній перелік, а не 403.
+     */
+    public function canOperateAnyStore(): bool
+    {
+        return $this->system || $this->role->isNetworkAdmin() || $this->role->isStoreStaff();
+    }
+
+    /**
+     * Єдина точка перевірки доступу до філії для контуру магазину — і для
+     * дій, і для читання. Тримати їх на різних правилах не можна: інакше
+     * зʼявиться екран, який показує те, чого не можна змінити, або навпаки.
+     *
+     * @throws AccessDeniedException якщо філія поза скоупом актора
+     */
+    public function assertCanOperateStore(string $storeId): void
+    {
+        if (!$this->canOperateStore($storeId)) {
+            throw AccessDeniedException::foreignStore($storeId);
+        }
+    }
+
+    /**
+     * @throws AccessDeniedException якщо роль узагалі не належить контуру магазину
+     */
+    public function assertCanOperateAnyStore(): void
+    {
+        if (!$this->canOperateAnyStore()) {
+            throw AccessDeniedException::storeContourOnly();
+        }
+    }
+
+    /**
      * @param list<string> $storeIds
      *
      * @return list<string>

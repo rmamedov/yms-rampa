@@ -25,6 +25,7 @@ use App\Infrastructure\InMemory\InMemoryTwoFactorChallengeStore;
 use App\Infrastructure\Security\Argon2idPasswordHasher;
 use App\Infrastructure\Security\ArrayPasswordDenylist;
 use App\Infrastructure\Security\FirebaseJwtSigner;
+use App\Infrastructure\Security\SecurePasswordGenerator;
 
 /**
  * Складання сервісу для тестів ВИКЛЮЧНО на InMemory-реалізаціях:
@@ -55,6 +56,7 @@ final class AuthContext
     public readonly TotpVerifier $totp;
     public readonly AuthenticationService $authentication;
     public readonly AccessDecider $accessDecider;
+    public readonly SecurePasswordGenerator $passwordGenerator;
     public readonly StaffUserService $userManagement;
 
     public function __construct(string $now = '2026-08-27T09:00:00+00:00')
@@ -97,6 +99,7 @@ final class AuthContext
         );
 
         $this->accessDecider = new AccessDecider();
+        $this->passwordGenerator = new SecurePasswordGenerator($this->passwordPolicy);
 
         $this->userManagement = new StaffUserService(
             users: $this->users,
@@ -106,6 +109,7 @@ final class AuthContext
             passwordPolicy: $this->passwordPolicy,
             clock: $this->clock,
             tokens: $this->tokens,
+            passwordGenerator: $this->passwordGenerator,
         );
     }
 

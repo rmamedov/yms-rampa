@@ -3,7 +3,9 @@
     "argv": [
       "/opt/homebrew/Cellar/node/26.7.0/bin/node",
       "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/node_modules/.bin/playwright",
-      "test"
+      "test",
+      "tests/14-admin-suppliers.spec.ts",
+      "--list"
     ],
     "configFile": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/playwright.config.ts",
     "rootDir": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests",
@@ -16,18 +18,14 @@
     "grep": {},
     "grepInvert": null,
     "maxFailures": 0,
-    "metadata": {
-      "actualWorkers": 1
-    },
+    "metadata": {},
     "preserveOutput": "always",
     "projects": [
       {
         "outputDir": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/test-results",
         "repeatEach": 1,
         "retries": 0,
-        "metadata": {
-          "actualWorkers": 1
-        },
+        "metadata": {},
         "id": "desktop",
         "name": "desktop",
         "testDir": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests",
@@ -65,21 +63,21 @@
   },
   "suites": [
     {
-      "title": "01-data-completeness.spec.ts",
-      "file": "01-data-completeness.spec.ts",
+      "title": "14-admin-suppliers.spec.ts",
+      "file": "14-admin-suppliers.spec.ts",
       "column": 0,
       "line": 0,
       "specs": [],
       "suites": [
         {
-          "title": "Повнота даних",
-          "file": "01-data-completeness.spec.ts",
-          "line": 11,
+          "title": "A-10 Постачальники",
+          "file": "14-admin-suppliers.spec.ts",
+          "line": 58,
           "column": 6,
           "specs": [
             {
-              "title": "X-01 адмінка: список магазинів показує всі 455 філій",
-              "ok": false,
+              "title": "A-10.1 X-01 список показує стільки ж, скільки в API",
+              "ok": true,
               "tags": [],
               "tests": [
                 {
@@ -88,72 +86,18 @@
                   "expectedStatus": "passed",
                   "projectId": "desktop",
                   "projectName": "desktop",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "failed",
-                      "duration": 2523,
-                      "error": {
-                        "message": "Error: на сторінці має бути видно загальну кількість магазинів\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected substring: \u001b[32m\"455\"\u001b[39m\nReceived string:    \u001b[31m\"YMS «Рампа» Вхід в адмін-панель Контур співробітників мережі Робочий e-mail Пароль Увійти\"\u001b[39m",
-                        "stack": "Error: на сторінці має бути видно загальну кількість магазинів\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected substring: \u001b[32m\"455\"\u001b[39m\nReceived string:    \u001b[31m\"YMS «Рампа» Вхід в адмін-панель Контур співробітників мережі Робочий e-mail Пароль Увійти\"\u001b[39m\n    at /Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts:25:77",
-                        "location": {
-                          "file": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts",
-                          "column": 77,
-                          "line": 25
-                        },
-                        "snippet": "  23 |\n  24 |     const text = await pageText(page);\n> 25 |     expect(text, 'на сторінці має бути видно загальну кількість магазинів').toContain(String(expected));\n     |                                                                             ^\n  26 |   });\n  27 |\n  28 |   test('X-01/X-02 адмінка: вибір філій постачальника бачить УСІ київські філії', async ({ page }) => {"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts",
-                            "column": 77,
-                            "line": 25
-                          },
-                          "message": "Error: на сторінці має бути видно загальну кількість магазинів\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected substring: \u001b[32m\"455\"\u001b[39m\nReceived string:    \u001b[31m\"YMS «Рампа» Вхід в адмін-панель Контур співробітників мережі Робочий e-mail Пароль Увійти\"\u001b[39m\n\n  23 |\n  24 |     const text = await pageText(page);\n> 25 |     expect(text, 'на сторінці має бути видно загальну кількість магазинів').toContain(String(expected));\n     |                                                                             ^\n  26 |   });\n  27 |\n  28 |   test('X-01/X-02 адмінка: вибір філій постачальника бачить УСІ київські філії', async ({ page }) => {\n    at /Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts:25:77"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-08-27T21:24:34.357Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/test-results/01-data-completeness-Повно-18348-зинів-показує-всі-455-філій-desktop/test-failed-1.png"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/test-results/01-data-completeness-Повно-18348-зинів-показує-всі-455-філій-desktop/error-context.md"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/test-results/01-data-completeness-Повно-18348-зинів-показує-всі-455-філій-desktop/trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts",
-                        "column": 77,
-                        "line": 25
-                      }
-                    }
-                  ],
-                  "status": "unexpected"
+                  "results": [],
+                  "status": "skipped"
                 }
               ],
-              "id": "3f76a195f055b3e2d8dc-0c219fc0048069e62084",
-              "file": "01-data-completeness.spec.ts",
-              "line": 12,
+              "id": "f699480f1a6b83c7389c-76d5408152ef3e661021",
+              "file": "14-admin-suppliers.spec.ts",
+              "line": 59,
               "column": 7
             },
             {
-              "title": "X-01/X-02 адмінка: вибір філій постачальника бачить УСІ київські філії",
-              "ok": false,
+              "title": "A-10.2 колонки списку відповідають даним API",
+              "ok": true,
               "tags": [],
               "tests": [
                 {
@@ -162,72 +106,18 @@
                   "expectedStatus": "passed",
                   "projectId": "desktop",
                   "projectName": "desktop",
-                  "results": [
-                    {
-                      "workerIndex": 1,
-                      "parallelIndex": 0,
-                      "status": "failed",
-                      "duration": 2429,
-                      "error": {
-                        "message": "Error: у виборі філій має бути пошук\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m",
-                        "stack": "Error: у виборі філій має бути пошук\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n    at /Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts:53:56",
-                        "location": {
-                          "file": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts",
-                          "column": 56,
-                          "line": 53
-                        },
-                        "snippet": "  51 |     const searchBox = page.locator('input[type=search], input[placeholder*=\"ошук\"], input[placeholder*=\"ілі\"]').first();\n  52 |     const hasSearch = await searchBox.count();\n> 53 |     expect(hasSearch, 'у виборі філій має бути пошук').toBeGreaterThan(0);\n     |                                                        ^\n  54 |\n  55 |     await searchBox.fill('Київ');\n  56 |     await page.waitForTimeout(1200);"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts",
-                            "column": 56,
-                            "line": 53
-                          },
-                          "message": "Error: у виборі філій має бути пошук\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n\n  51 |     const searchBox = page.locator('input[type=search], input[placeholder*=\"ошук\"], input[placeholder*=\"ілі\"]').first();\n  52 |     const hasSearch = await searchBox.count();\n> 53 |     expect(hasSearch, 'у виборі філій має бути пошук').toBeGreaterThan(0);\n     |                                                        ^\n  54 |\n  55 |     await searchBox.fill('Київ');\n  56 |     await page.waitForTimeout(1200);\n    at /Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts:53:56"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-08-27T21:24:39.525Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/test-results/01-data-completeness-Повно-3cf8e-а-бачить-УСІ-київські-філії-desktop/test-failed-1.png"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/test-results/01-data-completeness-Повно-3cf8e-а-бачить-УСІ-київські-філії-desktop/error-context.md"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/test-results/01-data-completeness-Повно-3cf8e-а-бачить-УСІ-київські-філії-desktop/trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts",
-                        "column": 56,
-                        "line": 53
-                      }
-                    }
-                  ],
-                  "status": "unexpected"
+                  "results": [],
+                  "status": "skipped"
                 }
               ],
-              "id": "3f76a195f055b3e2d8dc-6de709e3c2fe7d15b036",
-              "file": "01-data-completeness.spec.ts",
-              "line": 28,
+              "id": "f699480f1a6b83c7389c-0271b60f22e42b4a821d",
+              "file": "14-admin-suppliers.spec.ts",
+              "line": 71,
               "column": 7
             },
             {
-              "title": "X-01 кабінет постачальника: список міст повний",
-              "ok": false,
+              "title": "A-10.3 X-02 пошук за назвою і за ЄДРПОУ",
+              "ok": true,
               "tags": [],
               "tests": [
                 {
@@ -236,72 +126,18 @@
                   "expectedStatus": "passed",
                   "projectId": "desktop",
                   "projectName": "desktop",
-                  "results": [
-                    {
-                      "workerIndex": 2,
-                      "parallelIndex": 0,
-                      "status": "failed",
-                      "duration": 2236,
-                      "error": {
-                        "message": "Error: місто Дніпро має бути в списку\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected substring: \u001b[32m\"Дніпро\"\u001b[39m\nReceived string:    \u001b[31m\"Р Вхід для постачальника Кабінет бронювання слотів у філіях «Сільпо» E-mail Пароль Увійти\"\u001b[39m",
-                        "stack": "Error: місто Дніпро має бути в списку\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected substring: \u001b[32m\"Дніпро\"\u001b[39m\nReceived string:    \u001b[31m\"Р Вхід для постачальника Кабінет бронювання слотів у філіях «Сільпо» E-mail Пароль Увійти\"\u001b[39m\n    at /Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts:84:57",
-                        "location": {
-                          "file": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts",
-                          "column": 57,
-                          "line": 84
-                        },
-                        "snippet": "  82 |     const text = await pageText(page);\n  83 |     for (const c of cities) {\n> 84 |       expect(text, `місто ${c.city} має бути в списку`).toContain(c.city);\n     |                                                         ^\n  85 |     }\n  86 |   });\n  87 |"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts",
-                            "column": 57,
-                            "line": 84
-                          },
-                          "message": "Error: місто Дніпро має бути в списку\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected substring: \u001b[32m\"Дніпро\"\u001b[39m\nReceived string:    \u001b[31m\"Р Вхід для постачальника Кабінет бронювання слотів у філіях «Сільпо» E-mail Пароль Увійти\"\u001b[39m\n\n  82 |     const text = await pageText(page);\n  83 |     for (const c of cities) {\n> 84 |       expect(text, `місто ${c.city} має бути в списку`).toContain(c.city);\n     |                                                         ^\n  85 |     }\n  86 |   });\n  87 |\n    at /Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts:84:57"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-08-27T21:24:42.241Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/test-results/01-data-completeness-Повно-2b0d6-чальника-список-міст-повний-desktop/test-failed-1.png"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/test-results/01-data-completeness-Повно-2b0d6-чальника-список-міст-повний-desktop/error-context.md"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/test-results/01-data-completeness-Повно-2b0d6-чальника-список-міст-повний-desktop/trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts",
-                        "column": 57,
-                        "line": 84
-                      }
-                    }
-                  ],
-                  "status": "unexpected"
+                  "results": [],
+                  "status": "skipped"
                 }
               ],
-              "id": "3f76a195f055b3e2d8dc-bb90be181fe416d212ff",
-              "file": "01-data-completeness.spec.ts",
-              "line": 70,
+              "id": "f699480f1a6b83c7389c-b1b1bbbe089686c90c65",
+              "file": "14-admin-suppliers.spec.ts",
+              "line": 92,
               "column": 7
             },
             {
-              "title": "X-01 кабінет постачальника: у місті видно всі активні філії",
-              "ok": false,
+              "title": "A-10.4 фільтр за статусом збігається з API",
+              "ok": true,
               "tags": [],
               "tests": [
                 {
@@ -310,72 +146,18 @@
                   "expectedStatus": "passed",
                   "projectId": "desktop",
                   "projectName": "desktop",
-                  "results": [
-                    {
-                      "workerIndex": 3,
-                      "parallelIndex": 0,
-                      "status": "failed",
-                      "duration": 2236,
-                      "error": {
-                        "message": "Error: філії, яких немає на екрані: 1932, 1934, 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m12\u001b[39m\nReceived array:  \u001b[31m[\"1932\", \"1934\", \"1990\", \"1991\", \"1992\", \"1993\", \"1994\", \"1995\", \"1996\", \"1998\", …]\u001b[39m",
-                        "stack": "Error: філії, яких немає на екрані: 1932, 1934, 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m12\u001b[39m\nReceived array:  \u001b[31m[\"1932\", \"1934\", \"1990\", \"1991\", \"1992\", \"1993\", \"1994\", \"1995\", \"1996\", \"1998\", …]\u001b[39m\n    at /Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts:102:75",
-                        "location": {
-                          "file": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts",
-                          "column": 75,
-                          "line": 102
-                        },
-                        "snippet": "  100 |     const text = await pageText(page);\n  101 |     const missing = stores.filter((s) => !text.includes(s.externalId)).map((s) => s.externalId);\n> 102 |     expect(missing, `філії, яких немає на екрані: ${missing.join(', ')}`).toHaveLength(0);\n      |                                                                           ^\n  103 |   });\n  104 |\n  105 |   test('X-02 адмінка: пошук магазину з «дальньої» сторінки знаходить його', async ({ page }) => {"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts",
-                            "column": 75,
-                            "line": 102
-                          },
-                          "message": "Error: філії, яких немає на екрані: 1932, 1934, 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m12\u001b[39m\nReceived array:  \u001b[31m[\"1932\", \"1934\", \"1990\", \"1991\", \"1992\", \"1993\", \"1994\", \"1995\", \"1996\", \"1998\", …]\u001b[39m\n\n  100 |     const text = await pageText(page);\n  101 |     const missing = stores.filter((s) => !text.includes(s.externalId)).map((s) => s.externalId);\n> 102 |     expect(missing, `філії, яких немає на екрані: ${missing.join(', ')}`).toHaveLength(0);\n      |                                                                           ^\n  103 |   });\n  104 |\n  105 |   test('X-02 адмінка: пошук магазину з «дальньої» сторінки знаходить його', async ({ page }) => {\n    at /Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts:102:75"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-08-27T21:24:44.755Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/test-results/01-data-completeness-Повно-93e75-сті-видно-всі-активні-філії-desktop/test-failed-1.png"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/test-results/01-data-completeness-Повно-93e75-сті-видно-всі-активні-філії-desktop/error-context.md"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/test-results/01-data-completeness-Повно-93e75-сті-видно-всі-активні-філії-desktop/trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts",
-                        "column": 75,
-                        "line": 102
-                      }
-                    }
-                  ],
-                  "status": "unexpected"
+                  "results": [],
+                  "status": "skipped"
                 }
               ],
-              "id": "3f76a195f055b3e2d8dc-5df583063b645adb1329",
-              "file": "01-data-completeness.spec.ts",
-              "line": 88,
+              "id": "f699480f1a6b83c7389c-e5dbf9795eb53668f68c",
+              "file": "14-admin-suppliers.spec.ts",
+              "line": 110,
               "column": 7
             },
             {
-              "title": "X-02 адмінка: пошук магазину з «дальньої» сторінки знаходить його",
-              "ok": false,
+              "title": "A-10.5 X-04 порожній результат пошуку",
+              "ok": true,
               "tags": [],
               "tests": [
                 {
@@ -384,67 +166,333 @@
                   "expectedStatus": "passed",
                   "projectId": "desktop",
                   "projectName": "desktop",
-                  "results": [
-                    {
-                      "workerIndex": 4,
-                      "parallelIndex": 0,
-                      "status": "failed",
-                      "duration": 17508,
-                      "error": {
-                        "message": "TimeoutError: locator.fill: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('input[type=search], input[placeholder*=\"ошук\"]').first()\u001b[22m\n",
-                        "stack": "TimeoutError: locator.fill: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('input[type=search], input[placeholder*=\"ошук\"]').first()\u001b[22m\n\n    at /Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts:122:18",
-                        "location": {
-                          "file": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts",
-                          "column": 18,
-                          "line": 122
-                        },
-                        "snippet": "  120 |\n  121 |     const search = page.locator('input[type=search], input[placeholder*=\"ошук\"]').first();\n> 122 |     await search.fill(target!.externalId);\n      |                  ^\n  123 |     await page.waitForTimeout(1500);\n  124 |\n  125 |     const text = await pageText(page);"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts",
-                            "column": 18,
-                            "line": 122
-                          },
-                          "message": "TimeoutError: locator.fill: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('input[type=search], input[placeholder*=\"ошук\"]').first()\u001b[22m\n\n\n  120 |\n  121 |     const search = page.locator('input[type=search], input[placeholder*=\"ошук\"]').first();\n> 122 |     await search.fill(target!.externalId);\n      |                  ^\n  123 |     await page.waitForTimeout(1500);\n  124 |\n  125 |     const text = await pageText(page);\n    at /Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts:122:18"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-08-27T21:24:47.268Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/test-results/01-data-completeness-Повно-6490f-ої»-сторінки-знаходить-його-desktop/test-failed-1.png"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/test-results/01-data-completeness-Повно-6490f-ої»-сторінки-знаходить-його-desktop/error-context.md"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/test-results/01-data-completeness-Повно-6490f-ої»-сторінки-знаходить-його-desktop/trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/Users/ruslanmamedov/Desktop/Claude/yms-rampa/e2e/tests/01-data-completeness.spec.ts",
-                        "column": 18,
-                        "line": 122
-                      }
-                    }
-                  ],
-                  "status": "unexpected"
+                  "results": [],
+                  "status": "skipped"
                 }
               ],
-              "id": "3f76a195f055b3e2d8dc-087cb84a17f67a0be94b",
-              "file": "01-data-completeness.spec.ts",
-              "line": 105,
+              "id": "f699480f1a6b83c7389c-1a52a42297f6cadf4a40",
+              "file": "14-admin-suppliers.spec.ts",
+              "line": 122,
+              "column": 7
+            },
+            {
+              "title": "A-10.6 X-05 ЄДРПОУ з 9 цифр відхиляється, 8 і 10 приймаються",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop",
+                  "projectName": "desktop",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f699480f1a6b83c7389c-b4d2b222d306e9051586",
+              "file": "14-admin-suppliers.spec.ts",
+              "line": 134,
+              "column": 7
+            },
+            {
+              "title": "A-10.7 X-05 назва обовʼязкова, контактна особа обовʼязкова",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop",
+                  "projectName": "desktop",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f699480f1a6b83c7389c-217b9fa7b5123028ca3d",
+              "file": "14-admin-suppliers.spec.ts",
+              "line": 158,
+              "column": 7
+            },
+            {
+              "title": "A-10.8 X-05 e-mail і телефон валідуються",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop",
+                  "projectName": "desktop",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f699480f1a6b83c7389c-acf2207ba9175effafa7",
+              "file": "14-admin-suppliers.spec.ts",
+              "line": 171,
+              "column": 7
+            },
+            {
+              "title": "A-10.9 створення постачальника з усіма полями",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop",
+                  "projectName": "desktop",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f699480f1a6b83c7389c-3b17262e8b402e90b873",
+              "file": "14-admin-suppliers.spec.ts",
+              "line": 186,
+              "column": 7
+            },
+            {
+              "title": "A-10.10 дублікат ЄДРПОУ відхиляється зрозумілим повідомленням",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop",
+                  "projectName": "desktop",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f699480f1a6b83c7389c-a787812674406a8b0a98",
+              "file": "14-admin-suppliers.spec.ts",
+              "line": 213,
+              "column": 7
+            },
+            {
+              "title": "A-10.11 дублікат назви відхиляється",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop",
+                  "projectName": "desktop",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f699480f1a6b83c7389c-a9d54bd4d48818f4b605",
+              "file": "14-admin-suppliers.spec.ts",
+              "line": 243,
+              "column": 7
+            },
+            {
+              "title": "A-10.12 редагування картки зберігається",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop",
+                  "projectName": "desktop",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f699480f1a6b83c7389c-9f2dfbff57a21616c244",
+              "file": "14-admin-suppliers.spec.ts",
+              "line": 270,
+              "column": 7
+            },
+            {
+              "title": "A-10.13 призупинення і поновлення постачальника",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop",
+                  "projectName": "desktop",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f699480f1a6b83c7389c-72626b0c7bb23ce40f3f",
+              "file": "14-admin-suppliers.spec.ts",
+              "line": 294,
+              "column": 7
+            },
+            {
+              "title": "A-10.14 призупинений постачальник зникає з фільтра «Активний»",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop",
+                  "projectName": "desktop",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f699480f1a6b83c7389c-6514e62a37208aaaac17",
+              "file": "14-admin-suppliers.spec.ts",
+              "line": 323,
+              "column": 7
+            },
+            {
+              "title": "A-10.15 режим доступу «усі магазини» ↔ «перелік магазинів»",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop",
+                  "projectName": "desktop",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f699480f1a6b83c7389c-1ad30126368cce3b07dc",
+              "file": "14-admin-suppliers.spec.ts",
+              "line": 347,
+              "column": 7
+            },
+            {
+              "title": "A-10.16 X-01 у виборі магазинів доступні всі придатні філії мережі",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop",
+                  "projectName": "desktop",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f699480f1a6b83c7389c-72bca7b1db168baa478a",
+              "file": "14-admin-suppliers.spec.ts",
+              "line": 389,
+              "column": 7
+            },
+            {
+              "title": "A-10.17 X-02 пошук «Київ» у виборі магазинів знаходить усі київські філії",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop",
+                  "projectName": "desktop",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f699480f1a6b83c7389c-13d8685c22102290173f",
+              "file": "14-admin-suppliers.spec.ts",
+              "line": 424,
+              "column": 7
+            },
+            {
+              "title": "A-10.18 у виборі магазинів немає непридатних записів без міста й адреси",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop",
+                  "projectName": "desktop",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f699480f1a6b83c7389c-c18eb4d83acd7bf618d1",
+              "file": "14-admin-suppliers.spec.ts",
+              "line": 447,
+              "column": 7
+            },
+            {
+              "title": "A-10.19 форма створення дозволяє одразу задати доступ до магазинів",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop",
+                  "projectName": "desktop",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f699480f1a6b83c7389c-e94382b3f288d1b505a8",
+              "file": "14-admin-suppliers.spec.ts",
+              "line": 470,
+              "column": 7
+            },
+            {
+              "title": "A-10.20 видалення щойно створеного постачальника без бронювань",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop",
+                  "projectName": "desktop",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f699480f1a6b83c7389c-cc28e78f1b2db916321d",
+              "file": "14-admin-suppliers.spec.ts",
+              "line": 480,
+              "column": 7
+            },
+            {
+              "title": "A-10.21 видалення постачальника з бронюваннями відхиляється",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop",
+                  "projectName": "desktop",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f699480f1a6b83c7389c-3c381864875ae2362fc8",
+              "file": "14-admin-suppliers.spec.ts",
+              "line": 502,
               "column": 7
             }
           ]
@@ -454,11 +502,11 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-08-27T21:24:34.124Z",
-    "duration": 30776.508,
+    "startTime": "2026-08-27T22:15:18.840Z",
+    "duration": 75.05900000000003,
     "expected": 0,
-    "skipped": 0,
-    "unexpected": 5,
+    "skipped": 21,
+    "unexpected": 0,
     "flaky": 0
   }
 }

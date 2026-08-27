@@ -48,4 +48,30 @@ enum Role: string
     {
         return $this->isSupplier() || self::Driver === $this;
     }
+
+    public function contour(): Contour
+    {
+        return $this->isPartner() ? Contour::Partner : Contour::Staff;
+    }
+
+    /**
+     * Людиночитана назва ролі — та сама, що в довіднику ролей
+     * identity-staff-service і в шапці інтерфейсів.
+     *
+     * Потрібна журналу дій бронювання (DATA-14): без неї колонка «Хто»
+     * показує голий ідентифікатор облікового запису.
+     */
+    public function label(): string
+    {
+        return match ($this) {
+            self::SuperAdmin => 'Адміністратор системи',
+            self::NetworkManager => 'Менеджер мережі',
+            self::StoreManager => 'Керівник магазину',
+            self::StoreOperator => 'Приймальник магазину',
+            self::Analyst => 'Аналітик',
+            self::SupplierAdmin => 'Адміністратор постачальника',
+            self::SupplierOperator => 'Оператор постачальника',
+            self::Driver => 'Водій',
+        };
+    }
 }

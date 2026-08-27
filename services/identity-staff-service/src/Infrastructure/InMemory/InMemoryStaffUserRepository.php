@@ -8,6 +8,8 @@ use App\Domain\Identity\Email;
 use App\Domain\Identity\IdentitySnapshot;
 use App\Domain\Identity\Role;
 use App\Domain\Identity\StaffUser;
+use App\Domain\Identity\StaffUserCriteria;
+use App\Domain\Identity\StaffUserPage;
 use App\Domain\Identity\StaffUserRepository;
 
 /**
@@ -105,6 +107,31 @@ final class InMemoryStaffUserRepository implements StaffUserRepository
                 return false;
             },
         ));
+    }
+
+    public function search(StaffUserCriteria $criteria): StaffUserPage
+    {
+        $matched = array_values(array_filter(
+            $this->byId,
+            static fn (StaffUser $user): bool => $criteria->matches($user),
+        ));
+
+        // Стабільний порядок: спершу активні, далі за email — інакше
+        // сторінки «перемішувалися» б між запитами.
+        usort($matched, static function (StaffUser $a, StaffUser $b): int {
+            if ($a->isActive() !== $b->isActive()) {
+                return $a->isActive() ? -1 : 1;
+            }
+
+            return strcmp($a->email()->value, $b->email()->value);
+        });
+
+        return new StaffUserPage(
+            items: \array_slice($matched, $criteria->offset(), $criteria->perPage),
+            total: \count($matched),
+            page: $criteria->page,
+            perPage: $criteria->perPage,
+        );
     }
 
     /**

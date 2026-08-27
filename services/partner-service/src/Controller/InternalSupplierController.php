@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Domain\Service\SupplierService;
+use App\Domain\Supplier\SupplierAccessSnapshot;
 use App\Infrastructure\Http\View;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
@@ -39,6 +41,42 @@ final readonly class InternalSupplierController
 {
     public function __construct(private SupplierService $suppliers)
     {
+    }
+
+    /**
+     * Довідник постачальників для форми позапланового прибуття магазину.
+     *
+     *   GET /internal/v1/suppliers?storeId={id}&limit={n}&offset={n}
+     *   200 {"items":[…supplierAccess…],"total":N,"limit":L,"offset":O,"hasMore":bool}
+     *
+     * Віддаються лише АКТИВНІ постачальники; за наявності storeId — ще й лише
+     * ті, кому дозволена ця філія (SUP-03). Вердикт, як і на решті службових
+     * маршрутів, ухвалює partner-service, а не споживач.
+     *
+     * `hasMore` рахується від ДЖЕРЕЛА вибірки (усі активні), а не від довжини
+     * `items`: фільтр за філією може лишити сторінку порожньою, тоді як далі
+     * ще є кого віддати. Клієнт зобовʼязаний гортати саме за `hasMore`.
+     */
+    #[Route('', name: 'internal_supplier_list', methods: ['GET'])]
+    public function list(Request $request): JsonResponse
+    {
+        $storeId = trim((string) $request->query->get('storeId', ''));
+        $page = $this->suppliers->catalogPage(
+            storeId: '' === $storeId ? null : $storeId,
+            limit: $request->query->getInt('limit', 100),
+            offset: $request->query->getInt('offset'),
+        );
+
+        return new JsonResponse([
+            'items' => array_map(
+                static fn (SupplierAccessSnapshot $s): array => View::supplierAccess($s),
+                $page['items'],
+            ),
+            'total' => $page['total'],
+            'limit' => $page['limit'],
+            'offset' => $page['offset'],
+            'hasMore' => $page['hasMore'],
+        ]);
     }
 
     /**

@@ -225,6 +225,35 @@ final readonly class DriverService
         return $this->users->listBySupplier($supplierId, PartnerUserType::Driver, $includeInactive);
     }
 
+    /**
+     * Службовий добір профілів водіїв за ідентифікаторами — БЕЗ контексту
+     * постачальника: споживач (booking-service) підставляє ПІБ і телефон у
+     * картку прибуття магазину, а бронювання зберігає лише driverId профілю.
+     *
+     * Невідомі ідентифікатори просто відсутні у відповіді: перелік водіїв
+     * дошки — довідкове збагачення, і зниклий профіль не має ламати дошку.
+     * Архівовані й деактивовані профілі повертаються (з ознакою `active`):
+     * історичне бронювання має показувати того, хто справді приїжджав.
+     *
+     * @param list<string> $driverIds
+     *
+     * @return list<PartnerUser>
+     */
+    public function findByIds(array $driverIds): array
+    {
+        $found = [];
+
+        foreach (array_unique($driverIds) as $driverId) {
+            $driver = '' === trim($driverId) ? null : $this->users->findById($driverId);
+
+            if (null !== $driver && $driver->isDriver()) {
+                $found[] = $driver;
+            }
+        }
+
+        return $found;
+    }
+
     public function getDriver(string $supplierId, string $driverId): PartnerUser
     {
         $driver = $this->users->findById($driverId);

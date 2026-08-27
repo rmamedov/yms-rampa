@@ -131,7 +131,7 @@ final class MongoBookingRepositoryIntegrationTest extends TestCase
     {
         $document = BookingDocumentMapper::toDocument(BookingFactory::scheduled(id: 'bk-mongo-g'));
 
-        self::assertSame(3, $document['schemaVersion']);
+        self::assertSame(4, $document['schemaVersion']);
         self::assertSame('scheduled', $document['type']);
         self::assertArrayHasKey('storeSnapshot', $document);
         self::assertArrayHasKey('statusHistory', $document);

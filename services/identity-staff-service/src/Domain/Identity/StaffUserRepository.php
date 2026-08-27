@@ -44,4 +44,11 @@ interface StaffUserRepository
      * @return list<StaffUser>
      */
     public function findByStoreScope(?array $storeIds): array;
+
+    /**
+     * Список для розділу «Користувачі» адмін-панелі (4.7): серверні фільтри,
+     * пошук і пагінація. Фільтри — обовʼязковий предикат ЗАПИТУ, а не
+     * пост-фільтрація в памʼяті (RBAC-17).
+     */
+    public function search(StaffUserCriteria $criteria): StaffUserPage;
 }

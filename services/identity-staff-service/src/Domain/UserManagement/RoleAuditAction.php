@@ -14,4 +14,6 @@ enum RoleAuditAction: string
     case ScopeChange = 'scope_change';
     case Deactivate = 'deactivate';
     case Reactivate = 'reactivate';
+    case Rename = 'rename';
+    case PasswordReset = 'password_reset';
 }

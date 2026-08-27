@@ -15,11 +15,24 @@ export type StaffRole =
   | 'supplier_operator'
   | 'driver';
 
-/** Ролі, яким дозволено вхід у store-web (STW-01). */
+/**
+ * Ролі, яким дозволено вхід у store-web.
+ *
+ * Перелік узгоджено з канонічною матрицею прав (PermissionMatrix у
+ * identity-staff-service): мережеві ролі мають повноваження на дії магазину
+ * (arrived, unloading, unloaded, no_show, delayed, reject, reassign_ramp,
+ * create_walk_in, read.all), тому замикати їх на вході неправильно — бекенд
+ * ці дії від них приймає, а інтерфейс не пускав.
+ */
 export const STORE_ROLES: readonly StaffRole[] = [
   'store_manager',
   'store_operator',
+  'network_manager',
+  'super_admin',
 ];
+
+/** Ролі, чий доступ не обмежений переліком магазинів (RBAC-16). */
+export const NETWORK_WIDE_ROLES: readonly StaffRole[] = ['super_admin', 'network_manager'];
 
 /**
  * Магазин у скоупі користувача.

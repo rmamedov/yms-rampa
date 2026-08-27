@@ -3,7 +3,7 @@
  *
  * Стратегії:
  *  - оболонка застосунку (навігація, статика) — cache-first із мережевим оновленням;
- *  - GET /api/driver/v1/route-sheets/* — network-first із записом у кеш;
+ *  - GET /api/driver/v1/route-sheet — network-first із записом у кеш;
  *    без мережі повертається останній успішно завантажений маршрутний лист.
  *
  * Архітектура навмисно залишає місце для web-push фази 2 (DRV-37):
@@ -40,7 +40,15 @@ self.addEventListener('activate', (event) => {
 });
 
 function isRouteSheetRequest(url) {
-  return url.pathname.startsWith('/api/driver/v1/route-sheets');
+  // Маршрут в однині: /api/driver/v1/route-sheet. Зайва «s» тут означала,
+  // що запит не потрапляв у network-first і назавжди віддавався з кешу —
+  // водій не бачив ні нових точок, ні скасованих, ні перенесених слотів.
+  return url.pathname.startsWith('/api/driver/v1/route-sheet');
+}
+
+/** Решта викликів API кешуванню не підлягає — тільки мережа. */
+function isApiRequest(url) {
+  return url.pathname.startsWith('/api/');
 }
 
 self.addEventListener('fetch', (event) => {
@@ -55,6 +63,12 @@ self.addEventListener('fetch', (event) => {
 
   if (isRouteSheetRequest(url)) {
     event.respondWith(networkFirst(request, DATA_CACHE));
+    return;
+  }
+
+  // Будь-який інший виклик API — тільки мережа. Раніше вони провалювалися
+  // у cacheFirst нижче разом зі статикою і застрягали в кеші назавжди.
+  if (isApiRequest(url)) {
     return;
   }
 

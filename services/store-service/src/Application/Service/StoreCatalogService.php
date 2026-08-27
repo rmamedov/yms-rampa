@@ -66,6 +66,45 @@ final readonly class StoreCatalogService
     }
 
     /**
+     * Службовий перелік магазинів, які реально беруть участь у роботі
+     * (GET /internal/v1/stores, споживач — booking-service).
+     *
+     * Критерій «бере участь» — рівно той, за якого існує чинна конфігурація
+     * прийому: ymsStatus=active І повна конфігурація за STL-04. Магазин на
+     * паузі, архівний або ненастроєний сюди не потрапляє свідомо: для нього
+     * GET /internal/v1/stores/{id}/settings відповідає 404, тож у перемикачі
+     * філії він був би мертвим пунктом, який ламає кожен наступний екран.
+     *
+     * @param list<string>|null $storeIds RBAC-17: звуження переліком магазинів
+     *                                    зі скоупу; null — без звуження,
+     *                                    ПОРОЖНІЙ список = порожня вибірка (RBAC-13)
+     *
+     * @return array<string, mixed>
+     */
+    public function operationalStores(?array $storeIds = null, int $page = 1, int $perPage = 100): array
+    {
+        $now = $this->clock->now();
+        $result = $this->branches->search(new BranchCriteria(
+            statuses: [YmsStatus::Active],
+            configured: true,
+            configuredStoreIds: $this->configurations->configuredStoreIds($now),
+            scopedStoreIds: $storeIds,
+            page: max(1, $page),
+            perPage: \in_array($perPage, BranchCriteria::ALLOWED_PER_PAGE, true)
+                ? $perPage
+                : BranchCriteria::ALLOWED_PER_PAGE[\count(BranchCriteria::ALLOWED_PER_PAGE) - 1],
+        ));
+
+        return [
+            'items' => array_map(BranchPresenter::internalRow(...), $result->items),
+            'total' => $result->total,
+            'page' => $result->page,
+            'perPage' => $result->perPage,
+            'pages' => $result->pages(),
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function card(string $branchId): array

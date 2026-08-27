@@ -107,19 +107,7 @@ export class AnalyticsPage {
         error: () => this.cityOptions.set([]),
       });
 
-    this.storesApi
-      .list(DEFAULT_STORE_FILTER, { page: 1, pageSize: 100, sort: 'city' })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (page) =>
-          this.storeOptions.set(
-            page.items.map((row: StoreListRow) => ({
-              value: row.id,
-              label: `${row.externalId} — ${row.city}`,
-            })),
-          ),
-        error: () => this.storeOptions.set([]),
-      });
+    this.loadAllStoreOptions();
 
     this.suppliersApi
       .all()
@@ -206,5 +194,38 @@ export class AnalyticsPage {
         },
         error: (error: unknown) => this.toast.error(error),
       });
+  }
+  /**
+   * Фільтр за магазином має покривати всю мережу: один запит на 100 записів
+   * із 455 означав, що більшість філій відфільтрувати неможливо.
+   */
+  private loadAllStoreOptions(): void {
+    const pageSize = 100 as const;
+    const collected: StoreListRow[] = [];
+
+    const fetchPage = (page: number): void => {
+      this.storesApi
+        .list(DEFAULT_STORE_FILTER, { page, pageSize, sort: 'city' })
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (result) => {
+            collected.push(...result.items);
+
+            if (collected.length < result.total && result.items.length > 0) {
+              fetchPage(page + 1);
+              return;
+            }
+
+            this.storeOptions.set(
+              collected
+                .filter((row) => row.city?.trim())
+                .map((row) => ({ value: row.id, label: `${row.externalId} — ${row.city}` })),
+            );
+          },
+          error: () => this.storeOptions.set([]),
+        });
+    };
+
+    fetchPage(1);
   }
 }

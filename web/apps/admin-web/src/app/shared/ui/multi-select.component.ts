@@ -83,7 +83,10 @@ export class MultiSelectComponent {
       term === ''
         ? options
         : options.filter((o) => o.label.toLowerCase().includes(term));
-    return filtered.slice(0, 200);
+    // Раніше тут стояло slice(0, 200): з 447 придатних філій половина була
+    // недосяжна — обрати можна було лише те, що потрапило у зріз, а решту
+    // доводилося вгадувати пошуком. Показуємо все, що знайшлося.
+    return filtered;
   });
 
   protected readonly summary = computed(() => {

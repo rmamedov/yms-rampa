@@ -112,12 +112,15 @@ final class InternalStoreSettingsTest extends TestCase
         self::assertSame(20, $body['holdMaxMinutes']);
         self::assertSame(1, $body['configVersion']);
 
-        // DATA-13: снапшот філії для документа бронювання.
+        // DATA-13: снапшот філії для документа бронювання. Координати їдуть тут же —
+        // контур водія будує маршрут у навігаторі саме за ними (DRV-21).
         self::assertSame([
             'externalId' => '1998',
             'displayName' => 'просп. Володимира Івасюка, 46',
             'city' => 'Київ',
             'address' => 'просп. Володимира Івасюка, 46',
+            'latitude' => 50.52022,
+            'longitude' => 30.51452,
         ], $body['snapshot']);
 
         // Вікна прийому на дні тижня з інтервалами {from,to}.

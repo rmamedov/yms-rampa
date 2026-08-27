@@ -93,7 +93,11 @@ export class StoreGeneralTabComponent {
       addressOverride:
         this.addressOverride().trim() === '' ? null : this.addressOverride().trim(),
       ymsStatus: this.ymsStatus(),
-      visibleToSuppliers: this.visibleToSuppliers(),
+      // Видимим постачальникам може бути лише активний магазин — це доменне
+      // правило бекенду. Раніше форма надсилала прапорець як є, тому спроба
+      // поставити магазин на паузу відхилялася цілком: разом зі статусом не
+      // зберігалися й усі інші поля.
+      visibleToSuppliers: this.ymsStatus() === 'active' ? this.visibleToSuppliers() : false,
     };
   }
 

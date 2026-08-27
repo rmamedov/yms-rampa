@@ -8,6 +8,8 @@ use App\Domain\Identity\Email;
 use App\Domain\Identity\IdentitySnapshot;
 use App\Domain\Identity\Role;
 use App\Domain\Identity\StaffUser;
+use App\Domain\Identity\StaffUserCriteria;
+use App\Domain\Identity\StaffUserPage;
 use App\Domain\Identity\StaffUserRepository;
 
 /**
@@ -54,5 +56,10 @@ final class CountingStaffUserRepository implements StaffUserRepository
     public function findByStoreScope(?array $storeIds): array
     {
         return $this->inner->findByStoreScope($storeIds);
+    }
+
+    public function search(StaffUserCriteria $criteria): StaffUserPage
+    {
+        return $this->inner->search($criteria);
     }
 }

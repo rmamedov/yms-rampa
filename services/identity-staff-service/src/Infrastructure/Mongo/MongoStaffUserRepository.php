@@ -8,6 +8,8 @@ use App\Domain\Identity\Email;
 use App\Domain\Identity\IdentitySnapshot;
 use App\Domain\Identity\Role;
 use App\Domain\Identity\StaffUser;
+use App\Domain\Identity\StaffUserCriteria;
+use App\Domain\Identity\StaffUserPage;
 use App\Domain\Identity\StaffUserRepository;
 
 /**
@@ -96,6 +98,71 @@ final readonly class MongoStaffUserRepository implements StaffUserRepository
         }
 
         return array_map(self::hydrate(...), $this->connection->find(self::COLLECTION, $filter));
+    }
+
+    /**
+     * Список розділу «Користувачі» (4.7).
+     *
+     * Фільтри йдуть предикатом запиту, пагінація — skip/limit драйвера:
+     * вибирати всю колекцію в памʼять і різати її там не можна навіть на
+     * кількох сотнях акаунтів.
+     */
+    public function search(StaffUserCriteria $criteria): StaffUserPage
+    {
+        $filter = self::filterOf($criteria);
+
+        return new StaffUserPage(
+            items: array_map(self::hydrate(...), $this->connection->find(
+                self::COLLECTION,
+                $filter,
+                [
+                    // Той самий порядок, що й у InMemory-реалізації:
+                    // активні першими, далі за email.
+                    'sort' => ['active' => -1, 'email' => 1],
+                    'skip' => $criteria->offset(),
+                    'limit' => $criteria->perPage,
+                ],
+            )),
+            total: $this->connection->count(self::COLLECTION, $filter),
+            page: $criteria->page,
+            perPage: $criteria->perPage,
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function filterOf(StaffUserCriteria $criteria): array
+    {
+        // RBAC-23: порожній перелік ролей дає `$in: []`, тобто гарантовано
+        // порожню вибірку, а не відсутність фільтра.
+        $filter = [
+            'role' => ['$in' => array_map(
+                static fn (Role $role): string => $role->value,
+                $criteria->effectiveRoles(),
+            )],
+        ];
+
+        if (null !== $criteria->active) {
+            // DATA-03: архівований запис так само неактивний.
+            $filter['active'] = $criteria->active;
+
+            if ($criteria->active) {
+                $filter['archivedAt'] = null;
+            }
+        }
+
+        $query = trim((string) $criteria->query);
+
+        if ('' !== $query) {
+            $escaped = preg_quote($query, '/');
+            $filter['$or'] = [
+                ['email' => ['$regex' => $escaped, '$options' => 'i']],
+                ['fullName' => ['$regex' => $escaped, '$options' => 'i']],
+            ];
+        }
+
+        return $filter;
     }
 
     /**

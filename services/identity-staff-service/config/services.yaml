@@ -13,6 +13,8 @@
 parameters:
     # Політика паролів staff-контуру (AUTH-13: мінімум 12 символів)
     app.password.min_length: 12
+    # Довжина згенерованого одноразового пароля (розділ 4.7) — з запасом до мінімуму
+    app.password.generated_length: 16
     # AUTH-60: argon2id, не нижче memory 64 MB / time 3 / parallelism 4
     app.password.argon2.memory_cost: 65536
     app.password.argon2.time_cost: 3
@@ -41,6 +43,13 @@ services:
     App\Domain\Password\PasswordPolicy:
         arguments:
             $minLength: '%app.password.min_length%'
+
+    # 4.7: одноразовий пароль для акаунтів, які заводить адміністратор.
+    # Складність не дублюється — генератор звіряється з PasswordPolicy.
+    App\Infrastructure\Security\SecurePasswordGenerator:
+        arguments:
+            $length: '%app.password.generated_length%'
+    App\Domain\Password\PasswordGenerator: '@App\Infrastructure\Security\SecurePasswordGenerator'
 
     # --- JWT (AUTH-02: ОКРЕМИЙ ключ staff-контуру) -----------------------
     # HS256 для локальної розробки; у проді — FirebaseJwtSigner::rs256 з парою
@@ -71,6 +80,7 @@ services:
     # --- HTTP -------------------------------------------------------------
     App\Http\ProblemDetailsFactory: ~
     App\Http\ProblemExceptionListener: ~
+    App\Http\ActorResolver: ~
 
     App\Controller\:
         resource: '../src/Controller/'

@@ -10,7 +10,7 @@ use App\Domain\Slot\StoreConfig;
 /**
  * Повний знімок магазину, потрібний booking-service для одного запиту:
  * геометрія сітки (StoreConfig), параметри движка (StorePolicy),
- * снапшот філії для документа бронювання і ознака ymsStatus.
+ * снапшот філії для документа бронювання, координати і ознака ymsStatus.
  */
 final readonly class StoreSettings
 {
@@ -20,6 +20,8 @@ final readonly class StoreSettings
         public StoreSnapshot $snapshot,
         /** GRID-01, крок 2: якщо магазин не active — для постачальника це 404. */
         public bool $ymsActive = true,
+        /** Координати філії для навігатора водія; null, якщо сусід їх не віддав. */
+        public ?GeoPoint $location = null,
     ) {
     }
 

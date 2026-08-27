@@ -69,9 +69,9 @@ export function validateMaxWeight(value: number | null): string | null {
   return null;
 }
 
-/** leadTimeMinutes: ціле 0..10080 хв (7 діб) — поле бекенду в хвилинах. */
+/** leadTimeMinutes: ціле 0..1440 хв — межа з StoreConfiguration::LEAD_TIME_MAX. */
 export function validateLeadTime(value: number): string | null {
-  return Number.isInteger(value) && value >= 0 && value <= 10_080
+  return Number.isInteger(value) && value >= 0 && value <= 1440
     ? null
     : 'limits.error.leadTime';
 }
@@ -83,16 +83,16 @@ export function validateNoShowGrace(value: number): string | null {
     : 'limits.error.noShowGrace';
 }
 
-/** holdMaxMinutes: ціле 1..120 хв. */
+/** holdMaxMinutes: ціле 1..60 хв — межа з StoreConfiguration::HOLD_MAX_LIMIT. */
 export function validateHoldMax(value: number): string | null {
-  return Number.isInteger(value) && value >= 1 && value <= 120
+  return Number.isInteger(value) && value >= 1 && value <= 60
     ? null
     : 'limits.error.holdMax';
 }
 
-/** Горизонт бронювання: ціле 1..90 днів. */
+/** Горизонт бронювання: ціле 1..30 днів — межа з StoreConfiguration::HORIZON_MAX_DAYS. */
 export function validateHorizon(value: number): string | null {
-  return Number.isInteger(value) && value >= 1 && value <= 90
+  return Number.isInteger(value) && value >= 1 && value <= 30
     ? null
     : 'limits.error.horizon';
 }

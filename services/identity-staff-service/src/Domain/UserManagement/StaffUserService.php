@@ -13,10 +13,14 @@ use App\Domain\Identity\Exception\MultipleRolesForbiddenException;
 use App\Domain\Identity\Exception\ResourceNotFoundException;
 use App\Domain\Identity\Exception\RoleAssignmentForbiddenException;
 use App\Domain\Identity\Exception\SelfRoleChangeForbiddenException;
+use App\Domain\Identity\Exception\ValidationException;
 use App\Domain\Identity\Permission;
 use App\Domain\Identity\Role;
 use App\Domain\Identity\StaffUser;
+use App\Domain\Identity\StaffUserCriteria;
+use App\Domain\Identity\StaffUserPage;
 use App\Domain\Identity\StaffUserRepository;
+use App\Domain\Password\PasswordGenerator;
 use App\Domain\Password\PasswordPolicy;
 use App\Domain\Password\PasswordHasher;
 use App\Domain\Shared\Clock;
@@ -40,7 +44,42 @@ final readonly class StaffUserService
         private PasswordPolicy $passwordPolicy,
         private Clock $clock,
         private ?TokenService $tokens = null,
+        private ?PasswordGenerator $passwordGenerator = null,
     ) {
+    }
+
+    /**
+     * Список користувачів для розділу «Користувачі» (4.7).
+     *
+     * RBAC-23: вибірка мовчки звужується до ролей, які актор має право
+     * призначати, тому network_manager не бачить у списку ані super_admin,
+     * ані інших network_manager — так само, як магазинна роль не бачить
+     * чужих магазинів (RBAC-17).
+     */
+    public function listUsers(StaffUser $actor, StaffUserCriteria $criteria): StaffUserPage
+    {
+        $this->accessDecider->assertCan($actor, Permission::UsersManageStaff);
+
+        return $this->users->search($criteria->restrictedTo($this->manageableRoles($actor)));
+    }
+
+    /**
+     * Картка користувача.
+     *
+     * RBAC-18: акаунт, роль якого акторові недоступна, не показується
+     * як «заборонено» — його існування взагалі не розкривається (404).
+     */
+    public function getUser(StaffUser $actor, string $targetUserId): StaffUser
+    {
+        $this->accessDecider->assertCan($actor, Permission::UsersManageStaff);
+
+        $target = $this->requireUser($targetUserId);
+
+        if (!\in_array($target->role(), $this->manageableRoles($actor), true)) {
+            throw new ResourceNotFoundException('staff_user');
+        }
+
+        return $target;
     }
 
     /**
@@ -51,13 +90,43 @@ final readonly class StaffUserService
     public function createUser(
         StaffUser $actor,
         Email $email,
-        string $plainPassword,
+        ?string $plainPassword,
         Role $role,
         array $storeIds = [],
         string $fullName = '',
         ?string $requestId = null,
         ?string $ip = null,
     ): StaffUser {
+        return $this->createUserWithCredentials(
+            $actor,
+            $email,
+            $plainPassword,
+            $role,
+            $storeIds,
+            $fullName,
+            $requestId,
+            $ip,
+        )->user;
+    }
+
+    /**
+     * Те саме створення, але з паролем для ОДНОРАЗОВОГО показу в адмін-панелі.
+     *
+     * `$plainPassword === null` означає «згенеруй сам»: адміністратор не
+     * вигадує пароль і не пересилає його каналом, який він не контролює.
+     *
+     * @param list<string> $storeIds
+     */
+    public function createUserWithCredentials(
+        StaffUser $actor,
+        Email $email,
+        ?string $plainPassword,
+        Role $role,
+        array $storeIds = [],
+        string $fullName = '',
+        ?string $requestId = null,
+        ?string $ip = null,
+    ): StaffUserCredentials {
         $this->accessDecider->assertCan($actor, Permission::UsersManageStaff);
         $this->assertCanAssign($actor, $role);
 
@@ -65,13 +134,12 @@ final readonly class StaffUserService
             throw new EmailAlreadyUsedException($email->value);
         }
 
-        // AUTH-13: політика паролів застосовується і при створенні акаунта
-        $this->passwordPolicy->assertValid($plainPassword, $email->value, $fullName);
+        $password = $this->resolvePassword($plainPassword, $email->value, $fullName);
 
         $now = $this->clock->now();
         $user = StaffUser::create(
             email: $email,
-            passwordHash: $this->hasher->hash($plainPassword),
+            passwordHash: $this->hasher->hash($password),
             role: $role,
             storeIds: $storeIds,
             now: $now,
@@ -92,7 +160,7 @@ final readonly class StaffUserService
             ip: $ip,
         ));
 
-        return $user;
+        return new StaffUserCredentials($user, $password);
     }
 
     /**
@@ -288,6 +356,133 @@ final readonly class StaffUserService
         ));
 
         return $target;
+    }
+
+    /**
+     * Зміна повного імені. Роль і скоуп тут не змінюються — для них є
+     * assignRole() і changeScope() зі своїми інваріантами RBAC-24/25.
+     */
+    public function rename(
+        StaffUser $actor,
+        string $targetUserId,
+        string $fullName,
+        ?string $requestId = null,
+        ?string $ip = null,
+    ): StaffUser {
+        $this->accessDecider->assertCan($actor, Permission::UsersManageStaff);
+
+        $target = $this->requireUser($targetUserId);
+        $this->assertCanAssign($actor, $target->role());
+
+        $before = ['fullName' => $target->fullName()];
+        $now = $this->clock->now();
+
+        $target->rename($fullName, $now);
+        $this->users->save($target);
+
+        $this->audit->append(new RoleAuditEntry(
+            actorUserId: $actor->id(),
+            actorRole: $actor->role(),
+            targetUserId: $target->id(),
+            action: RoleAuditAction::Rename,
+            before: $before,
+            after: ['fullName' => $target->fullName()],
+            timestamp: $now,
+            requestId: $requestId,
+            ip: $ip,
+        ));
+
+        return $target;
+    }
+
+    /**
+     * Перегенерація пароля адміністратором (розділ 4.7).
+     *
+     * AUTH-13: новий пароль проходить політику, включно з історією
+     * останніх пʼяти хешів. AUTH-32/RBAC-26: усі сесії власника гасяться
+     * негайно — старий пароль більше нікуди не пускає.
+     */
+    public function resetPassword(
+        StaffUser $actor,
+        string $targetUserId,
+        ?string $plainPassword = null,
+        ?string $requestId = null,
+        ?string $ip = null,
+    ): StaffUserCredentials {
+        $this->accessDecider->assertCan($actor, Permission::UsersManageStaff);
+
+        $target = $this->requireUser($targetUserId);
+        $this->assertCanAssign($actor, $target->role());
+
+        $password = $this->resolvePassword(
+            $plainPassword,
+            $target->email()->value,
+            $target->fullName(),
+            $target->passwordHistory(),
+        );
+
+        $now = $this->clock->now();
+        $target->changePassword($this->hasher->hash($password), $now);
+        $this->users->save($target);
+
+        $this->tokens?->revokeAllSessions($target->id());
+
+        $this->audit->append(new RoleAuditEntry(
+            actorUserId: $actor->id(),
+            actorRole: $actor->role(),
+            targetUserId: $target->id(),
+            action: RoleAuditAction::PasswordReset,
+            before: [],
+            // AUTH-61: у журналі — лише факт скидання, без пароля і без хеша
+            after: ['passwordReset' => true],
+            timestamp: $now,
+            requestId: $requestId,
+            ip: $ip,
+        ));
+
+        return new StaffUserCredentials($target, $password);
+    }
+
+    /**
+     * Ролі, якими актор має право керувати за деревом 4.7, у межах
+     * staff-контуру (supplier_admin із дерева живе в partner-контурі).
+     *
+     * @return list<Role>
+     */
+    public function manageableRoles(StaffUser $actor): array
+    {
+        return array_values(array_filter(
+            $actor->role()->assignableRoles(),
+            static fn (Role $role): bool => \in_array($role, Role::staffRoles(), true),
+        ));
+    }
+
+    /**
+     * Пароль або від адміністратора, або згенерований — в обох випадках
+     * перевіряється НАЯВНОЮ політикою AUTH-13, власних правил тут немає.
+     *
+     * @param list<string> $passwordHistory
+     */
+    private function resolvePassword(
+        ?string $plainPassword,
+        string $email,
+        string $fullName,
+        array $passwordHistory = [],
+    ): string {
+        if (null === $plainPassword) {
+            if (null === $this->passwordGenerator) {
+                throw new ValidationException(
+                    'Пароль обовʼязковий.',
+                    ['Генератор паролів недоступний — вкажіть пароль явно'],
+                );
+            }
+
+            return $this->passwordGenerator->generate($email, $fullName);
+        }
+
+        $this->passwordPolicy->assertValid($plainPassword, $email, $fullName, $passwordHistory);
+
+        return $plainPassword;
     }
 
     private function assertCanAssign(StaffUser $actor, Role $role): void

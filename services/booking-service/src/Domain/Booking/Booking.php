@@ -147,7 +147,7 @@ final class Booking
             rescheduleOf: $rescheduleOf,
             createdBy: $createdBy->userId,
             createdAt: $now,
-            statusHistory: [new StatusChange(null, BookingStatus::Booked, $now, $createdBy->userId)],
+            statusHistory: [StatusChange::madeBy(null, BookingStatus::Booked, $now, $createdBy)],
         );
     }
 
@@ -192,7 +192,7 @@ final class Booking
             rescheduleOf: null,
             createdBy: $createdBy->userId,
             createdAt: $now,
-            statusHistory: [new StatusChange(null, BookingStatus::Arrived, $now, $createdBy->userId)],
+            statusHistory: [StatusChange::madeBy(null, BookingStatus::Arrived, $now, $createdBy)],
         );
 
         $booking->arrivedAt = $now;
@@ -850,7 +850,7 @@ final class Booking
 
         $from = $this->status;
         $this->status = $to;
-        $this->statusHistory[] = new StatusChange($from, $to, $now, $actor->userId, $meta);
+        $this->statusHistory[] = StatusChange::madeBy($from, $to, $now, $actor, $meta);
         $this->touch($now);
     }
 

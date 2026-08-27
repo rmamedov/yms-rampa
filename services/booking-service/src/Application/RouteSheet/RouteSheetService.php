@@ -33,6 +33,7 @@ final readonly class RouteSheetService
         private RouteSheetRepository $sheets,
         private BookingRepository $bookings,
         private IdGenerator $ids,
+        private StoreConfigProvider $stores,
     ) {
     }
 

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Controller\Internal;
 
+use App\Application\Service\StoreCatalogService;
 use App\Application\Service\StoreSettingsService;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
@@ -25,8 +27,48 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route('/internal/v1/stores', requirements: ['storeId' => '[0-9a-fA-F-]{36}'])]
 final readonly class InternalStoreController
 {
-    public function __construct(private StoreSettingsService $storeSettings)
+    public function __construct(
+        private StoreSettingsService $storeSettings,
+        private StoreCatalogService $catalog,
+    ) {
+    }
+
+    /**
+     * Перелік магазинів, які беруть участь у роботі (ymsStatus=active із чинною
+     * конфігурацією). Споживач — booking-service: з цього переліку будується
+     * перемикач філії в контурі магазину, зокрема для мережевих ролей, у яких
+     * скоуп задає РОЛЬ, а не заголовок X-Store-Ids.
+     *
+     * Параметри: storeIds (через кому — звуження скоупом), page, perPage.
+     * Пагінація серверна; клієнт зобовʼязаний пройти всі сторінки (`pages`).
+     */
+    #[Route('', name: 'internal_store_list', methods: ['GET'])]
+    public function list(Request $request): JsonResponse
     {
+        $raw = trim((string) $request->query->get('storeIds', ''));
+
+        return new JsonResponse($this->catalog->operationalStores(
+            // Параметра немає — звуження немає; параметр є, але порожній —
+            // це порожній скоуп, тобто гарантовано порожня вибірка (RBAC-13).
+            storeIds: $request->query->has('storeIds') ? self::idList($raw) : null,
+            page: $request->query->getInt('page', 1),
+            perPage: $request->query->getInt('perPage', 100),
+        ));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function idList(string $raw): array
+    {
+        if ('' === $raw) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map(trim(...), explode(',', $raw)),
+            static fn (string $id): bool => '' !== $id,
+        ));
     }
 
     /**

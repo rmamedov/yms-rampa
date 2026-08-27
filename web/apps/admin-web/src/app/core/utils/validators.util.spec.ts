@@ -3,6 +3,7 @@ import {
   validateDisplayName,
   validateEdrpou,
   validateEmail,
+  validateHoldMax,
   validateHorizon,
   validateLeadTime,
   validateMaxWeight,
@@ -82,16 +83,27 @@ describe('SUP-01 — реквізити постачальника', () => {
 });
 
 describe('Ліміти бронювання', () => {
-  it('leadTimeMinutes — ціле 0..10080 хв', () => {
+  // Межі мають збігатися з доменом бекенду (StoreConfiguration): інакше форма
+  // пропускає значення, які сервер відхилить, і користувач бачить загальне
+  // «некоректна конфігурація» замість підказки біля поля.
+  it('leadTimeMinutes — ціле 0..1440 хв', () => {
     expect(validateLeadTime(0)).toBeNull();
-    expect(validateLeadTime(10_080)).toBeNull();
-    expect(validateLeadTime(10_081)).toBe('limits.error.leadTime');
+    expect(validateLeadTime(1440)).toBeNull();
+    expect(validateLeadTime(1441)).toBe('limits.error.leadTime');
     expect(validateLeadTime(2.5)).toBe('limits.error.leadTime');
   });
 
-  it('горизонт бронювання — ціле 1..90', () => {
+  it('горизонт бронювання — ціле 1..30', () => {
     expect(validateHorizon(21)).toBeNull();
+    expect(validateHorizon(30)).toBeNull();
     expect(validateHorizon(0)).toBe('limits.error.horizon');
-    expect(validateHorizon(91)).toBe('limits.error.horizon');
+    expect(validateHorizon(31)).toBe('limits.error.horizon');
+  });
+
+  it('утримання слоту — ціле 1..60 хв', () => {
+    expect(validateHoldMax(1)).toBeNull();
+    expect(validateHoldMax(60)).toBeNull();
+    expect(validateHoldMax(0)).toBe('limits.error.holdMax');
+    expect(validateHoldMax(61)).toBe('limits.error.holdMax');
   });
 });

@@ -35,7 +35,10 @@ export const UK_DICTIONARY: Record<string, string> = {
   'login.inProgress': 'Входимо…',
   'login.emailRequired': 'Вкажіть e-mail',
   'login.passwordRequired': 'Вкажіть пароль',
-  'login.hint': 'Демо-режим: будь-який пароль. Оператор — operator@silpo.ua, менеджер — manager@silpo.ua.',
+  // Підказка лишається лише для режиму моків: на бойовому стенді вона
+  // вводила в оману (пароль насправді перевіряється) і публікувала адреси
+  // службових облікових записів.
+  'login.hint': 'Вхід за робочим e-mail і паролем, виданим адміністратором мережі.',
   'login.failed': 'Невірний e-mail або пароль',
 
   // --- Доступ ---

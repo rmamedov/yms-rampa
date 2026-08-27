@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Mongo;
 
+use App\Domain\Access\Role;
 use App\Domain\Booking\Booking;
 use App\Domain\Booking\BookingStatus;
 use App\Domain\Booking\BookingType;
@@ -27,7 +28,12 @@ use MongoDB\BSON\UTCDateTime;
  */
 final readonly class BookingDocumentMapper
 {
-    public const int SCHEMA_VERSION = 3;
+    /**
+     * 4 — у записах statusHistory зʼявилися роль виконавця (`byRole`) і ознака
+     * планового завдання (`bySystem`). Зміна сумісна вниз: документи версії 3
+     * читаються як «роль невідома», міграція не потрібна.
+     */
+    public const int SCHEMA_VERSION = 4;
 
     /**
      * @return array<string, mixed>
@@ -75,6 +81,11 @@ final readonly class BookingDocumentMapper
                     'to' => $change->to->value,
                     'at' => self::date($change->at),
                     'by' => $change->by,
+                    // DATA-14: роль і контур виконавця зберігаються разом із
+                    // переходом — журнал має читатися без звернень до сусідів
+                    // і не залежати від того, ким користувач став пізніше.
+                    'byRole' => $change->byRole?->value,
+                    'bySystem' => $change->bySystem,
                     'meta' => $change->meta,
                 ],
                 $booking->statusHistory(),
@@ -128,6 +139,13 @@ final readonly class BookingDocumentMapper
                     at: self::toDateTime($change['at']),
                     by: (string) $change['by'],
                     meta: (array) ($change['meta'] ?? []),
+                    // DATA-02: документи, записані до появи полів, читаються
+                    // як «роль невідома» — журнал показує їх без колонки «Хто»,
+                    // а не з вигаданим значенням.
+                    byRole: isset($change['byRole']) && null !== $change['byRole']
+                        ? Role::tryFrom((string) $change['byRole'])
+                        : null,
+                    bySystem: (bool) ($change['bySystem'] ?? false),
                 ),
                 array_map(static fn ($change) => (array) $change, (array) ($document['statusHistory'] ?? [])),
             ),
