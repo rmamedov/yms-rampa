@@ -1,7 +1,11 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { of } from 'rxjs';
-import { firstValueFrom } from 'rxjs';
+import {
+  ActivatedRoute,
+  ParamMap,
+  convertToParamMap,
+  provideRouter,
+} from '@angular/router';
+import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { AuthApi } from '../../core/data/auth.api';
 import { MockAuthApi } from '../../core/data/mock/mock-auth.api';
@@ -23,14 +27,24 @@ function buttonWithText(scope: Element, text: string): HTMLButtonElement {
   return button;
 }
 
+function required<T>(value: T | null | undefined, what: string): T {
+  if (value === null || value === undefined) {
+    throw new Error(`${what} немає в розмітці`);
+  }
+  return value;
+}
+
 describe('Картка магазину — збереження конфігурації', () => {
   let fixture: ComponentFixture<StoreDetailPage>;
   let host: HTMLElement;
   let db: MockDb;
-  let configured: MockStore;
+  let store: MockStore;
+  let paramMap: BehaviorSubject<ParamMap>;
 
+  /** Готує пісочницю і вибирає налаштований магазин, ще не рендерячи сторінку. */
   async function setup(): Promise<void> {
     localStorage.clear();
+    paramMap = new BehaviorSubject<ParamMap>(convertToParamMap({}));
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
@@ -39,23 +53,20 @@ describe('Картка магазину — збереження конфігу�
         { provide: StoresApi, useClass: MockStoresApi },
         { provide: SuppliersApi, useClass: MockSuppliersApi },
         { provide: MOCK_LATENCY, useValue: 0 },
+        { provide: ActivatedRoute, useValue: { paramMap } },
       ],
     });
     db = TestBed.inject(MockDb);
     db.reset();
-    const found = db.state.stores.find((s) => s.configurations.length > 0);
-    if (!found) {
-      throw new Error('У пісочниці немає жодного налаштованого магазину');
-    }
-    configured = found;
+    store = required(
+      db.state.stores.find((s) => s.configurations.length > 0),
+      'Налаштованого магазину в пісочниці',
+    );
+    // ADM-05: конфігурацію редагує super_admin.
     await firstValueFrom(
       TestBed.inject(AuthService).login('super.admin@silpo.ua', 'demo'),
     );
-    TestBed.overrideProvider(ActivatedRoute, {
-      useValue: {
-        paramMap: of(convertToParamMap({ id: configured.card.id })),
-      },
-    });
+    paramMap.next(convertToParamMap({ id: store.card.id }));
   }
 
   function render(): void {
@@ -65,20 +76,28 @@ describe('Картка магазину — збереження конфігу�
   }
 
   function openTab(label: string): void {
-    const tabs = host.querySelector('.tabs');
-    if (!tabs) {
-      throw new Error('Вкладок немає в розмітці');
-    }
-    buttonWithText(tabs, label).click();
+    buttonWithText(required(host.querySelector('.tabs'), 'Вкладок'), label).click();
     fixture.detectChanges();
   }
 
+  /** На вкладці «Прийом поставок» є ще одна .btn-primary — «Додати виняток». */
   function saveButton(): HTMLButtonElement {
-    const button = host.querySelector<HTMLButtonElement>('button.btn-primary');
-    if (!button) {
-      throw new Error('Кнопки «Зберегти» немає в розмітці');
-    }
-    return button;
+    return required(
+      Array.from(host.querySelectorAll<HTMLButtonElement>('button.btn-primary')).find(
+        (b) => (b.textContent ?? '').includes('Зберегти'),
+      ),
+      'Кнопки «Зберегти»',
+    );
+  }
+
+  function rampsTable(): Element {
+    return required(host.querySelector('table.data'), 'Таблиці рамп');
+  }
+
+  function deleteButtons(): HTMLButtonElement[] {
+    return Array.from(rampsTable().querySelectorAll('button')).filter((b) =>
+      (b.textContent ?? '').includes('Видалити'),
+    );
   }
 
   afterEach(() => localStorage.clear());
@@ -87,25 +106,14 @@ describe('Картка магазину — збереження конфігу�
     await setup();
     render();
     openTab('Слоти');
+    expect(deleteButtons().length).toBeGreaterThan(0);
 
-    const ramps = host.querySelector('table.data');
-    if (!ramps) {
-      throw new Error('Таблиці рамп немає в розмітці');
-    }
-    let rows = ramps.querySelectorAll('tbody tr').length;
-    expect(rows).toBeGreaterThan(0);
-    while (rows > 0) {
-      buttonWithText(ramps.querySelectorAll('tbody tr')[0], 'Видалити').click();
-      fixture.detectChanges();
-      rows = ramps.querySelectorAll('tbody tr[data-ramp], tbody tr').length;
-      // Порожній стан таблиці — один рядок-заглушка без кнопки «Видалити».
-      if (
-        Array.from(ramps.querySelectorAll('tbody tr')).every(
-          (tr) => !(tr.textContent ?? '').includes('Видалити'),
-        )
-      ) {
-        break;
+    for (let guard = 0; deleteButtons().length > 0; guard += 1) {
+      if (guard > 20) {
+        throw new Error('Рампи не видаляються');
       }
+      deleteButtons()[0].click();
+      fixture.detectChanges();
     }
 
     expect(host.textContent).toContain('Потрібна щонайменше одна рампа');
@@ -137,15 +145,18 @@ describe('Картка магазину — збереження конфігу�
     buttonWithText(host, 'Додати рампу').click();
     fixture.detectChanges();
 
+    expect(host.textContent).not.toContain('Потрібна щонайменше одна рампа');
     expect(saveButton().disabled).toBe(false);
   });
 
-  it('STC-10: у вкладці «Прийом поставок» усі сім днів навіть без неділі в конфігурації', async () => {
+  it('STC-10: усі сім днів у формі, навіть якщо неділі в конфігурації немає', async () => {
     await setup();
-    const config = configured.configurations[configured.configurations.length - 1];
-    configured.configurations[configured.configurations.length - 1] = {
-      ...config,
-      receivingWindows: config.receivingWindows.filter((w) => w.dayOfWeek !== 7),
+    const last = store.configurations.length - 1;
+    store.configurations[last] = {
+      ...store.configurations[last],
+      receivingWindows: store.configurations[last].receivingWindows.filter(
+        (w) => w.dayOfWeek !== 7,
+      ),
     };
 
     render();
@@ -153,6 +164,7 @@ describe('Картка магазину — збереження конфігу�
 
     const days = host.querySelectorAll('.day-row');
     expect(days).toHaveLength(7);
+
     buttonWithText(days[6], 'Додати інтервал').click();
     fixture.detectChanges();
 

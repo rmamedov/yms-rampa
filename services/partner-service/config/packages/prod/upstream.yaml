@@ -1,15 +1,18 @@
 # yaml-language-server: $schema=../../../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
 #
-# ПРОД-ЗАЛЕЖНІСТЬ ВІД identity-partner-service (DATA-35, AUTH-23…AUTH-28).
+# ПРОД-ЗАЛЕЖНОСТІ ВІД СУСІДНІХ МІКРОСЕРВІСІВ:
+#   identity-partner-service (DATA-35, AUTH-23…AUTH-28) — облікові записи;
+#   booking-service (SUP-06) — чи є в постачальника історія бронювань.
 #
 # Файл читається ЛИШЕ при APP_ENV=prod. Dev і тести лишаються на
-# InMemoryPartnerAccountGateway із config/services.yaml і не потребують ані
-# піднятого сусіда, ані мережі взагалі.
+# InMemoryPartnerAccountGateway та InMemoryBookingQueryPort із
+# config/services.yaml і не потребують ані піднятих сусідів, ані мережі взагалі.
 #
-# ТРАНСПОРТ. Базовий URL показує на внутрішній шлюз nginx
+# ТРАНСПОРТ. Базові URL показують на внутрішній шлюз nginx
 # (infra/nginx-yms-internal.conf), який слухає лише 127.0.0.1:8081 і роздає
 # запити за префіксом шляху:
 #     /internal/v1/partner-accounts…  → identity-partner-service
+#     /internal/v1/bookings…          → booking-service
 # Через auth_request службові маршрути не проходять і заголовків ідентичності
 # не мають, тому клієнт нічого не підписує.
 #
@@ -26,10 +29,12 @@
 #
 # Перевірка фактичного звʼязування:
 #     APP_ENV=prod php bin/console debug:container App\\Domain\\Identity\\PartnerAccountGateway
+#     APP_ENV=prod php bin/console debug:container App\\Domain\\Booking\\BookingQueryPort
 
 parameters:
-    # Дефолт env-змінної; на проді значення приходить з оточення.
+    # Дефолти env-змінних; на проді значення приходять з оточення.
     env(IDENTITY_PARTNER_BASE_URL): 'http://127.0.0.1:8081'
+    env(BOOKING_SERVICE_BASE_URL): 'http://127.0.0.1:8081'
 
 services:
     _defaults:
@@ -41,5 +46,17 @@ services:
             $http: '@http_client'
             $baseUrl: '%env(IDENTITY_PARTNER_BASE_URL)%'
 
-    # --- Порт домену → продакшн-адаптер -------------------------------------
+    App\Infrastructure\Booking\HttpBookingQueryPort:
+        arguments:
+            $http: '@http_client'
+            $baseUrl: '%env(BOOKING_SERVICE_BASE_URL)%'
+
+    # --- Порти домену → продакшн-адаптери -----------------------------------
     App\Domain\Identity\PartnerAccountGateway: '@App\Infrastructure\Identity\HttpPartnerAccountGateway'
+
+    # SUP-06. Раніше тут (точніше, у блоці when@prod самого config/services.yaml)
+    # стояла заглушка FailClosedBookingQueryPort, яка ЗАВЖДИ відповідала
+    # «бронювання є», тому жодного постачальника не можна було видалити.
+    # Тепер порт справді питає booking-service; недоступність сусіда
+    # перетворюється на 503 BOOKING_QUERY_UNAVAILABLE, а не на хибне 409.
+    App\Domain\Booking\BookingQueryPort: '@App\Infrastructure\Booking\HttpBookingQueryPort'

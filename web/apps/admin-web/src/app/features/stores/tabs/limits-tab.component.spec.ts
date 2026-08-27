@@ -7,11 +7,13 @@ describe('Вкладка «Обмеження»', () => {
 
   /**
    * Батько (StoreDetailPage) на кожну зміну одразу оновлює чернетку,
-   * і те саме значення повертається у вхідний сигнал вкладки.
+   * і те саме значення повертається у вхідний сигнал вкладки; збережена
+   * конфігурація при цьому лишається такою, як була.
    */
-  function setup(maxVehicleWeightTons: number | null = 7.5): void {
+  function setup(saved: number | null = 7.5): void {
     fixture = TestBed.createComponent(StoreLimitsTabComponent);
-    fixture.componentRef.setInput('maxVehicleWeightTons', maxVehicleWeightTons);
+    fixture.componentRef.setInput('maxVehicleWeightTons', saved);
+    fixture.componentRef.setInput('savedMaxVehicleWeightTons', saved);
     fixture.componentRef.setInput('leadTimeMinutes', 60);
     fixture.componentRef.setInput('bookingHorizonDays', 14);
     fixture.componentRef.setInput('noShowGraceMinutes', 30);
@@ -49,7 +51,9 @@ describe('Вкладка «Обмеження»', () => {
   it('STC-31: зменшення тоннажу попереджає про вплив на наявні бронювання', () => {
     setup(7.5);
     setWeight('7');
-    expect(warning()).toContain('Зменшення тоннажу може зачепити вже наявні бронювання');
+    expect(warning()).toContain(
+      'Зменшення тоннажу може зачепити вже наявні бронювання',
+    );
   });
 
   it('STC-31: збільшення тоннажу попередження не показує', () => {
@@ -58,7 +62,7 @@ describe('Вкладка «Обмеження»', () => {
     expect(host.querySelector('.notice-warn')).toBeNull();
   });
 
-  it('STC-31: повернення до початкового значення прибирає попередження', () => {
+  it('STC-31: повернення до збереженого значення прибирає попередження', () => {
     setup(7.5);
     setWeight('7');
     expect(host.querySelector('.notice-warn')).not.toBeNull();
@@ -67,17 +71,22 @@ describe('Вкладка «Обмеження»', () => {
     expect(host.querySelector('.notice-warn')).toBeNull();
   });
 
-  it('STC-31: еталон оновлюється, коли значення приходить ззовні', () => {
+  it('STC-31: після збереження нової версії попередження зникає', () => {
     setup(7.5);
     setWeight('7');
     expect(host.querySelector('.notice-warn')).not.toBeNull();
 
-    // Батько скасував зміни і повернув збережену конфігурацію.
-    fixture.componentRef.setInput('maxVehicleWeightTons', 7.5);
+    // Магазин перезавантажено: 7.0 тепер і є чинною конфігурацією.
+    fixture.componentRef.setInput('savedMaxVehicleWeightTons', 7);
     fixture.detectChanges();
 
     expect(host.querySelector('.notice-warn')).toBeNull();
-    expect(host.querySelector<HTMLInputElement>('#max-weight')?.value).toBe('7.5');
+  });
+
+  it('для ненастроєного магазину попередження не показується', () => {
+    setup(null);
+    setWeight('7');
+    expect(host.querySelector('.notice-warn')).toBeNull();
   });
 
   it('порожнє поле тоннажу попередження не показує', () => {

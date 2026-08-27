@@ -18,6 +18,7 @@
  app_admin_sync_log GET /api/admin/v1/sync/log 
  app_admin_sync_run POST /api/admin/v1/sync/run 
  internal_store_settings GET /internal/v1/stores/{storeId}/settings 
+ internal_store_list GET /internal/v1/stores 
  app_supplier_supplierstore_cities GET /api/supplier/v1/cities 
  app_supplier_supplierstore_stores GET /api/supplier/v1/stores 
  app_supplier_supplierstore_store GET /api/supplier/v1/stores/{storeId} 
@@ -34,6 +35,11 @@
  store_booking_delay POST /api/store/v1/bookings/{bookingId}/delay 
  store_booking_reassign POST /api/store/v1/bookings/{bookingId}/reassign 
  store_booking_walk_in POST /api/store/v1/bookings/walk-in 
+ store_stores_list GET /api/store/v1/stores 
+ store_store_config GET /api/store/v1/stores/{storeId}/config 
+ store_store_suppliers GET /api/store/v1/stores/{storeId}/suppliers 
+ store_store_slots GET /api/store/v1/stores/{storeId}/slots 
+ store_bookings_list GET /api/store/v1/bookings 
  supplier_booking_create POST /api/supplier/v1/bookings 
  supplier_booking_show GET /api/supplier/v1/bookings/{bookingId} 
  supplier_booking_update PATCH /api/supplier/v1/bookings/{bookingId} 
@@ -52,8 +58,10 @@
  admin_suppliers_suspend POST /api/admin/v1/suppliers/{id}/suspend 
  admin_suppliers_activate POST /api/admin/v1/suppliers/{id}/activate 
  admin_suppliers_delete DELETE /api/admin/v1/suppliers/{id} 
+ internal_supplier_list GET /internal/v1/suppliers 
  internal_supplier_get GET /internal/v1/suppliers/{supplierId} 
  internal_supplier_store_access GET /internal/v1/suppliers/{supplierId}/store-access/{storeId} 
+ internal_driver_list GET /internal/v1/drivers 
  supplier_drivers_list GET /api/supplier/v1/drivers 
  supplier_drivers_create POST /api/supplier/v1/drivers 
  supplier_drivers_get GET /api/supplier/v1/drivers/{id} 

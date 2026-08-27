@@ -515,8 +515,8 @@ describe('RouteSheetStore — дії водія', () => {
   it('відповідь на дію одразу кладе затримку і час прибуття в точку листа', async () => {
     const eta = new Date(Date.now() + 30 * 60_000).toISOString();
 
-    await store.reportDelay('bk-1', { reason: 'затори', eta });
     await store.markArrived('bk-1');
+    await store.reportDelay('bk-1', { reason: 'затори', eta });
 
     expect(store.points()[0].delayed).toEqual({
       flag: true,

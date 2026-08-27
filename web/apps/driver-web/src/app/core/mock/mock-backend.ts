@@ -26,7 +26,6 @@ import { Injectable } from '@angular/core';
 import {
   NO_DELAY,
   type BookingStatus,
-  type DelayState,
   type DriverRouteSheetResponse,
   type RoutePoint,
   type RouteSheet,

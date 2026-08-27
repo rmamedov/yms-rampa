@@ -104,9 +104,20 @@ describe('AuthService', () => {
     expect(localStorage.getItem('yms.store.tokens')).toContain('a1');
   });
 
-  it('роль поза контуром магазину не отримує доступу (STW-01)', () => {
+  // Мережеві ролі МАЮТЬ доступ до модуля магазину: канонічна матриця прав дає
+  // їм повний набір дій магазину, і бекенд ці дії від них приймає. Раніше
+  // застосунок пускав лише store_manager/store_operator, через що модуль був
+  // недоступний узагалі — на стенді таких облікових записів не існувало.
+  it('мережева роль отримує доступ до модуля магазину', () => {
     gateway.profile = NETWORK_MANAGER;
     auth.login({ email: 'admin@silpo.ua', password: 'x' }).subscribe();
+    expect(auth.isAuthenticated()).toBe(true);
+    expect(auth.hasStoreAccess()).toBe(true);
+  });
+
+  it('роль партнерського контуру доступу не отримує (STW-01)', () => {
+    gateway.profile = { ...NETWORK_MANAGER, role: 'driver' };
+    auth.login({ email: 'driver@rampa.ua', password: 'x' }).subscribe();
     expect(auth.isAuthenticated()).toBe(true);
     expect(auth.hasStoreAccess()).toBe(false);
   });

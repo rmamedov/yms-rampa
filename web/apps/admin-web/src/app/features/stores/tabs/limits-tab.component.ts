@@ -132,6 +132,8 @@ export interface LimitsChange {
 })
 export class StoreLimitsTabComponent {
   readonly maxVehicleWeightTons = input.required<number | null>();
+  /** Тоннаж чинної збереженої конфігурації — «як було» для попередження STC-31. */
+  readonly savedMaxVehicleWeightTons = input.required<number | null>();
   readonly leadTimeMinutes = input.required<number>();
   readonly bookingHorizonDays = input.required<number>();
   readonly noShowGraceMinutes = input.required<number>();
@@ -153,33 +155,21 @@ export class StoreLimitsTabComponent {
   );
   protected readonly holdMaxError = computed(() => validateHoldMax(this.holdMax()));
 
-  /** Тоннаж «як було» — значення, з яким вкладку відкрили (еталон для STC-31). */
-  private readonly baselineWeight = signal<number | null>(null);
-
   /**
-   * Значення, яке вкладка сама щойно віддала батькові. Батько одразу оновлює
-   * чернетку, і те саме число повертається у вхідний сигнал — це відлуння
-   * власного редагування, а не нові дані, тож еталон на ньому не переставляємо.
+   * STC-31: зменшення ліміту зачіпає вже наявні бронювання.
+   * Еталон «як було» — чинна збережена конфігурація, а не вхідне значення
+   * чернетки: батько оновлює чернетку одразу після кожного редагування,
+   * тож порівняння з нею завжди давало б хибу.
    */
-  private echoedWeight: number | null | undefined = undefined;
-
-  /** STC-31: зменшення ліміту зачіпає вже наявні бронювання. */
   protected readonly lowered = computed(() => {
-    const original = this.baselineWeight();
+    const saved = this.savedMaxVehicleWeightTons();
     const next = this.weight();
-    return original !== null && next !== null && next < original;
+    return saved !== null && next !== null && next < saved;
   });
 
   constructor() {
     effect(() => {
-      const incoming = this.maxVehicleWeightTons();
-      if (incoming !== this.echoedWeight) {
-        // Значення прийшло ззовні (завантаження магазину або скасування змін) —
-        // фіксуємо його як еталон «як було».
-        this.echoedWeight = incoming;
-        this.baselineWeight.set(incoming);
-        this.weight.set(incoming);
-      }
+      this.weight.set(this.maxVehicleWeightTons());
       this.leadTime.set(this.leadTimeMinutes());
       this.horizon.set(this.bookingHorizonDays());
       this.noShowGrace.set(this.noShowGraceMinutes());

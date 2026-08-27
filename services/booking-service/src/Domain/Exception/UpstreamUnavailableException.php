@@ -7,8 +7,8 @@ namespace App\Domain\Exception;
 use Throwable;
 
 /**
- * Сусідній мікросервіс (store-service, partner-service) не відповів або
- * відповів так, що його неможливо розібрати.
+ * Сусідній мікросервіс (store-service, partner-service, analytics-service)
+ * не відповів або відповів так, що його неможливо розібрати.
  *
  * Це НЕ помилка бронювання і не «магазину не існує»: домен просто не отримав
  * даних, щоб ухвалити рішення. Окремий доменний виняток потрібен, щоб клієнт
@@ -59,6 +59,18 @@ final class UpstreamUnavailableException extends ProblemException
             self::ERROR_CODE,
             503,
             \sprintf('Сервіс постачальників тимчасово недоступний (%s)', $reason),
+            $previous,
+        );
+    }
+
+    /** Релей outbox → analytics-service (KPI-05): виклик фонової команди, не запиту користувача. */
+    public static function analyticsService(string $reason, ?Throwable $previous = null): self
+    {
+        return new self(
+            'analytics-service',
+            self::ERROR_CODE,
+            503,
+            \sprintf('Сервіс аналітики тимчасово недоступний (%s)', $reason),
             $previous,
         );
     }

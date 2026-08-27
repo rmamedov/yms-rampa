@@ -67,6 +67,9 @@
       @if (draft(); as config) {
         <app-store-limits-tab
           [maxVehicleWeightTons]="config.maxVehicleWeightTons"
+          [savedMaxVehicleWeightTons]="
+            currentStore.configuration?.maxVehicleWeightTons ?? null
+          "
           [leadTimeMinutes]="config.leadTimeMinutes"
           [bookingHorizonDays]="config.bookingHorizonDays"
           [noShowGraceMinutes]="config.noShowGraceMinutes"

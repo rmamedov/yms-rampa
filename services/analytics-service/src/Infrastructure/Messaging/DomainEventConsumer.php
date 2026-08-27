@@ -12,10 +12,13 @@ use App\Domain\Projection\ProjectionResult;
 /**
  * Точка входу потоку доменних подій у read-моделі.
  *
- * Транспорт (RabbitMQ через Symfony Messenger) підключається зовні: сюди
- * потрапляє вже готове тіло повідомлення. Клас навмисно не залежить від
- * Messenger, тому той самий шлях використовують консольна команда
- * analytics:events:ingest та інтеграційні тести.
+ * Транспорт підключається зовні: сюди потрапляє вже готове тіло повідомлення.
+ * Клас навмисно не залежить ні від Messenger, ні від HTTP, тому той самий шлях
+ * використовують усі три джерела:
+ *   - службовий маршрут POST /internal/v1/analytics/events (релей outbox
+ *     booking-service — це те, що працює на стенді);
+ *   - консольна команда analytics:events:ingest (backfill з NDJSON);
+ *   - майбутній споживач RabbitMQ, коли брокер зʼявиться.
  *
  * Доставка at-least-once безпечна: ідемпотентність гарантує EventProjector.
  */
@@ -41,7 +44,19 @@ final readonly class DomainEventConsumer
         }
 
         /** @var array<string, mixed> $decoded */
-        return $this->projector->project(DomainEvent::fromArray($decoded));
+        return $this->consumeArray($decoded);
+    }
+
+    /**
+     * Той самий шлях для транспорту, який тіло вже розібрав (HTTP-маршрут
+     * приймає пакет подій одним JSON, і кодувати кожну назад у рядок було б
+     * марною роботою).
+     *
+     * @param array<string, mixed> $event
+     */
+    public function consumeArray(array $event): ProjectionResult
+    {
+        return $this->projector->project(DomainEvent::fromArray($event));
     }
 
     /**

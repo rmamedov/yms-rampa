@@ -902,6 +902,11 @@ final class Booking
             'bookingId' => $this->id,
             'type' => $this->type->value,
             'storeId' => $this->storeId,
+            // Місто зі снапшота філії (DATA-13): analytics-service будує з нього
+            // розріз «місто» і без цього поля не може створити факт бронювання
+            // взагалі. Беремо саме снапшот, а не поточний довідник, — розріз має
+            // лишатися таким, яким філія була на момент поставки.
+            'city' => $this->storeSnapshot->city,
             'supplierId' => $this->supplierId,
             'status' => $this->status->value,
         ], $payload), $now);

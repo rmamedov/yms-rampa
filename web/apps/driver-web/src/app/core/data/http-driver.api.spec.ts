@@ -45,14 +45,20 @@ describe('HttpDriverApi — контракт driver_route_sheet', () => {
     city: 'Київ',
     storeName: 'Сільпо №1998',
     address: 'просп. Володимира Івасюка, 46',
+    latitude: 50.5202,
+    longitude: 30.51452,
     localTime,
     slotStart,
     rampId: 'ramp-2',
+    rampNumber: 2,
+    rampName: 'Рампа 2',
     orderId: null,
     palletsCount: 8,
     plateNumber: 'AA 4721 OB',
     driverId: 'drv-1001',
     status: 'booked' as const,
+    delayed: { flag: false, reason: null, eta: null },
+    arrivedAt: null,
   });
 
   beforeEach(() => {
@@ -83,6 +89,15 @@ describe('HttpDriverApi — контракт driver_route_sheet', () => {
     const sheet = await promise;
     expect(sheet?.points[0].bookingId).toBe('bk-1');
     expect(sheet?.routeSheetIds).toEqual(['rs-2026-08-27']);
+    // Координати, рампа і стан бронювання доїжджають до застосунку як є.
+    expect(sheet?.points[0].latitude).toBe(50.5202);
+    expect(sheet?.points[0].longitude).toBe(30.51452);
+    expect(sheet?.points[0].rampNumber).toBe(2);
+    expect(sheet?.points[0].delayed).toEqual({
+      flag: false,
+      reason: null,
+      eta: null,
+    });
   });
 
   it('порожній день бекенд віддає як 200 з routeSheets: [] → null', async () => {
