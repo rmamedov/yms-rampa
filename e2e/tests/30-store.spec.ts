@@ -81,6 +81,18 @@ function primaryStore(): SandboxStore {
   return withRamps.sort((a, b) => b.ramps.length - a.ramps.length)[0];
 }
 
+/**
+ * Філії для бронювання: спершу робоча, потім цілодобова.
+ *
+ * Звичайна пісочниця приймає до 16:00, тож увечері вільних слотів на сьогодні
+ * там уже немає — і набір падав не через дефект, а через годинник. Цілодобова
+ * філія (00:00–23:45, 6 рамп) закриває будь-яку годину доби; на неї ж
+ * розраховані перевірки прибуття.
+ */
+function bookingStores(target: SandboxStore): SandboxStore[] {
+  return target.storeId === arrivalStore.storeId ? [target] : [target, arrivalStore];
+}
+
 async function makeBooking(
   label: string,
   options: {
@@ -92,7 +104,10 @@ async function makeBooking(
   } = {},
 ): Promise<MadeBooking> {
   const target = options.store ?? primaryStore();
-  const booking = await createBooking(ctx, supplierToken, [target], { label, ...options });
+  const booking = await createBooking(ctx, supplierToken, bookingStores(target), {
+    label,
+    ...options,
+  });
   created.push(booking.id);
   return booking;
 }
@@ -309,7 +324,8 @@ test.describe('M-00 Передумови контуру магазину', () =>
   test('M-00.2 бекенд приймає позапланове прибуття від цього облікового запису', async () => {
     test.setTimeout(120_000);
     const login = await storeLogin(ctx);
-    const store = primaryStore();
+    // Цілодобова філія: вільний слот на сьогодні є в будь-яку годину.
+    const store = arrivalStore;
     const grid = await slotGrid(ctx, supplierToken, store.storeId, kyivDateKey());
     const free = grid.slots.filter((s) => s.state === 'available' && s.selectable);
     expect(free.length, 'для walk-in потрібен вільний слот на сьогодні').toBeGreaterThan(0);
@@ -753,9 +769,11 @@ test.describe('M-03 Дії магазину', () => {
 
   test('M-03.8 переведення на іншу рампу', async ({ page }) => {
     test.setTimeout(120_000);
-    const multiRamp = stores.filter((s) => s.ramps.filter((r) => r.active !== false).length > 1);
-    expect(multiRamp.length, 'для переведення потрібна філія з 2+ рампами').toBeGreaterThan(0);
-    const target = multiRamp[0];
+    const target = arrivalStore;
+    expect(
+      target.ramps.filter((r) => r.active !== false).length,
+      'для переведення потрібна філія з 2+ рампами',
+    ).toBeGreaterThan(1);
 
     // Слот обирається свідомо: переводити є куди лише тоді, коли в ТОЙ САМИЙ
     // час вільна ще одна рампа. Без цього бронювання лягало на «перший вільний»
@@ -900,7 +918,7 @@ test.describe('M-04 Позапланове прибуття', () => {
 
   test('M-04.3 реєстрація постачальника зі списку → статус «на місці»', async ({ page }) => {
     test.setTimeout(120_000);
-    await openBoard(page, primaryStore());
+    await openBoard(page, arrivalStore);
     const dialog = await openWalkIn(page);
 
     const suppliers = await optionTexts(page, '#wi-supplier');
@@ -938,7 +956,7 @@ test.describe('M-04 Позапланове прибуття', () => {
 
   test('M-04.4 реєстрація постачальника «поза системою»', async ({ page }) => {
     test.setTimeout(120_000);
-    await openBoard(page, primaryStore());
+    await openBoard(page, arrivalStore);
     const dialog = await openWalkIn(page);
 
     await dialog.getByRole('button', { name: 'Поза системою' }).click();
@@ -978,8 +996,12 @@ test.describe('M-04 Позапланове прибуття', () => {
 test.describe('M-05 Фільтри і статистика', () => {
   test('M-05.1 фільтр за рампою залишає лише свою рампу', async ({ page }) => {
     test.setTimeout(120_000);
-    const multiRamp = stores.filter((s) => s.ramps.filter((r) => r.active !== false).length > 1)[0];
-    expect(multiRamp, 'для перевірки потрібна філія з 2+ рампами').toBeTruthy();
+    // Цілодобова філія: фільтр за рампою перевіряється в будь-яку годину доби.
+    const multiRamp = arrivalStore;
+    expect(
+      multiRamp.ramps.filter((r) => r.active !== false).length,
+      'для перевірки потрібна філія з 2+ рампами',
+    ).toBeGreaterThan(1);
 
     const first = await createBooking(ctx, supplierToken, [multiRamp], {
       label: 'filter-a',
