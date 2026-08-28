@@ -22,6 +22,19 @@ ADMIN = f"https://admin.{IP}.sslip.io"
 SUPPLIER_LOGIN = {"login": "supplier@rampa.ua", "password": "${YMS_SUPPLIER_PASSWORD}"}
 STAFF_LOGIN = {"email": "admin@rampa.ua", "password": "${YMS_ADMIN_PASSWORD}"}
 
+# Відмітку «На місці» домен приймає лише у вікні «slotStart − 60 хв … кінець
+# слоту» (StorePolicy::ARRIVAL_WINDOW_MINUTES). Тому основне бронювання на
+# завтра для неї не годиться: воно перевіряє сітку, холд і маршрутний лист,
+# але вікно відмітки в нього відкриється лише наступної доби.
+#
+# Для прибуття й розвантаження беремо окреме бронювання в цілодобовій
+# філії-пісочниці (прийом 00:00–23:45, lead time 0) на СЬОГОДНІ — там завжди
+# є слот, чиє вікно вже відкрите. Ті самі філії використовує Playwright-набір,
+# див. ARRIVAL_SANDBOX_EXTERNAL_IDS в e2e/support/env.ts.
+ARRIVAL_SANDBOX_EXTERNAL_IDS = ("2233", "2231")
+ARRIVAL_SANDBOX_CITY = "Харків"
+ARRIVAL_WINDOW_MINUTES = 60
+
 passed, failed = [], []
 
 with open("/tmp/driver.json") as f:
@@ -145,14 +158,75 @@ def main():
                    {"date": day, "bookingId": booking_id, "driverId": DRIVER_PROFILE["id"]})
     check("водія призначено на бронювання", st in (200, 204), f"{st} {res.get('code')} {res.get('detail','')}")
 
-    driver_flow(stoken, ktoken, store_id, day, booking_id, DRIVER_PROFILE)
+    arrival = book_in_arrival_sandbox(stoken)
+    driver_flow(stoken, ktoken, day, booking_id, arrival, DRIVER_PROFILE)
     return report()
 
 
+def book_in_arrival_sandbox(stoken):
+    """Бронювання на сьогодні з уже відкритим вікном відмітки «На місці».
 
-def driver_flow(stoken, ktoken, store_id, day, booking_id, driver):
+    Повертає (booking_id, day) або (None, None), якщо придатної філії немає.
+    Порожній результат — не «пропустити перевірку», а окремий провал: без
+    такого бронювання прибуття й розвантаження лишаються неперевіреними.
+    """
+    print("\n8. Слот для прибуття (цілодобова пісочниця)")
+    today = date.today().isoformat()
+
+    st, res = call("GET", SUPPLIER,
+                   "/api/supplier/v1/stores?city=" + urllib.parse.quote(ARRIVAL_SANDBOX_CITY), stoken)
+    by_external = {s.get("externalId"): s for s in res.get("items", [])}
+
+    for external_id in ARRIVAL_SANDBOX_EXTERNAL_IDS:
+        store = by_external.get(external_id)
+        if not store:
+            continue
+        store_id = store["storeId"]
+
+        st, grid = call("GET", SUPPLIER,
+                        f"/api/supplier/v1/stores/{store_id}/slots?date={today}", stoken)
+        if st != 200:
+            continue
+
+        for slot in grid.get("slots", []):
+            if slot["state"] != "available":
+                continue
+            # API віддає час у UTC із суфіксом «Z», який fromisoformat до
+            # Python 3.11 не розбирає.
+            start = datetime.fromisoformat(slot["slotStart"].replace("Z", "+00:00"))
+            now = datetime.now(start.tzinfo)
+            if not (start - timedelta(minutes=ARRIVAL_WINDOW_MINUTES) <= now):
+                continue
+
+            key = {"storeId": store_id, "rampId": slot["rampId"], "slotStart": slot["slotStart"]}
+            st, hold = call("POST", SUPPLIER, "/api/supplier/v1/slots/hold", stoken, key)
+            if st != 201:
+                continue
+
+            plate = "AA" + datetime.now().strftime("%H%M%S")[:4] + "CX"
+            body = dict(key, holdToken=hold["holdToken"], palletsCount=6,
+                        vehicle={"plateNumber": plate, "weightTons": 3.5})
+            st, res = call("POST", SUPPLIER, "/api/supplier/v1/bookings", stoken, body)
+            if st not in (200, 201):
+                continue
+
+            booking_id = res.get("id") or res.get("bookingId")
+            call("POST", SUPPLIER, "/api/supplier/v1/route-sheets/driver", stoken,
+                 {"date": today, "bookingId": booking_id, "driverId": DRIVER_PROFILE["id"]})
+            check("бронювання з відкритим вікном відмітки створено", True,
+                  f"філія {external_id}, слот {slot['slotStart'][11:16]}")
+            print(f"     філія {external_id}, слот {slot['slotStart'][11:16]}, бронювання {booking_id}")
+            return booking_id, today
+
+    check("бронювання з відкритим вікном відмітки створено", False,
+          "немає цілодобової філії з вільним слотом — див. ARRIVAL_SANDBOX_EXTERNAL_IDS")
+    return None, None
+
+
+def driver_flow(stoken, ktoken, day, booking_id, arrival, driver):
     """Сценарій водія: вхід за телефоном, маршрутний лист, відмітка «На місці»."""
-    print("\n8. Водій")
+    arrival_booking, arrival_day = arrival
+    print("\n9. Водій")
     st, res = call("POST", DRIVER, "/api/driver/v1/auth/login",
                    body={"phone": driver["phone"], "password": driver["password"]})
     if not check("водій входить за телефоном", st == 200, f"{st} {res.get('detail','')}"):
@@ -166,20 +240,32 @@ def driver_flow(stoken, ktoken, store_id, day, booking_id, driver):
     st, sheet = call("GET", DRIVER, f"/api/driver/v1/route-sheet?date={day}", dtoken)
     check("водій бачить свій маршрутний лист", st == 200, f"{st} {sheet.get('detail','')}")
 
+    # Завтрашнє бронювання відмітити не можна — і це правильна поведінка:
+    # вікно ще не відкрите. Перевіряємо саме відмову, а не «якось пройде».
     st, res = call("POST", DRIVER, f"/api/driver/v1/bookings/{booking_id}/arrived", dtoken, {})
+    check("завчасна відмітка на завтрашньому слоті відхиляється",
+          st == 422 and res.get("code") == "ARRIVAL_TOO_EARLY", f"{st} {res.get('code')}")
+
+    if arrival_booking is None:
+        return
+
+    st, sheet = call("GET", DRIVER, f"/api/driver/v1/route-sheet?date={arrival_day}", dtoken)
+    check("сьогоднішній маршрутний лист водія доступний", st == 200, f"{st} {sheet.get('detail','')}")
+
+    st, res = call("POST", DRIVER, f"/api/driver/v1/bookings/{arrival_booking}/arrived", dtoken, {})
     check("водій відмічає «На місці»", st in (200, 204), f"{st} {res.get('code')} {res.get('detail','')}")
 
-    st, res = call("POST", DRIVER, f"/api/driver/v1/bookings/{booking_id}/arrived", dtoken, {})
+    st, res = call("POST", DRIVER, f"/api/driver/v1/bookings/{arrival_booking}/arrived", dtoken, {})
     check("повторне «На місці» не ламає стан", st in (200, 204), f"отримано {st}")
 
-    st, res = call("POST", STORE, f"/api/store/v1/bookings/{booking_id}/unloading", ktoken, {})
+    st, res = call("POST", STORE, f"/api/store/v1/bookings/{arrival_booking}/unloading", ktoken, {})
     check("магазин починає розвантаження", st in (200, 204), f"{st} {res.get('detail','')}")
 
-    st, res = call("POST", DRIVER, f"/api/driver/v1/bookings/{booking_id}/unloading", dtoken, {})
+    st, res = call("POST", DRIVER, f"/api/driver/v1/bookings/{arrival_booking}/unloading", dtoken, {})
     check("водій НЕ може керувати розвантаженням", st in (403, 404, 405), f"отримано {st}")
 
-    st, res = call("POST", STORE, f"/api/store/v1/bookings/{booking_id}/completed", ktoken,
-                   {"unloadedPalletsCount": 14})
+    st, res = call("POST", STORE, f"/api/store/v1/bookings/{arrival_booking}/completed", ktoken,
+                   {"unloadedPalletsCount": 6})
     check("магазин фіксує розвантаження", st in (200, 204), f"{st} {res.get('detail','')}")
 
 
