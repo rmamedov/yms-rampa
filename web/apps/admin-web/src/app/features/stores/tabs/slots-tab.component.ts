@@ -10,7 +10,9 @@ import {
 import {
   Ramp,
   ReceivingWindow,
-  SLOT_SIZES,
+  SLOT_SIZE_MAX,
+  SLOT_SIZE_MIN,
+  SLOT_SIZE_STEP,
   SlotSizeMinutes,
 } from '../../../core/models';
 import { TranslatePipe } from '../../../core/i18n/translate.pipe';
@@ -18,14 +20,14 @@ import {
   countDailySlots,
   validateRamps,
 } from '../../../core/utils/store-config.util';
-import { validateRampName } from '../../../core/utils/validators.util';
+import { validateRampName, validateSlotSize } from '../../../core/utils/validators.util';
 
 export interface SlotsChange {
   readonly slotSizeMinutes: SlotSizeMinutes | null;
   readonly ramps: readonly Ramp[];
 }
 
-/** Вкладка «Слоти»: розмір слоту 15/20/30/60 і рампи (STC-20…STC-23). */
+/** Секція «Слоти»: розмір слоту (крок 5 хв) і рампи (STC-20…STC-23). */
 @Component({
   selector: 'app-store-slots-tab',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -40,12 +42,18 @@ export class StoreSlotsTabComponent {
   readonly canEdit = input(false);
   readonly changed = output<SlotsChange>();
 
-  protected readonly sizes = SLOT_SIZES;
+  protected readonly sizeMin = SLOT_SIZE_MIN;
+  protected readonly sizeMax = SLOT_SIZE_MAX;
+  protected readonly sizeStep = SLOT_SIZE_STEP;
   protected readonly draftSize = signal<SlotSizeMinutes | null>(null);
   protected readonly draftRamps = signal<Ramp[]>([]);
   protected readonly rampError = signal<string | null>(null);
 
   protected readonly errors = computed(() => validateRamps(this.draftRamps()));
+  /** Порожнє поле помилкою не показуємо: про це вже каже зведення біля «Зберегти». */
+  protected readonly sizeError = computed(() =>
+    this.draftSize() === null ? null : validateSlotSize(this.draftSize()),
+  );
   protected readonly enabledCount = computed(
     () => this.draftRamps().filter((r) => r.enabled).length,
   );
@@ -70,9 +78,11 @@ export class StoreSlotsTabComponent {
     });
   }
 
-  protected setSize(event: Event): void {
-    const raw = (event.target as HTMLSelectElement).value;
-    this.draftSize.set(raw === '' ? null : (Number(raw) as SlotSizeMinutes));
+  protected setSize(raw: string): void {
+    const trimmed = raw.trim();
+    // Порожнє поле — це «не задано», а не нуль: інакше сітка мовчки будувалася б
+    // з безглуздим розміром, замість того щоб заблокувати збереження.
+    this.draftSize.set(trimmed === '' ? null : Number(trimmed));
     this.emit();
   }
 

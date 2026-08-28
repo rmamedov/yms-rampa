@@ -1,4 +1,5 @@
 /** Прості валідатори полів адмінки. Повертають ключ помилки або null. */
+import { SLOT_SIZE_MAX, SLOT_SIZE_MIN, SLOT_SIZE_STEP } from '../models';
 
 const PHONE_RE = /^\+380\d{9}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -102,4 +103,17 @@ export function validateRampName(value: string | null): string | null {
     return null;
   }
   return value.trim().length <= 60 ? null : 'slots.error.rampName';
+}
+
+/** STC-20: розмір слоту — крок SLOT_SIZE_STEP хв у межах SLOT_SIZE_MIN…MAX. */
+export function validateSlotSize(value: number | null): string | null {
+  if (value === null) {
+    return 'slots.error.sizeRequired';
+  }
+  const valid =
+    Number.isInteger(value) &&
+    value >= SLOT_SIZE_MIN &&
+    value <= SLOT_SIZE_MAX &&
+    value % SLOT_SIZE_STEP === 0;
+  return valid ? null : 'slots.error.size';
 }

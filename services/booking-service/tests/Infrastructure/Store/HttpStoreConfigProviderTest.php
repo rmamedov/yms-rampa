@@ -299,7 +299,7 @@ final class HttpStoreConfigProviderTest extends TestCase
     /** JSON валідний, але доменні інваріанти не збираються — теж 502, не 500. */
     public function testBrokenContractBecomesBadResponse(): void
     {
-        $response = new MockResponse(StoreSettingsPayload::json(['slotSizeMinutes' => 45]));
+        $response = new MockResponse(StoreSettingsPayload::json(['slotSizeMinutes' => 47]));
 
         try {
             $this->provider($response)->settingsFor(StoreSettingsPayload::STORE_ID);

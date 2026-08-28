@@ -181,8 +181,21 @@ export const YMS_STATUSES: readonly YmsStatus[] = [
   'archived',
 ];
 
-export type SlotSizeMinutes = 15 | 20 | 30 | 60;
-export const SLOT_SIZES: readonly SlotSizeMinutes[] = [15, 20, 30, 60];
+/**
+ * Розмір слоту в хвилинах — крок 5 у межах 5…120.
+ *
+ * Раніше це був союз із чотирьох значень (15/20/30/60). Перелік замінено на
+ * діапазон із кроком: різні філії розвантажують по-різному, і чотирьох
+ * варіантів для цього замало. Межі й крок мають збігатися з доменом
+ * (App\Domain\Configuration\SlotSize у store-service).
+ *
+ * Крок саме 5 хвилин — той самий, що й в інтервалів вікна прийому: інакше
+ * вікно не ділилося б на слоти без залишку.
+ */
+export type SlotSizeMinutes = number;
+export const SLOT_SIZE_MIN = 5;
+export const SLOT_SIZE_MAX = 120;
+export const SLOT_SIZE_STEP = 5;
 
 /** Блок mcpData картки магазину — read-only (STC-01, INT-03). */
 export interface McpBranch {

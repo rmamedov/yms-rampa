@@ -79,7 +79,7 @@ final class BranchFactory
         int $version = 1,
         ?\DateTimeImmutable $effectiveFrom = null,
         float $maxWeight = 10.0,
-        SlotSize $slotSize = SlotSize::Half,
+        ?SlotSize $slotSize = null,
     ): StoreConfiguration {
         return new StoreConfiguration(
             id: Uuid::v4(),
@@ -93,7 +93,7 @@ final class BranchFactory
                 new ReceivingWindow(4, [new TimeInterval('06:00', '12:00')]),
                 new ReceivingWindow(5, [new TimeInterval('06:00', '12:00')]),
             ],
-            slotSize: $slotSize,
+            slotSize: $slotSize ?? SlotSize::fromMinutes(30),
             ramps: [
                 new Ramp('r1', 1, 'Рампа 1'),
                 new Ramp('r2', 2, 'Рампа 2'),
@@ -114,7 +114,7 @@ final class BranchFactory
             version: 1,
             effectiveFrom: new \DateTimeImmutable('2026-01-01T00:00:00+00:00'),
             receivingWindows: [],
-            slotSize: SlotSize::Half,
+            slotSize: SlotSize::fromMinutes(30),
             ramps: [new Ramp('r1', 1, 'Рампа 1', false)],
             maxVehicleWeightTons: 10.0,
         );

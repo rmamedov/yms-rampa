@@ -24,13 +24,12 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(StoreConfiguration::class)]
 final class StoreConfigurationTest extends TestCase
 {
-    /** STC-20 / DATA-10: розмір слоту лише 15, 20, 30, 60. */
+    /** STC-20 / DATA-10: розмір слоту — крок 5 хвилин у межах 5…120. */
     #[DataProvider('slotSizeProvider')]
-    public function testSlotSizeEnum(int $minutes, bool $valid): void
+    public function testSlotSizeStepAndRange(int $minutes, bool $valid): void
     {
         if (!$valid) {
             $this->expectException(ValidationException::class);
-            $this->expectExceptionMessage('не підтримується');
         }
 
         $size = SlotSize::fromMinutes($minutes);
@@ -45,13 +44,22 @@ final class StoreConfigurationTest extends TestCase
      */
     public static function slotSizeProvider(): iterable
     {
+        // Колишній перелік лишається чинним…
         yield '15 хв' => [15, true];
         yield '20 хв' => [20, true];
         yield '30 хв' => [30, true];
         yield '60 хв' => [60, true];
-        yield '10 хв заборонено' => [10, false];
-        yield '45 хв заборонено' => [45, false];
-        yield '90 хв заборонено' => [90, false];
+        // …і поруч зʼявилися проміжні значення з кроком 5 хвилин.
+        yield '5 хв — мінімум' => [5, true];
+        yield '10 хв' => [10, true];
+        yield '45 хв' => [45, true];
+        yield '90 хв' => [90, true];
+        yield '120 хв — максимум' => [120, true];
+        // Не кратне кроку або поза межами — відхиляється.
+        yield '7 хв не кратно 5' => [7, false];
+        yield '33 хв не кратно 5' => [33, false];
+        yield '0 хв поза межами' => [0, false];
+        yield '125 хв поза межами' => [125, false];
     }
 
     /** STC-30: maxVehicleWeightTons — крок 0.5 у діапазоні 1.0–40.0. */
@@ -150,7 +158,7 @@ final class StoreConfigurationTest extends TestCase
 
         $this->config(
             windows: [new ReceivingWindow(1, [new TimeInterval('06:00', '06:30')])],
-            slotSize: SlotSize::Hour,
+            slotSize: SlotSize::fromMinutes(60),
         );
     }
 
@@ -356,7 +364,7 @@ final class StoreConfigurationTest extends TestCase
      */
     private function config(
         ?array $windows = null,
-        SlotSize $slotSize = SlotSize::Half,
+        ?SlotSize $slotSize = null,
         ?array $ramps = null,
         float $maxWeight = 10.0,
         int $leadTime = StoreConfiguration::LEAD_TIME_DEFAULT,
@@ -369,7 +377,7 @@ final class StoreConfigurationTest extends TestCase
             version: 1,
             effectiveFrom: new \DateTimeImmutable('2026-01-01T00:00:00+00:00'),
             receivingWindows: $windows ?? [new ReceivingWindow(1, [new TimeInterval('06:00', '12:00')])],
-            slotSize: $slotSize,
+            slotSize: $slotSize ?? SlotSize::fromMinutes(30),
             ramps: $ramps ?? [new Ramp('r1', 1, 'Рампа 1')],
             maxVehicleWeightTons: $maxWeight,
             leadTimeMinutes: $leadTime,

@@ -119,7 +119,7 @@ final class HttpApiTest extends TestCase
         self::assertArrayHasKey('errors', $body);
     }
 
-    /** STC-20: недопустимий розмір слоту → 422 CONFIG_VALIDATION_FAILED. */
+    /** STC-20: розмір слоту не кратний 5 хв → 422 CONFIG_VALIDATION_FAILED. */
     public function testInvalidSlotSizeReturns422(): void
     {
         $this->seedBranch();
@@ -128,7 +128,7 @@ final class HttpApiTest extends TestCase
             'POST',
             '/api/admin/v1/stores/'.BranchFactory::KYIV_ID.'/configurations',
             content: json_encode([
-                'slotSizeMinutes' => 45,
+                'slotSizeMinutes' => 47,
                 'maxVehicleWeightTons' => 10,
                 'receivingWindows' => [['dayOfWeek' => 1, 'intervals' => [['from' => '06:00', 'to' => '12:00']]]],
                 'ramps' => [['rampId' => 'r1', 'number' => 1]],

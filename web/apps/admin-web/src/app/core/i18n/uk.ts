@@ -195,7 +195,9 @@ export const UK_DICTIONARY: Readonly<Record<string, string>> = {
 
   // слоти
   'slots.size': 'Розмір слоту',
-  'slots.size.minutes': '{n} хв',
+  'slots.size.hint': 'Від {min} до {max} хвилин, крок {step}',
+  'slots.error.size': 'Розмір слоту — від 5 до 120 хвилин з кроком 5',
+  'slots.error.sizeRequired': 'Вкажіть розмір слоту',
   'slots.ramps': 'Рампи',
   'slots.ramp.number': 'Номер',
   'slots.ramp.name': 'Назва',

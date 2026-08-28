@@ -588,7 +588,7 @@ test.describe('A-09 Конфлікти конфігурації', () => {
     await goto(page, `/stores/${store.branchId}`);
     await page.locator('.section-nav').waitFor({ state: 'visible' });
     await openTab(page, 'Слоти');
-    await page.locator('#slot-size').selectOption('');
+    await page.locator('#slot-size').fill('');
 
     await expect(page.locator('.field-error')).toContainText(
       'Щоб зберегти версію конфігурації, задайте розмір слоту і максимальний тоннаж',

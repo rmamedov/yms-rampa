@@ -3,23 +3,20 @@
   <div class="grid-2">
     <div class="field">
       <label for="slot-size">{{ 'slots.size' | t }}<span class="req" aria-hidden="true">*</span></label>
-      <select
+      <input
         id="slot-size"
+        type="number"
+        [min]="sizeMin"
+        [max]="sizeMax"
+        [step]="sizeStep"
         [value]="draftSize() ?? ''"
         [disabled]="!canEdit()"
-        (change)="setSize($event)"
-      >
-        <!-- `selected` на самих опціях, а не лише `value` на select: опції
-             рендеряться в тому ж циклі, тому прив'язка до select не встигає
-             їх знайти, і збережений розмір слоту показувався як «не задано»
-             — на обовʼязковому полі це виглядало як зламані налаштування. -->
-        <option value="" [selected]="draftSize() === null">{{ 'common.notSet' | t }}</option>
-        @for (size of sizes; track size) {
-          <option [value]="size" [selected]="draftSize() === size">
-            {{ 'slots.size.minutes' | t: { n: size } }}
-          </option>
-        }
-      </select>
+        (input)="setSize($any($event.target).value)"
+      />
+      <div class="field-hint">{{ 'slots.size.hint' | t: { min: sizeMin, max: sizeMax, step: sizeStep } }}</div>
+      @if (sizeError(); as error) {
+        <div class="field-error">{{ error | t }}</div>
+      }
     </div>
     <div class="field">
       <div class="field-label">{{ 'slots.preview' | t }}</div>

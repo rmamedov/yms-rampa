@@ -12,7 +12,15 @@ use InvalidArgumentException;
  */
 final readonly class StoreConfig
 {
-    public const array ALLOWED_SLOT_SIZES = [15, 20, 30, 60];
+    /**
+     * Розмір слоту задається з кроком 5 хвилин — той самий крок, що й в
+     * інтервалів вікна прийому. Межі мають збігатися зі store-service
+     * (App\Domain\Configuration\SlotSize): це той самий домен, просто по
+     * різні боки службового виклику.
+     */
+    public const int SLOT_SIZE_MIN_MINUTES = 5;
+    public const int SLOT_SIZE_MAX_MINUTES = 120;
+    public const int SLOT_SIZE_STEP_MINUTES = 5;
     public const string TIMEZONE = 'Europe/Kyiv';
 
     /** @var list<ReceivingWindow> */
@@ -43,10 +51,16 @@ final readonly class StoreConfig
             throw new InvalidArgumentException('storeId не може бути порожнім');
         }
 
-        if (!\in_array($slotSizeMinutes, self::ALLOWED_SLOT_SIZES, true)) {
+        if (
+            $slotSizeMinutes < self::SLOT_SIZE_MIN_MINUTES
+            || $slotSizeMinutes > self::SLOT_SIZE_MAX_MINUTES
+            || 0 !== $slotSizeMinutes % self::SLOT_SIZE_STEP_MINUTES
+        ) {
             throw new InvalidArgumentException(\sprintf(
-                'slotSizeMinutes має бути одним з %s, отримано %d',
-                implode('/', self::ALLOWED_SLOT_SIZES),
+                'slotSizeMinutes має бути кратним %d у межах %d..%d, отримано %d',
+                self::SLOT_SIZE_STEP_MINUTES,
+                self::SLOT_SIZE_MIN_MINUTES,
+                self::SLOT_SIZE_MAX_MINUTES,
                 $slotSizeMinutes,
             ));
         }

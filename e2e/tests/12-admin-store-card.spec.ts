@@ -595,46 +595,83 @@ test.describe('A-04 Вкладка «Прийом поставок»', () => {
 // ------------------------------------------------------------------ A-05
 
 test.describe('A-05 Вкладка «Слоти»', () => {
-  test('A-05.1 розмір слоту пропонує рівно 15/20/30/60 і не пропонує 45', async ({ page }) => {
+  test('A-05.1 розмір слоту задається з кроком 5 хвилин', async ({ page }) => {
     await openStore(page, '2229');
     await openTab(page, 'Слоти');
 
-    const options = await page.locator('#slot-size option').allInnerTexts();
-    expect(options.map((s) => s.trim()), 'варіанти розміру слоту').toEqual([
-      'не задано',
-      '15 хв',
-      '20 хв',
-      '30 хв',
-      '60 хв',
-    ]);
-    expect(
-      options.some((o) => o.includes('45')),
-      'значення 45 хв не має бути доступним',
-    ).toBe(false);
+    const field = page.locator('#slot-size');
+    await expect(field, 'розмір слоту — числове поле, а не перелік').toHaveAttribute(
+      'type',
+      'number',
+    );
+    await expect(field).toHaveAttribute('step', '5');
+    await expect(field).toHaveAttribute('min', '5');
+    await expect(field).toHaveAttribute('max', '120');
   });
 
-  test('A-05.2 усі чотири розміри слоту можна обрати', async ({ page }) => {
+  test('A-05.2 проміжні значення приймаються, некратні — ні', async ({ page }) => {
     await openStore(page, '2229');
     await openTab(page, 'Слоти');
-    for (const size of ['15', '20', '30', '60']) {
-      await page.locator('#slot-size').selectOption(size);
-      await expect(page.locator('#slot-size')).toHaveValue(size);
+    const field = page.locator('#slot-size');
+    const sizeError = page
+      .locator('.field', { has: page.locator('#slot-size') })
+      .locator('.field-error');
+
+    // Колишні чотири значення лишаються чинними, і поруч зʼявилися проміжні.
+    for (const size of ['15', '30', '60', '5', '25', '45', '120']) {
+      await field.fill(size);
+      await expect(field).toHaveValue(size);
+      await expect(sizeError, `розмір ${size} хв має прийматися`).toHaveCount(0);
+    }
+
+    for (const bad of ['7', '33', '125']) {
+      await field.fill(bad);
+      await expect(sizeError, `розмір ${bad} хв має відхилятися`).toContainText('крок');
     }
   });
 
-  test('A-05.3 спроба надіслати розмір 45 хв відхиляється бекендом', async ({ page: _page }) => {
+  test('A-05.3 некратний розмір слоту відхиляється бекендом', async ({ page: _page }) => {
     const store = await sandboxStore('2229');
     const config = await apiGet<any>(`/stores/${store.branchId}/configurations/current`);
-    const tomorrow = kyivDay(2);
 
     const res = await apiRaw('post', `/stores/${store.branchId}/configurations`, {
       ...config,
-      effectiveFrom: tomorrow,
-      slotSizeMinutes: 45,
+      slotSizeMinutes: 47,
       ramps: config.ramps.map((r: any) => ({ ...r })),
     });
-    expect(res.status, 'розмір слоту 45 хв має бути відхилений').toBe(422);
-    expect(JSON.stringify(res.body)).toContain('15, 20, 30, 60');
+    expect(res.status, 'розмір слоту 47 хв не кратний 5 і має бути відхилений').toBe(422);
+    expect(JSON.stringify(res.body)).toContain('крат');
+  });
+
+  test('A-05.3б проміжний розмір слоту зберігається наскрізь', async ({ page: _page }) => {
+    const store = await sandboxStore('2229');
+    const before = await apiGet<any>(`/stores/${store.branchId}/configurations/latest`);
+    track('store-config', store.externalId, `розмір слоту, було ${before.slotSizeMinutes} хв`);
+
+    // 25 хв — значення, якого в колишньому переліку не існувало.
+    const res = await apiRaw('post', `/stores/${store.branchId}/configurations`, {
+      ...before,
+      slotSizeMinutes: 25,
+      ramps: before.ramps.map((r: any) => ({ ...r })),
+    });
+    expect(res.status, 'розмір 25 хв має прийматися').toBe(201);
+
+    const saved = await apiGet<any>(`/stores/${store.branchId}/configurations/latest`);
+    expect(saved.slotSizeMinutes, 'збережений розмір слоту').toBe(25);
+
+    // І сітка слотів справді будується з цим розміром.
+    const grid = await apiGet<any>(`/stores/${store.branchId}/slots?date=${kyivDay(1)}`).catch(
+      () => null,
+    );
+    if (grid) {
+      expect(grid.slotSizeMinutes, 'сітка рахується з новим розміром').toBe(25);
+    }
+
+    // повертаємо як було
+    await apiRaw('post', `/stores/${store.branchId}/configurations`, {
+      ...before,
+      ramps: before.ramps.map((r: any) => ({ ...r })),
+    });
   });
 
   test('A-05.4 рампи з конфігурації показані у таблиці', async ({ page }) => {

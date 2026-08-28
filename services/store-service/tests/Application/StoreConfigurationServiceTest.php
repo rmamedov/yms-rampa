@@ -125,11 +125,11 @@ final class StoreConfigurationServiceTest extends TestCase
         self::assertSame(2, $this->configurations->current(BranchFactory::KYIV_ID)['version']);
     }
 
-    /** STC-20: розмір слоту поза enum відхиляється з кодом CONFIG_VALIDATION_FAILED. */
+    /** STC-20: розмір слоту не кратний 5 хв відхиляється з CONFIG_VALIDATION_FAILED. */
     public function testInvalidSlotSizeIsRejectedWithConfigCode(): void
     {
         try {
-            $this->configurations->createVersion(BranchFactory::KYIV_ID, $this->payload(['slotSizeMinutes' => 45]));
+            $this->configurations->createVersion(BranchFactory::KYIV_ID, $this->payload(['slotSizeMinutes' => 47]));
             self::fail('Очікувалась ValidationException');
         } catch (ValidationException $e) {
             self::assertSame('CONFIG_VALIDATION_FAILED', $e->errorCode());

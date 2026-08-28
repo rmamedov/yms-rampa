@@ -433,7 +433,7 @@ final class InternalStoreSettingsTest extends TestCase
                 new ReceivingWindow(1, [new TimeInterval('06:00', '12:00')]),
                 new ReceivingWindow(2, [new TimeInterval('06:00', '12:00'), new TimeInterval('14:00', '18:00')]),
             ],
-            slotSize: SlotSize::Half,
+            slotSize: SlotSize::fromMinutes(30),
             ramps: [
                 new Ramp('r1', 1, 'Рампа 1'),
                 new Ramp('r2', 2, null),
