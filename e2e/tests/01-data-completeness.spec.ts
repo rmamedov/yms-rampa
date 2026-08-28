@@ -44,23 +44,72 @@ test.describe('Повнота даних', () => {
     expect(farItems.length, 'потрібна друга сторінка київських філій').toBeGreaterThan(0);
     const control = farItems[farItems.length - 1].externalId;
 
-    const suppliers = await ctx.get(`${HOSTS.admin}/api/admin/v1/suppliers?limit=1`, {
+    // Беремо саме демо-постачальника, а не «першого-ліпшого»: склад довідника
+    // весь час змінюють паралельні перевірки, і випадковий контрагент міг
+    // виявитися призупиненим — тоді керування доступом недоступне, і тест
+    // падав би не через дефект, а через вибір даних.
+    const suppliers = await ctx.get(`${HOSTS.admin}/api/admin/v1/suppliers?limit=200`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    const supplierId = ((await suppliers.json()).items as { id: string }[])[0].id;
+    const list = (await suppliers.json()).items as { id: string; edrpou?: string; status?: string }[];
+    const supplier =
+      list.find((s) => s.edrpou === '32456789') ?? list.find((s) => s.status === 'active');
+    expect(supplier, 'потрібен активний постачальник для перевірки').toBeTruthy();
+    const supplierId = supplier!.id;
 
     await loginUi(page, HOSTS.admin, {
       'input[type=email]': CREDS.admin.email,
       'input[type=password]': CREDS.admin.password,
     });
+    // Довідник філій вантажиться кількома сторінками по 100 записів, і кожна
+    // відповідь перемальовує віджет вибору. Рахуємо ці відповіді, щоб чекати
+    // саме на завершення завантаження, а не на випадковий таймаут.
+    let storePages = 0;
+    let lastStorePageAt = Date.now();
+    page.on('response', (r) => {
+      if (r.url().includes('/api/admin/v1/stores?')) {
+        storePages += 1;
+        lastStorePageAt = Date.now();
+      }
+    });
+
     await page.goto(`${HOSTS.admin}/suppliers/${supplierId}`);
-    await page.locator('button:has-text("Магазини")').click();
+
+    // Вкладка зʼявляється лише після завантаження картки постачальника.
+    const storesTab = page.locator('button:has-text("Магазини")');
+    await expect(storesTab).toBeVisible();
+    await storesTab.click();
 
     // Режим «Перелік магазинів» — саме він показує вибір філій.
-    await page.locator('#access-mode').selectOption('whitelist');
-    await page.locator('app-multi-select button').first().click();
+    const mode = page.locator('#access-mode');
+    await expect(mode).toBeVisible();
+    await mode.selectOption('whitelist');
+
+    // Довідник вантажиться кількома сторінками по 100 записів, і панель,
+    // відкрита до їх завершення, лишається порожньою. Тому відкриваємо з
+    // повтором, доки в ній не зʼявляться варіанти, — це чекання на дані,
+    // а не послаблення перевірки.
+    // Чекаємо, доки сторінки довідника перестануть надходити: інакше клік
+    // потрапляє в елемент, який саме зараз замінює перемальовування.
+    await expect
+      .poll(() => (storePages > 0 && Date.now() - lastStorePageAt > 1000 ? 'готово' : 'вантажиться'), {
+        timeout: 30_000,
+      })
+      .toBe('готово');
+
+    const trigger = page.locator('app-multi-select button').first();
+    await expect(trigger, 'у режимі whitelist має зʼявитися вибір філій').toBeVisible();
+    const options = page.locator('app-multi-select label');
+
+    await expect(async () => {
+      if ((await options.count()) === 0) {
+        await trigger.click();
+      }
+      expect(await options.count()).toBeGreaterThan(0);
+    }).toPass({ timeout: 30_000 });
 
     const search = page.locator('app-multi-select input[type=search]');
+    await expect(search).toBeEditable();
     await search.fill(control);
 
     await expect(

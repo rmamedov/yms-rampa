@@ -67,6 +67,9 @@ export class SupplierDetailPage {
   protected readonly tabs = TABS;
   protected readonly activeTab = signal<SupplierTabId>('general');
   protected readonly isNew = signal(false);
+  /** Доки картка не прийшла, форму не показуємо: інакше відповідь сервера
+   *  мовчки перетирає те, що користувач уже встиг змінити. */
+  protected readonly loading = signal(false);
   protected readonly supplier = signal<Supplier | null>(null);
 
   protected readonly name = signal('');
@@ -182,12 +185,19 @@ export class SupplierDetailPage {
   }
 
   private loadSupplier(id: string): void {
+    this.loading.set(true);
     this.api
       .get(id)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (supplier) => this.apply(supplier),
-        error: (error: unknown) => this.toast.error(error),
+        next: (supplier) => {
+          this.apply(supplier);
+          this.loading.set(false);
+        },
+        error: (error: unknown) => {
+          this.loading.set(false);
+          this.toast.error(error);
+        },
       });
   }
 
