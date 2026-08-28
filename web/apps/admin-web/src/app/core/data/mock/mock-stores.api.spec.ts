@@ -10,7 +10,7 @@ import {
 import { MockDb } from './mock-db';
 import { MOCK_LATENCY } from './mock-support';
 import { DEFAULT_STORE_FILTER } from '../../utils/query-state.util';
-import { PageSize, StoreListFilter } from '../../models';
+import { NO_CITY, PageSize, StoreListFilter } from '../../models';
 import { AuthApi } from '../auth.api';
 import { MockAuthApi } from './mock-auth.api';
 import { AuthService } from '../../auth/auth.service';
@@ -302,13 +302,33 @@ describe('MockStoresApi — довідник магазинів', () => {
   });
 
   it('довідник міст віддає місто і кількість магазинів', async () => {
-    const cities = await firstValueFrom(api.cities());
-    expect(cities.length).toBeGreaterThan(10);
-    expect(cities.every((c) => c.city.trim().length > 0)).toBe(true);
-    expect(cities.every((c) => c.storeCount > 0)).toBe(true);
-    expect(cities.map((c) => c.city)).toEqual(
-      [...cities].map((c) => c.city).sort((a, b) => a.localeCompare(b, 'uk')),
+    const { items } = await firstValueFrom(api.cities());
+    expect(items.length).toBeGreaterThan(10);
+    expect(items.every((c) => c.city.trim().length > 0)).toBe(true);
+    expect(items.every((c) => c.storeCount > 0)).toBe(true);
+    expect(items.map((c) => c.city)).toEqual(
+      [...items].map((c) => c.city).sort((a, b) => a.localeCompare(b, 'uk')),
     );
+  });
+
+  it('довідник міст рахує філії без міста окремо, і їх видно фільтром', async () => {
+    const filter = await firstValueFrom(api.cities());
+    const all = await firstValueFrom(
+      api.list(DEFAULT_STORE_FILTER, { page: 1, pageSize: 100 }),
+    );
+    const covered = filter.items.reduce((sum, c) => sum + c.storeCount, 0);
+
+    // Кожна філія довідника потрапляє або в місто, або у «без міста».
+    expect(covered + filter.withoutCity).toBe(all.total);
+
+    const withoutCity = await firstValueFrom(
+      api.list(
+        { ...DEFAULT_STORE_FILTER, cities: [NO_CITY] },
+        { page: 1, pageSize: 100 },
+      ),
+    );
+    expect(withoutCity.total).toBe(filter.withoutCity);
+    expect(withoutCity.items.every((row) => row.city.trim() === '')).toBe(true);
   });
 });
 
@@ -332,5 +352,16 @@ describe('matchesStoreFilter', () => {
     expect(matchesStoreFilter(row, filter({ configured: !row.isConfigured }))).toBe(
       false,
     );
+  });
+
+  it('філія без міста досяжна лише значенням «без міста»', () => {
+    const homeless = { ...row, city: '' };
+
+    // Варіант «(без міста)» знаходить її, а місто з довідника — ні.
+    expect(matchesStoreFilter(homeless, filter({ cities: [NO_CITY] }))).toBe(true);
+    expect(matchesStoreFilter(homeless, filter({ cities: [row.city] }))).toBe(false);
+    // І навпаки: філія з містом у «без міста» не потрапляє.
+    expect(matchesStoreFilter(row, filter({ cities: [NO_CITY] }))).toBe(false);
+    expect(matchesStoreFilter(row, filter({ cities: [row.city] }))).toBe(true);
   });
 });

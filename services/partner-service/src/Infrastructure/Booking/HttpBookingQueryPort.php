@@ -20,9 +20,12 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  *   GET {base}/internal/v1/bookings/suppliers/{supplierId}
  *       200 {"supplierId":"…","hasAnyBookings":bool}
  *
- * 404 контракт не передбачає: постачальник, якого booking-service ніколи не
- * бачив, — це `hasAnyBookings: false`. Тому будь-який статус поза 2xx тут
- * означає аварію, а не «бронювань немає».
+ *   GET {base}/internal/v1/bookings/suppliers/{supplierId}/vehicles/{plateNumber}
+ *       200 {"supplierId":"…","plateNumber":"…","hasActiveBookings":bool}
+ *
+ * 404 контракт не передбачає: постачальник (чи номер), якого booking-service
+ * ніколи не бачив, — це `false`. Тому будь-який статус поза 2xx тут означає
+ * аварію, а не «бронювань немає».
  *
  * ТРАНСПОРТ. Базовий URL показує на внутрішній шлюз nginx, який слухає лише
  * 127.0.0.1:8081 і не публікується назовні (map `$yms_internal_service`,
@@ -36,16 +39,15 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  * видалити» навіть щойно створеному запису. Замість вигаданої відповіді
  * кидається BookingQueryUnavailableException: видалення так само НЕ
  * відбувається (консервативно), але користувач бачить справжню причину —
- * недоступність сусіда — і знає, що спробу має сенс повторити.
+ * недоступність сусіда — і знає, що спробу має сенс повторити. Те саме
+ * правило діє й для авто.
  *
- * МЕЖА КОНТРАКТУ (SUP-VEH-04, свідомо не обходимо її «творчо»). Питання «чи є
- * в цього авто активні бронювання» booking-service поставити НЕМОЖЛИВО:
- * бронювання зберігає снапшот держномера (DATA-13), а не id авто з нашого
- * довідника, тож службового маршруту за vehicleId не існує. Тому перевірка
- * авто лишається fail-closed — видалення авто заблоковане, доступна лише
- * деактивація, — і кожен такий виклик гучно логується. Це відомий залишок,
- * а не спроба видати заглушку за реалізацію: щоб його зняти, booking-service
- * має віддати маршрут за парою «постачальник + держномер».
+ * КЛЮЧ ПЕРЕВІРКИ АВТО — «ПОСТАЧАЛЬНИК + ДЕРЖНОМЕР» (SUP-VEH-04). Питання «чи є
+ * бронювання в авто з id X» booking-service поставити неможливо: бронювання
+ * зберігає снапшот держномера (DATA-13), а не id запису нашого довідника.
+ * Раніше через це перевірка була заглушкою «бронювання є завжди», і жодне
+ * авто не видалялося (ISSUE-22). Тепер сусід віддає маршрут за парою, а
+ * унікальність номера в межах постачальника (DATA-18) робить її однозначною.
  */
 final readonly class HttpBookingQueryPort implements BookingQueryPort
 {
@@ -97,18 +99,33 @@ final readonly class HttpBookingQueryPort implements BookingQueryPort
     }
 
     /**
-     * SUP-VEH-04. Маршруту за vehicleId у сусіда немає (див. коментар класу),
-     * тому відповідь консервативна і незмінна: авто вважається зайнятим.
-     * Тиші тут бути не повинно — інакше заглушка знову стане непомітною.
+     * SUP-VEH-04: чи тримають авто активні бронювання (booked/arrived/unloading).
+     *
+     * Питання ставиться за парою «постачальник + держномер» — єдиним спільним
+     * ключем двох сервісів. Закриті поставки сусід свідомо не рахує: вони
+     * носять власний снапшот авто і видаленню запису з довідника не заважають.
+     *
+     * @throws BookingQueryUnavailableException сусід недоступний або відповів
+     *                                          не за контрактом
      */
-    public function vehicleHasActiveBookings(string $vehicleId): bool
+    public function vehicleHasActiveBookings(string $supplierId, string $plateNumber): bool
     {
-        $this->logger->warning(
-            'booking-service: перевірка бронювань авто не має службового маршруту — видалення авто лишається заблокованим, доступна деактивація',
-            ['vehicleId' => $vehicleId],
+        $outcome = 'авто не видалено';
+        $payload = $this->getJson(
+            \sprintf('/suppliers/%s/vehicles/%s', rawurlencode($supplierId), rawurlencode($plateNumber)),
+            $outcome,
         );
 
-        return true;
+        $hasBookings = $payload['hasActiveBookings'] ?? null;
+
+        if (!\is_bool($hasBookings)) {
+            throw BookingQueryUnavailableException::badResponse(
+                $outcome,
+                'у відповіді немає булевого поля hasActiveBookings',
+            );
+        }
+
+        return $hasBookings;
     }
 
     /**
@@ -136,10 +153,22 @@ final readonly class HttpBookingQueryPort implements BookingQueryPort
             $content = $response->getContent(false);
         } catch (HttpClientException $error) {
             // Таймаут, обрив, DNS, шлюз не піднято — усе сюди.
+            // Користувач побачить 503; журнал має бачити причину, бо саме
+            // тиша навколо цього виклику колись і сховала заглушку.
+            $this->logger->warning(
+                'booking-service недоступний, службову перевірку не виконано',
+                ['path' => $path, 'outcome' => $outcome, 'reason' => $error->getMessage()],
+            );
+
             throw BookingQueryUnavailableException::unreachable($outcome, $error->getMessage(), $error);
         }
 
         if ($status < 200 || $status >= 300) {
+            $this->logger->warning(
+                'booking-service відповів статусом поза контрактом',
+                ['path' => $path, 'outcome' => $outcome, 'status' => $status],
+            );
+
             throw BookingQueryUnavailableException::rejected($outcome, $status);
         }
 

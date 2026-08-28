@@ -29,42 +29,44 @@ test.describe('Повнота даних', () => {
     const ctx = await api();
     const token = await adminToken(ctx);
 
-    // Скільки київських філій насправді.
     const res = await ctx.get(`${HOSTS.admin}/api/admin/v1/stores?city=${encodeURIComponent('Київ')}&perPage=100`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    const body = await res.json();
-    const kyivTotal = body.total as number;
-    expect(kyivTotal, 'у Києві має бути більше 20 філій, інакше тест безсилий').toBeGreaterThan(20);
+    const kyivTotal = (await res.json()).total as number;
+    expect(kyivTotal, 'у Києві має бути більше 20 філій, інакше перевірка безсила').toBeGreaterThan(20);
 
-    await loginUi(page, HOSTS.admin, { 'input[type=email]': CREDS.admin.email, 'input[type=password]': CREDS.admin.password });
-    await page.goto(HOSTS.admin + '/suppliers/new');
-    await page.waitForLoadState('networkidle');
-
-    // Скільки варіантів філій узагалі завантажив застосунок.
-    const loaded = await page.evaluate(() => {
-      const w = window as unknown as { __storeOptionsCount?: number };
-      return w.__storeOptionsCount ?? null;
+    // Беремо контрольну філію з ДРУГОЇ сторінки київського списку: саме такі
+    // раніше були недосяжні, бо форма вантажила лише першу сторінку довідника.
+    const far = await ctx.get(`${HOSTS.admin}/api/admin/v1/stores?city=${encodeURIComponent('Київ')}&perPage=100&page=2`, {
+      headers: { Authorization: `Bearer ${token}` },
     });
+    const farItems = (await far.json()).items as { externalId: string }[];
+    expect(farItems.length, 'потрібна друга сторінка київських філій').toBeGreaterThan(0);
+    const control = farItems[farItems.length - 1].externalId;
 
-    // Головна перевірка — через пошук: набираємо «Київ» і рахуємо знайдене.
-    const searchBox = page.locator('input[type=search], input[placeholder*="ошук"], input[placeholder*="ілі"]').first();
-    const hasSearch = await searchBox.count();
-    expect(hasSearch, 'у виборі філій має бути пошук').toBeGreaterThan(0);
-
-    await searchBox.fill('Київ');
-    await page.waitForTimeout(1200);
-
-    const optionsShown = await page.evaluate(() => {
-      const nodes = document.querySelectorAll('[role=option], .option, li, label');
-      return [...nodes].map((n) => (n as HTMLElement).innerText || '').filter((t) => t.includes('Київ')).length;
+    const suppliers = await ctx.get(`${HOSTS.admin}/api/admin/v1/suppliers?limit=1`, {
+      headers: { Authorization: `Bearer ${token}` },
     });
+    const supplierId = ((await suppliers.json()).items as { id: string }[])[0].id;
 
-    expect(
-      optionsShown,
-      `пошук «Київ» показав ${optionsShown} філій, а в базі їх ${kyivTotal}` +
-        (loaded ? ` (застосунок завантажив лише ${loaded})` : ''),
-    ).toBeGreaterThanOrEqual(kyivTotal);
+    await loginUi(page, HOSTS.admin, {
+      'input[type=email]': CREDS.admin.email,
+      'input[type=password]': CREDS.admin.password,
+    });
+    await page.goto(`${HOSTS.admin}/suppliers/${supplierId}`);
+    await page.locator('button:has-text("Магазини")').click();
+
+    // Режим «Перелік магазинів» — саме він показує вибір філій.
+    await page.locator('#access-mode').selectOption('whitelist');
+    await page.locator('app-multi-select button').first().click();
+
+    const search = page.locator('app-multi-select input[type=search]');
+    await search.fill(control);
+
+    await expect(
+      page.locator('app-multi-select label', { hasText: control }),
+      `контрольна філія ${control} з другої сторінки київського списку має знаходитися у виборі`,
+    ).toHaveCount(1);
   });
 
   test('X-01 кабінет постачальника: список міст повний', async ({ page }) => {
@@ -118,9 +120,12 @@ test.describe('Повнота даних', () => {
     await page.goto(HOSTS.admin + '/stores');
     await page.waitForLoadState('networkidle');
 
-    const search = page.locator('input[type=search], input[placeholder*="ошук"]').first();
+    // Фільтр застосовується кнопкою — набраний текст сам собою нічого не шукає.
+    const search = page.locator('#store-search');
     await search.fill(target!.externalId);
-    await page.waitForTimeout(1500);
+    await page.locator('button:has-text("Застосувати")').click();
+    await page.waitForResponse((r) => r.url().includes('/stores?') && r.status() === 200);
+    await expect(page.locator('table')).toContainText(target!.externalId);
 
     const text = await pageText(page);
     expect(text, `пошук за externalId ${target!.externalId} має знайти філію`).toContain(target!.externalId);

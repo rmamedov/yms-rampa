@@ -162,19 +162,40 @@ export class RouteSheetStore {
     await this.load(this.selectedDateSignal(), { silent: true });
   }
 
+  /**
+   * Читання листа на дату.
+   *
+   * УСПІХ ≠ СВІЖІСТЬ. Без звʼязку service worker віддає збережену копію
+   * звичайним 200 (DRV-33), і сам факт «запит не впав» нічого про мережу
+   * не каже. Тому джерело відповіді береться з `load.fromCache`, а не
+   * припускається: інакше екран показував би «Оновлено HH:MM» на добових
+   * даних і жодного попередження (ISSUE-10).
+   */
   async load(date: string, options: { silent?: boolean } = {}): Promise<void> {
     if (!options.silent) {
       this.loadingSignal.set(true);
     }
     this.errorSignal.set(null);
     try {
-      const sheet = await firstValueFrom(this.api.routeSheet(date));
-      this.sheetSignal.set(sheet);
+      const load = await firstValueFrom(this.api.routeSheet(date));
+      this.sheetSignal.set(load.sheet);
+
+      if (load.fromCache) {
+        // Дані є, мережі немає: показуємо лист і чесно про це попереджаємо.
+        // `lastSyncAt` не чіпаємо — з сервером цей запит не спілкувався.
+        this.network.setOnline(false);
+        this.staleSignal.set(true);
+        if (load.cachedAt !== null) {
+          this.cachedAtSignal.set(load.cachedAt);
+        }
+        return;
+      }
+
       this.staleSignal.set(false);
       this.lastSyncSignal.set(Date.now());
       this.network.setOnline(true);
-      if (sheet && date === kyivDateKey()) {
-        this.cache(sheet);
+      if (load.sheet && date === kyivDateKey()) {
+        this.cache(load.sheet);
       }
       // Звʼязок є — саме час віддати відкладені відмітки прибуття.
       await this.flushArrivalQueue();

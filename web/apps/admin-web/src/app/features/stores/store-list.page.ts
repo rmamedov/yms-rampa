@@ -10,6 +10,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   BulkResultRow,
+  NO_CITY,
   PageSize,
   StoreListRow,
   YMS_STATUSES,
@@ -110,14 +111,24 @@ export class StoreListPage {
     this.api
       .cities()
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((cities) =>
-        this.cityOptions.set(
-          cities.map((c) => ({
-            value: c.city,
-            label: `${c.city} (${c.storeCount})`,
-          })),
-        ),
-      );
+      .subscribe((filter) => {
+        const options: SelectOption[] = filter.items.map((c) => ({
+          value: c.city,
+          label: `${c.city} (${c.storeCount})`,
+        }));
+
+        // STL-02: у частини філій MCP не віддає міста. Довідник міст їх не
+        // містить, тож без окремого варіанта вони не потрапляли в жоден
+        // пункт фільтра і знайти їх фільтром було неможливо.
+        if (filter.withoutCity > 0) {
+          options.push({
+            value: NO_CITY,
+            label: `${this.i18n.t('stores.filter.noCity')} (${filter.withoutCity})`,
+          });
+        }
+
+        this.cityOptions.set(options);
+      });
   }
 
   protected formatDateTime = formatDateTime;

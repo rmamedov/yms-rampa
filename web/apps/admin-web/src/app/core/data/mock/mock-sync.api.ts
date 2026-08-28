@@ -1,9 +1,15 @@
 import { inject, Injectable } from '@angular/core';
 import { Observable, tap } from 'rxjs';
-import { PageSize, SyncLog, SyncLogEntry, SyncReport } from '../../models';
+import {
+  PageSize,
+  SyncLog,
+  SyncReport,
+  SyncRunDetails,
+} from '../../models';
 import { SyncApi } from '../sync.api';
 import {
   MockDb,
+  mockSyncChanges,
   SYNC_STATUS_LABELS,
   SYNC_TRIGGER_LABELS,
 } from './mock-db';
@@ -37,6 +43,15 @@ export class MockSyncApi extends SyncApi {
     }, this.latency);
   }
 
+  /** SYNC-01: деталізація запуску — які саме філії зʼявились/змінились/зникли. */
+  runDetails(id: string): Observable<SyncRunDetails> {
+    const entry = this.db.state.syncLog.find((e) => e.id === id);
+    if (!entry) {
+      return fail(404, { code: 'SYNC_RUN_NOT_FOUND' }, this.latency);
+    }
+    return respond(() => entry, this.latency);
+  }
+
   /** SYNC-02: повторний запуск під час активної синхронізації заборонений. */
   run(): Observable<SyncReport> {
     if (this.db.state.syncRunning) {
@@ -47,6 +62,8 @@ export class MockSyncApi extends SyncApi {
       );
     }
     return respond(() => {
+      const stores = this.db.state.stores;
+      let cursor = 0;
       const startedAt = new Date();
       const finishedAt = new Date(startedAt.getTime() + 38_000);
       const report: SyncReport = {
@@ -67,8 +84,9 @@ export class MockSyncApi extends SyncApi {
         eligible: 1192,
         ineligibleByReason: { branch_closed: 9, no_configuration: 3 },
         errors: [],
+        ...mockSyncChanges(1, 4, 1, () => stores[cursor++ % stores.length]),
       };
-      const entry: SyncLogEntry = {
+      const entry: SyncRunDetails = {
         id: this.db.nextId('sync'),
         status: report.status,
         statusLabel: SYNC_STATUS_LABELS[report.status],
@@ -87,6 +105,9 @@ export class MockSyncApi extends SyncApi {
         conflicts: report.conflicts,
         skipped: report.skipped,
         errors: [],
+        changes: report.changes,
+        changesTotal: report.changesTotal,
+        changesRecorded: true,
       };
       this.db.state.syncLog = [entry, ...this.db.state.syncLog];
       return report;

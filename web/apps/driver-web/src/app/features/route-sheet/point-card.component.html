@@ -38,7 +38,12 @@
     @if (arrivedAt(); as time) {
       <div class="meta-item">
         <dt>{{ 'point.arrivedAt' | t }}</dt>
-        <dd>{{ time }}</dd>
+        <dd>
+          {{ time }}
+          @if (arrivedLate()) {
+            <span class="late">{{ 'point.arrivedLate' | t }}</span>
+          }
+        </dd>
       </div>
     }
     <div class="meta-item">
@@ -68,6 +73,14 @@
         (click)="onArrive()"
       >
         {{ (pending() ? 'point.arriveSending' : 'point.arrive') | t }}
+      </button>
+    } @else if (arrivalOpensOn(); as day) {
+      <!-- Вікно відмітки ще не відкрилося (ArrivalWindow, розділ 8). Кнопка
+           дії тут не показується взагалі: бекенд її відхилить, а випадковий
+           дотик поставив би в чергу магазину машину, якої немає. Замість неї —
+           неактивна кнопка, яка називає день, коли відмітка стане доступною. -->
+      <button type="button" class="btn arrive-locked tall" disabled>
+        {{ 'point.arriveOpensOn' | t: { date: day } }}
       </button>
     }
 

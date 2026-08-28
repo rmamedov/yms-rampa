@@ -12,11 +12,21 @@ use App\Domain\Branch\IneligibilityReason;
 final readonly class SyncReport
 {
     /**
+     * Скільки поіменних записів про зміни зберігається в журналі.
+     *
+     * Повна вибірка MCP — сотні філій; за першої синхронізації «нових» буде
+     * стільки ж. Зберігати їх усі в одному документі sync_log немає сенсу,
+     * тому перелік обрізається, а справжня кількість лишається в лічильниках.
+     */
+    public const int CHANGE_LIST_LIMIT = 200;
+
+    /**
      * @param array<string, array{externalId: string, changes: array<string, array{old: mixed, new: mixed}>}> $updatedDiff
      * @param list<string>                                                                                    $missingBranchIds
      * @param list<string>                                                                                    $archivedBranchIds
      * @param list<string>                                                                                    $errors
      * @param array<string, int>                                                                              $ineligibleByReason
+     * @param list<BranchChange>                                                                              $changes
      */
     public function __construct(
         public SyncStatus $status,
@@ -37,7 +47,18 @@ final readonly class SyncReport
         public array $missingBranchIds = [],
         public array $archivedBranchIds = [],
         public array $errors = [],
+        public array $changes = [],
     ) {
+    }
+
+    /**
+     * Перелік змін для журналу — обрізаний до CHANGE_LIST_LIMIT.
+     *
+     * @return list<BranchChange>
+     */
+    public function storedChanges(): array
+    {
+        return \array_slice($this->changes, 0, self::CHANGE_LIST_LIMIT);
     }
 
     public function durationSeconds(): float
@@ -79,6 +100,11 @@ final readonly class SyncReport
             'eligible' => $this->eligible(),
             'ineligibleByReason' => $this->ineligibleByReason,
             'errors' => $this->errors,
+            'changes' => array_map(
+                static fn (BranchChange $change): array => $change->toArray(),
+                $this->storedChanges(),
+            ),
+            'changesTotal' => \count($this->changes),
         ];
     }
 

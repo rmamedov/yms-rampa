@@ -89,7 +89,7 @@ final class AdminSupplierController
     {
         $this->actors->requireNetworkWide($request, Permission::SupplierRead);
 
-        return new JsonResponse(View::supplier($this->suppliers->get($id)));
+        return new JsonResponse(View::supplier($this->suppliers->getManaged($id)));
     }
 
     /**
@@ -101,7 +101,7 @@ final class AdminSupplierController
         $this->actors->requireNetworkWide($request, Permission::SupplierManage);
 
         $body = JsonBody::fromRequest($request);
-        $supplier = $this->suppliers->get($id);
+        $supplier = $this->suppliers->getManaged($id);
 
         if ($body->has('name')) {
             $supplier = $this->suppliers->rename($id, $body->requiredString('name'));

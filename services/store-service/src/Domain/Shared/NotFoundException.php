@@ -51,4 +51,9 @@ final class NotFoundException extends DomainException
     {
         return new self(\sprintf('Блокування %s не знайдено', $id), 'SLOT_BLOCK_NOT_FOUND');
     }
+
+    public static function syncRun(string $id): self
+    {
+        return new self(\sprintf('Запуск синхронізації %s не знайдено', $id), 'SYNC_RUN_NOT_FOUND');
+    }
 }

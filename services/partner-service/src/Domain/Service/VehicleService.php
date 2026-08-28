@@ -149,12 +149,16 @@ final readonly class VehicleService
      * SUP-VEH-04: видалення авто, прив'язаного до активних бронювань,
      * заборонене — замість нього пропонується деактивація.
      * Видалення виконується як soft delete (DATA-03).
+     *
+     * Питання сусідові ставиться за парою «постачальник + держномер», а не за
+     * id запису: booking-service тримає снапшот авто (DATA-13) і про наш
+     * довідник не знає. Номер у довіднику вже нормалізований, тож іде як є.
      */
     public function delete(string $supplierId, string $vehicleId): void
     {
         $vehicle = $this->get($supplierId, $vehicleId);
 
-        if ($this->bookings->vehicleHasActiveBookings($vehicle->id())) {
+        if ($this->bookings->vehicleHasActiveBookings($supplierId, $vehicle->plateNumber())) {
             throw new ConflictException(
                 'Авто прив\'язане до активних бронювань. Деактивуйте його замість видалення.',
                 'VEHICLE_HAS_ACTIVE_BOOKINGS',

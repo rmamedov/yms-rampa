@@ -29,11 +29,11 @@
         class="select"
         (change)="assignSheetDriver($any($event.target).value)"
       >
-        <!-- Зняти водія з усього листа бекенд не дозволяє (driverId
-             обовʼязковий), тому варіант лишається лише як позначка поточного
-             стану і недоступний для вибору — інакше список показував би стан,
-             якого насправді не сталося. Зняти водія можна поточково. -->
-        <option value="" [selected]="!summary()?.driverId" [disabled]="!!summary()?.driverId">
+        <!-- Порожній варіант — повноцінна дія «зняти водія з усього листа»
+             (бекенд приймає driverId: null). Робити його недоступним не можна:
+             керування, яке показує стан, але не вміє його змінити, — це та сама
+             неправда, лише тихіша. -->
+        <option value="" [selected]="!summary()?.driverId">
           {{ 'rs.noDriver' | t }}
         </option>
         @for (driver of activeDrivers(); track driver.id) {

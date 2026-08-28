@@ -453,6 +453,30 @@ export interface SyncLog {
   readonly running: boolean;
 }
 
+/** Що сталося з філією під час запуску (INT-07, INT-08, INT-09). */
+export type BranchChangeKind = 'created' | 'updated' | 'missing' | 'archived';
+
+/** Один рядок поіменної деталізації запуску синхронізації (SYNC-01). */
+export interface BranchChange {
+  readonly kind: BranchChangeKind;
+  readonly kindLabel: string;
+  readonly branchId: string;
+  readonly externalId: string;
+  /** Змінені поля MCP: назва поля → { old, new }. Порожньо для нових і зниклих. */
+  readonly fields: Readonly<Record<string, { old: unknown; new: unknown }>>;
+}
+
+/**
+ * GET /api/admin/v1/sync/log/{id} — деталізація конкретного запуску.
+ * `changesRecorded=false` для давніх запусків, зроблених до появи переліку:
+ * у них є лише лічильники, і вигадувати перелік не можна.
+ */
+export interface SyncRunDetails extends SyncLogEntry {
+  readonly changes: readonly BranchChange[];
+  readonly changesTotal: number;
+  readonly changesRecorded: boolean;
+}
+
 /** Звіт разового запуску: POST /api/admin/v1/sync/run. Ідентифікатора не має. */
 export interface SyncReport {
   readonly status: SyncStatus;
@@ -472,6 +496,54 @@ export interface SyncReport {
   readonly eligible: number;
   readonly ineligibleByReason: Readonly<Record<string, number>>;
   readonly errors: readonly string[];
+  /** Поіменний перелік змін, обрізаний бекендом (SyncReport::CHANGE_LIST_LIMIT). */
+  readonly changes: readonly BranchChange[];
+  readonly changesTotal: number;
+}
+
+// ---------------------------------------------------------------------------
+// Журнал аудиту (identity-staff-service, RBAC-29 / RBAC-31)
+// ---------------------------------------------------------------------------
+
+/** Дії, які фіксує `role_audit`. */
+export type AuditAction =
+  | 'create'
+  | 'assign'
+  | 'scope_change'
+  | 'deactivate'
+  | 'reactivate'
+  | 'rename'
+  | 'password_reset';
+
+/**
+ * Запис журналу. Імена актора й цілі підставляє бекенд: інтерфейс не має
+ * ходити по довіднику користувачів заради кожного рядка, а деактивований
+ * користувач мусить лишатися впізнаваним.
+ */
+export interface AuditEntry {
+  readonly actorUserId: string;
+  readonly actorName: string;
+  readonly actorRole: StaffRole;
+  readonly actorRoleLabel: string;
+  readonly targetUserId: string;
+  readonly targetName: string;
+  readonly action: AuditAction;
+  readonly actionLabel: string;
+  readonly before: Readonly<Record<string, unknown>>;
+  readonly after: Readonly<Record<string, unknown>>;
+  /** UTC ISO 8601 */
+  readonly timestamp: string;
+  readonly requestId: string | null;
+  readonly ip: string | null;
+}
+
+export interface AuditLog {
+  readonly items: readonly AuditEntry[];
+  readonly total: number;
+  readonly page: number;
+  readonly perPage: number;
+  /** Перелік дій із підписами — джерело для фільтра. */
+  readonly actions: readonly { readonly value: AuditAction; readonly label: string }[];
 }
 
 // ---------------------------------------------------------------------------

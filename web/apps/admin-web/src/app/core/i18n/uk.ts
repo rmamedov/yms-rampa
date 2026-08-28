@@ -65,6 +65,7 @@ export const UK_DICTIONARY: Readonly<Record<string, string>> = {
   'nav.users': 'Користувачі',
   'nav.sync': 'Синхронізація MCP',
   'nav.analytics': 'Аналітика',
+  'nav.audit': 'Журнал аудиту',
   'nav.logout': 'Вийти',
   'nav.noAccess': 'У вас немає прав для цього розділу',
 
@@ -96,6 +97,7 @@ export const UK_DICTIONARY: Readonly<Record<string, string>> = {
   'stores.col.weight': 'Макс. тоннаж, т',
   'stores.col.lastSync': 'Остання синхронізація',
   'stores.filter.city': 'Місто',
+  'stores.filter.noCity': '(без міста)',
   'stores.filter.status': 'Статус YMS',
   'stores.filter.configured': 'Налаштованість',
   'stores.filter.configured.yes': 'Налаштовано',
@@ -342,6 +344,16 @@ export const UK_DICTIONARY: Readonly<Record<string, string>> = {
   'users.copyFailed': 'Не вдалося скопіювати — перепишіть пароль вручну',
 
   // ---- синхронізація
+  'audit.title': 'Журнал аудиту',
+  'audit.scopeNotice':
+    'Журнал охоплює зміни облікових записів і ролей співробітників. Дії з магазинами, постачальниками й бронюваннями ведуться в журналах відповідних сервісів.',
+  'audit.col.timestamp': 'Дата / час',
+  'audit.col.actor': 'Хто змінив',
+  'audit.col.action': 'Дія',
+  'audit.col.target': 'Кого змінено',
+  'audit.col.changes': 'Що змінилось',
+  'audit.empty': 'Записів журналу за заданими умовами немає',
+
   'sync.title': 'Синхронізація MCP',
   'sync.run': 'Запустити синхронізацію',
   'sync.running': 'Синхронізація вже виконується',
@@ -360,6 +372,13 @@ export const UK_DICTIONARY: Readonly<Record<string, string>> = {
   'sync.col.ineligible': 'Непридатні',
   'sync.status.running': 'Виконується',
   'sync.report.title': 'Звіт запуску',
+  'sync.details.open': 'Показати деталізацію запуску',
+  'sync.details.kind': 'Що сталося',
+  'sync.details.fields': 'Зміни',
+  'sync.details.empty': 'Цей запуск нічого не змінив',
+  'sync.details.truncated': 'Показано {shown} із {total} змін цього запуску',
+  'sync.details.notRecorded':
+    'Цей запуск відбувся до появи поіменної деталізації — доступні лише лічильники',
   'sync.banner.running':
     'Останню синхронізацію не завершено, дані станом на {at}',
   'sync.empty': 'Запусків синхронізації ще не було',

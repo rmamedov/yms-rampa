@@ -183,12 +183,20 @@ export class HttpRouteSheetApi extends RouteSheetApi {
       .pipe(map(toRouteSheet));
   }
 
+  /**
+   * `driverId: null` — це зняття водія з усього листа, і поле надсилається
+   * саме як null: контролер розрізняє «поля немає» (422) і «поле порожнє»
+   * (зняти водія), щоб помилка клієнта не читалася як команда.
+   */
   override assignDriverToSheet(
     date: string,
-    driverId: string,
+    driverId: string | null,
   ): Observable<RouteSheetAssignment> {
     return this.api
-      .post<RouteSheetAssignmentDto>('/route-sheets/driver', { date, driverId })
+      .post<RouteSheetAssignmentDto>('/route-sheets/driver', {
+        date,
+        driverId: driverId ?? null,
+      })
       .pipe(map(toRouteSheetAssignment));
   }
 

@@ -113,9 +113,12 @@ export class AnalyticsPage {
       .cities()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (cities) =>
+        // Варіанта «(без міста)» тут немає свідомо: analytics-service фільтрує
+        // за назвою міста, спеціального значення його контракт не знає.
+        // Ті самі філії доступні у фільтрі «Магазин», який покриває всю мережу.
+        next: (filter) =>
           this.cityOptions.set(
-            cities.map((c) => ({ value: c.city, label: c.city })),
+            filter.items.map((c) => ({ value: c.city, label: c.city })),
           ),
         error: () => this.cityOptions.set([]),
       });

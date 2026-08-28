@@ -1,0 +1,67 @@
+<div class="page-header">
+  <h1>{{ 'audit.title' | t }}</h1>
+</div>
+
+<div class="notice notice-info">{{ 'audit.scopeNotice' | t }}</div>
+
+<div class="toolbar">
+  <div style="min-width: 240px">
+    <label for="audit-action">{{ 'audit.col.action' | t }}</label>
+    <select id="audit-action" [value]="actionFilter()" (change)="setAction($event)">
+      <option value="">{{ 'common.all' | t }}</option>
+      @for (option of actionOptions(); track option.value) {
+        <option [value]="option.value" [selected]="actionFilter() === option.value">
+          {{ option.label }}
+        </option>
+      }
+    </select>
+  </div>
+  <button type="button" class="btn" (click)="resetFilters()">
+    {{ 'common.reset' | t }}
+  </button>
+</div>
+
+<div class="table-wrap">
+  <table class="data">
+    <thead>
+      <tr>
+        <th style="width: 180px">{{ 'audit.col.timestamp' | t }}</th>
+        <th style="width: 200px">{{ 'audit.col.actor' | t }}</th>
+        <th style="width: 200px">{{ 'audit.col.action' | t }}</th>
+        <th style="width: 200px">{{ 'audit.col.target' | t }}</th>
+        <th>{{ 'audit.col.changes' | t }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (row of rows(); track row.requestId ?? row.timestamp + row.targetUserId) {
+        <tr>
+          <td>{{ formatDateTime(row.timestamp) }}</td>
+          <td>
+            {{ row.actorName }}
+            <div class="muted">{{ row.actorRoleLabel }}</div>
+          </td>
+          <td>{{ row.actionLabel }}</td>
+          <td>{{ row.targetName }}</td>
+          <td>{{ changeSummary(row) || '—' }}</td>
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="5">
+            <app-empty-state
+              [message]="'audit.empty' | t"
+              [actionLabel]="'common.reset' | t"
+              (action)="resetFilters()"
+            />
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+  <app-pagination
+    [page]="page()"
+    [pageSize]="pageSize()"
+    [total]="total()"
+    (pageChange)="setPage($event)"
+    (pageSizeChange)="setPageSize($event)"
+  />
+</div>

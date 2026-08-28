@@ -4,6 +4,7 @@ import {
   BulkResultRow,
   CityFilter,
   DayOfWeek,
+  NO_CITY,
   Page,
   PageQuery,
   ReservedSlotRule,
@@ -77,6 +78,16 @@ function activeConfig(store: MockStore): StoreConfiguration | null {
  * STL-02 (фільтри комбінуються за AND) і STL-03
  * (пошук: externalId — точний/префіксний, адреса — підрядок без регістру).
  */
+/**
+ * Філія без міста збігається лише зі спеціальним значенням NO_CITY —
+ * так само, як BranchCriteria::cityMatches у store-service.
+ */
+function cityMatches(city: string, cities: readonly string[]): boolean {
+  return city.trim() === ''
+    ? cities.includes(NO_CITY)
+    : cities.includes(city);
+}
+
 export function matchesStoreFilter(
   row: StoreListRow,
   filter: StoreListFilter,

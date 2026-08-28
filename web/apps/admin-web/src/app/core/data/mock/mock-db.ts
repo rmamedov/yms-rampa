@@ -10,7 +10,8 @@ import {
   Store,
   StoreConfiguration,
   Supplier,
-  SyncLogEntry,
+  BranchChange,
+  SyncRunDetails,
   SyncStatus,
   SyncTrigger,
   YmsStatus,
@@ -301,7 +302,7 @@ export interface MockState {
   stores: MockStore[];
   suppliers: Supplier[];
   accounts: MockAccount[];
-  syncLog: SyncLogEntry[];
+  syncLog: SyncRunDetails[];
   bookings: MockBookingFact[];
   syncRunning: boolean;
 }
@@ -530,7 +531,7 @@ export function seed(): MockState {
     stores,
     suppliers,
     accounts,
-    syncLog: seedSyncLog(),
+    syncLog: seedSyncLog(stores),
     bookings: seedBookings(stores, suppliers, rnd, today),
     syncRunning: false,
   };
@@ -606,9 +607,15 @@ function seedBookings(
   return facts;
 }
 
-function seedSyncLog(): SyncLogEntry[] {
-  const entries: SyncLogEntry[] = [];
+/**
+ * SYNC-01: журнал зберігає не лише лічильники, а й поіменний перелік змін —
+ * інакше із запису «змінено 4» неможливо дізнатися, які саме це філії.
+ */
+function seedSyncLog(stores: readonly MockStore[]): SyncRunDetails[] {
+  const entries: SyncRunDetails[] = [];
   const now = Date.now();
+  let cursor = 0;
+  const nextStore = (): MockStore => stores[cursor++ % stores.length];
   for (let i = 0; i < 8; i += 1) {
     const startedAt = new Date(now - i * 6 * 3_600_000);
     const failed = i === 3;
@@ -633,9 +640,61 @@ function seedSyncLog(): SyncLogEntry[] {
       conflicts: status === 'partial' ? 2 : 0,
       skipped: failed ? 0 : i % 4,
       errors: failed ? ['Таймаут MCP при offset=1500: обрив пагінації'] : [],
+      ...mockSyncChanges(
+        failed ? 0 : i === 0 ? 2 : i % 3,
+        failed ? 0 : (i * 3) % 7,
+        failed ? 0 : i % 2,
+        nextStore,
+      ),
+      changesRecorded: true,
     });
   }
   return entries;
+}
+
+/** Перелік змін, узгоджений із лічильниками запуску. */
+export function mockSyncChanges(
+  created: number,
+  updated: number,
+  missing: number,
+  nextStore: () => MockStore,
+): { changes: BranchChange[]; changesTotal: number } {
+  const changes: BranchChange[] = [];
+
+  for (let n = 0; n < created; n += 1) {
+    const store = nextStore();
+    changes.push({
+      kind: 'created',
+      kindLabel: 'Нова',
+      branchId: store.card.id,
+      externalId: store.card.externalId,
+      fields: {},
+    });
+  }
+  for (let n = 0; n < updated; n += 1) {
+    const store = nextStore();
+    changes.push({
+      kind: 'updated',
+      kindLabel: 'Змінена',
+      branchId: store.card.id,
+      externalId: store.card.externalId,
+      fields: {
+        address: { old: store.card.address, new: `${store.card.address}а` },
+      },
+    });
+  }
+  for (let n = 0; n < missing; n += 1) {
+    const store = nextStore();
+    changes.push({
+      kind: 'missing',
+      kindLabel: 'Зникла з MCP',
+      branchId: store.card.id,
+      externalId: store.card.externalId,
+      fields: {},
+    });
+  }
+
+  return { changes, changesTotal: changes.length };
 }
 
 export { DELAY_REASONS };

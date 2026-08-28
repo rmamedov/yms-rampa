@@ -155,14 +155,58 @@ final class HttpBookingQueryPortTest extends TestCase
         }
     }
 
-    // --- SUP-VEH-04: відома межа контракту ----------------------------------
+    // --- SUP-VEH-04: перевірка авто за парою «постачальник + номер» ---------
 
     /**
-     * Маршруту за vehicleId у сусіда немає (бронювання зберігає снапшот
-     * держномера, а не id авто), тому відповідь лишається консервативною —
-     * але гучною: попередження в журналі обовʼязкове.
+     * ISSUE-22: питання ставиться службовим маршрутом за держномером, і «немає
+     * активних бронювань» означає саме це. Раніше метод був заглушкою, яка
+     * завжди відповідала «є», тому жодне авто не видалялося.
      */
-    public function testVehicleCheckStaysFailClosedAndIsLogged(): void
+    public function testAsksNeighbourAboutVehicleByPlateAndReturnsFalse(): void
+    {
+        $captured = [];
+        $client = new MockHttpClient(function (string $method, string $url) use (&$captured): MockResponse {
+            $captured = ['method' => $method, 'url' => $url];
+
+            return new MockResponse($this->vehicleBody(false));
+        });
+
+        self::assertFalse($this->port($client)->vehicleHasActiveBookings(self::SUPPLIER_ID, 'AA1234BB'));
+        self::assertSame('GET', $captured['method']);
+        self::assertSame(
+            self::BASE_URL.'/internal/v1/bookings/suppliers/'.self::SUPPLIER_ID.'/vehicles/AA1234BB',
+            $captured['url'],
+        );
+        self::assertStringNotContainsString('/api/', $captured['url']);
+    }
+
+    public function testReturnsTrueWhenNeighbourReportsActiveBookingsForVehicle(): void
+    {
+        $port = $this->port(new MockHttpClient(new MockResponse($this->vehicleBody(true))));
+
+        self::assertTrue($port->vehicleHasActiveBookings(self::SUPPLIER_ID, 'AA1234BB'));
+    }
+
+    /** Номер приходить ззовні, тому екранується так само, як ідентифікатор. */
+    public function testEscapesPlateNumberInPath(): void
+    {
+        $captured = '';
+        $client = new MockHttpClient(function (string $method, string $url) use (&$captured): MockResponse {
+            $captured = $url;
+
+            return new MockResponse($this->vehicleBody(false));
+        });
+
+        $this->port($client)->vehicleHasActiveBookings(self::SUPPLIER_ID, 'АА../../etc');
+
+        self::assertStringNotContainsString('../', $captured);
+    }
+
+    /**
+     * Недоступний сусід НЕ означає «бронювань немає»: авто не видаляється,
+     * але причина чесна (503), і вона потрапляє в журнал.
+     */
+    public function testUnreachableNeighbourDoesNotSilentlyAllowVehicleDeletion(): void
     {
         $logger = new class extends AbstractLogger {
             /** @var list<string> */
@@ -177,14 +221,35 @@ final class HttpBookingQueryPortTest extends TestCase
         };
 
         $port = new HttpBookingQueryPort(
-            new MockHttpClient(new MockResponse($this->body(false))),
+            new MockHttpClient(static function (): MockResponse {
+                throw new TransportException('Connection refused');
+            }),
             self::BASE_URL,
             logger: $logger,
         );
 
-        self::assertTrue($port->vehicleHasActiveBookings('vh-1'));
+        try {
+            $port->vehicleHasActiveBookings(self::SUPPLIER_ID, 'AA1234BB');
+            self::fail('Очікувався BookingQueryUnavailableException.');
+        } catch (BookingQueryUnavailableException $error) {
+            self::assertSame(503, $error->httpStatus());
+            self::assertStringContainsString('авто не видалено', $error->getMessage());
+        }
+
         self::assertCount(1, $logger->warnings);
-        self::assertStringContainsString('службового маршруту', $logger->warnings[0]);
+    }
+
+    public function testMissingVehicleFlagInBodyRaises502(): void
+    {
+        $client = new MockHttpClient(new MockResponse('{"supplierId":"sp-0001","plateNumber":"AA1234BB"}'));
+
+        try {
+            $this->port($client)->vehicleHasActiveBookings(self::SUPPLIER_ID, 'AA1234BB');
+            self::fail('Очікувався BookingQueryUnavailableException.');
+        } catch (BookingQueryUnavailableException $error) {
+            self::assertSame(BookingQueryUnavailableException::BAD_RESPONSE_CODE, $error->errorCode());
+            self::assertStringContainsString('hasActiveBookings', $error->getMessage());
+        }
     }
 
     // --- наскрізний сценарій SUP-06 -----------------------------------------
@@ -280,6 +345,19 @@ final class HttpBookingQueryPortTest extends TestCase
     {
         return json_encode(
             ['supplierId' => self::SUPPLIER_ID, 'hasAnyBookings' => $hasAnyBookings],
+            \JSON_THROW_ON_ERROR,
+        );
+    }
+
+    /** Тіло відповіді про авто за контрактом. */
+    private function vehicleBody(bool $hasActiveBookings): string
+    {
+        return json_encode(
+            [
+                'supplierId' => self::SUPPLIER_ID,
+                'plateNumber' => 'AA1234BB',
+                'hasActiveBookings' => $hasActiveBookings,
+            ],
             \JSON_THROW_ON_ERROR,
         );
     }

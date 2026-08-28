@@ -107,7 +107,11 @@ test.describe('A-02 Список магазинів', () => {
       page.locator('select[aria-label=page-size]').selectOption('100'),
     ]);
     await page.waitForLoadState('networkidle');
-    expect(await dataRowCount(page), 'після вибору 100 рядків має бути 100').toBe(100);
+    // Відповідь приходить раніше, ніж таблиця перемальовується, тому чекаємо
+    // на рядки, а не на подію мережі — так само, як expectTotal вище.
+    await expect
+      .poll(() => dataRowCount(page), { message: 'після вибору 100 рядків має бути 100' })
+      .toBe(100);
   });
 
   test('A-02.5 X-02 пошук за externalId — точний збіг', async ({ page }) => {

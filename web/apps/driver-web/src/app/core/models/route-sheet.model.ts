@@ -9,6 +9,7 @@
  * `slotEnd`, снапшота авто (модель/тоннаж) та імені водія — не вигадуємо їх
  * на клієнті.
  */
+import { kyivDateKey } from '../util/time.util';
 
 /** Канонічний статус бронювання (BookingStatus у booking-service, розділ 6.5). */
 export type BookingStatus =
@@ -71,6 +72,28 @@ export interface RoutePoint {
   readonly delayed: DelayState;
   /** Час фактичного прибуття, UTC ISO 8601, або null. */
   readonly arrivedAt: string | null;
+  /**
+   * Прибуття зафіксовано після кінця слоту — позначка запізнення (розділ 8).
+   * Рахує домен (Booking::arrivedLate), а не клієнт: у листі немає slotEnd,
+   * і власна арифметика тут неминуче розійшлася б із сервером.
+   */
+  readonly arrivedLate?: boolean;
+}
+
+/**
+ * Чи можна вже відмітити прибуття на цю точку (розділ 8, D-04).
+ *
+ * ДЗЕРКАЛО ДОМЕНУ. Джерело істини — ArrivalWindow у booking-service: відмітка
+ * приймається не раніше київської доби візиту, і спроба зробити це завтрашній
+ * точці повертає 422 ARRIVAL_TOO_EARLY. Тут те саме правило повторене лише
+ * для того, щоб водій не тиснув кнопку, яку сервер відхилить, — і щоб екран
+ * пояснював, коли вона стане доступною.
+ */
+export function arrivalAvailable(
+  point: RoutePoint,
+  now: number = Date.now(),
+): boolean {
+  return kyivDateKey(now) >= kyivDateKey(new Date(point.slotStart));
 }
 
 /** Маршрутний лист пари «постачальник + дата». */
@@ -102,6 +125,24 @@ export interface DayRouteSheet {
   /** Коди листів дати — друкована форма показує їх як «Код листа» (PRN-02). */
   readonly routeSheetIds: readonly string[];
   readonly points: readonly RoutePoint[];
+}
+
+/**
+ * Прочитаний маршрутний лист РАЗОМ з його свіжістю (DRV-33).
+ *
+ * Свіжість — частина відповіді, а не здогад інтерфейсу: без звʼязку
+ * service worker віддає збережену копію звичайним 200, і відрізнити її від
+ * щойно завантаженого листа можна лише за службовим заголовком
+ * (`x-yms-from-cache`, див. public/sw.js). Саме через відсутність цієї
+ * ознаки екран показував «Оновлено HH:MM» на даних добової давності.
+ */
+export interface RouteSheetLoad {
+  /** `null` — на дату точок немає (бекенд віддає `routeSheets: []`, 200). */
+  readonly sheet: DayRouteSheet | null;
+  /** Відповідь прийшла з кешу service worker, а не з мережі. */
+  readonly fromCache: boolean;
+  /** Коли цю копію записали в кеш (epoch ms), якщо відомо. */
+  readonly cachedAt: number | null;
 }
 
 /**

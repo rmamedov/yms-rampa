@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Application\Service;
 
+use App\Domain\Shared\NotFoundException;
+use App\Domain\Sync\BranchChange;
 use App\Domain\Sync\BranchSource;
 use App\Domain\Sync\BranchSynchronizer;
 use App\Domain\Sync\SyncLogEntry;
@@ -51,6 +53,36 @@ final readonly class BranchSyncService
             // INT-13: банер «Останню синхронізацію не завершено, дані станом на …».
             'lastSuccessfulAt' => $this->syncLog->findLastSuccessful()?->finishedAt?->format(\DATE_ATOM),
             'running' => $this->syncLog->findRunning() instanceof SyncLogEntry,
+        ];
+    }
+
+    /**
+     * SYNC-01: деталізація одного запуску — поіменний перелік нових, змінених
+     * і зниклих філій. У списку журналу його немає свідомо: перелік довгий,
+     * а на екрані потрібні лічильники.
+     *
+     * @return array<string, mixed>
+     */
+    public function entry(string $id): array
+    {
+        $entry = $this->syncLog->find($id);
+
+        if (!$entry instanceof SyncLogEntry) {
+            throw NotFoundException::syncRun($id);
+        }
+
+        return self::presentEntry($entry) + [
+            'changes' => array_map(
+                static fn (BranchChange $change): array => $change->toArray(),
+                $entry->changes,
+            ),
+            'changesTotal' => $entry->changesTotal,
+            // Запуски, зроблені до появи деталізації, несуть лише лічильники —
+            // вигадувати за них перелік не можна. Ознака рахується саме за
+            // лічильниками: порожній перелік при нульових змінах — це чесне
+            // «нічого не змінилось», а при ненульових — відсутній запис.
+            'changesRecorded' => $entry->changesTotal > 0
+                || 0 === $entry->created + $entry->updated + $entry->missing + $entry->archived,
         ];
     }
 

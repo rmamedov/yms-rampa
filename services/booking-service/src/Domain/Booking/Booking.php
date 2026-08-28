@@ -7,6 +7,7 @@ namespace App\Domain\Booking;
 use App\Domain\Access\AccessDeniedException;
 use App\Domain\Access\Actor;
 use App\Domain\Access\Role;
+use App\Domain\Booking\Exception\ArrivalTooEarlyException;
 use App\Domain\Booking\Exception\EditDeadlinePassedException;
 use App\Domain\Booking\Exception\InvalidStatusTransitionException;
 use App\Domain\Booking\Exception\PalletsOutOfRangeException;
@@ -399,16 +400,56 @@ final class Booking
     /**
      * ST-01: booked → arrived. Виконує водій («На місці» у driver-web) або
      * store_operator/store_manager у store-web.
+     *
+     * Доступність за часом — ArrivalWindow: раніше за добу візиту відмітка
+     * відхиляється (ISSUE-13), після кінця слоту приймається з позначкою
+     * запізнення. Правило спільне для обох контурів: магазин так само не має
+     * ставити в чергу машину, яку чекають лише завтра.
+     *
+     * Перевірка стоїть ПЕРЕД переходом навмисно: на вже позначеному бронюванні
+     * (магазин відмітив прибуття першим) сюди не заходять узагалі —
+     * DriverBookingService повертає поточний стан, — а якщо зайдуть, спершу
+     * має спрацювати машина станів, тому час перевіряється лише там, де
+     * перехід справді можливий.
      */
     public function markArrived(Actor $actor, DateTimeImmutable $now): DomainEvent
     {
+        $window = $this->arrivalWindow();
+
+        if ($window->isBeforeDayOfVisit($now)) {
+            throw new ArrivalTooEarlyException($window);
+        }
+
         $this->transition($actor, BookingStatus::Arrived, $now);
         $this->arrivedAt = $this->utc($now);
 
         return $this->event(EventType::BookingArrived, $now, [
             'arrivedAt' => $this->arrivedAt->format('Y-m-d\TH:i:s\Z'),
             'delayed' => $this->delayed->flag,
+            // Позначка запізнення їде разом із подією: магазин і аналітика
+            // не мусять перераховувати її зі slotEnd самостійно.
+            'punctuality' => $window->punctuality($now),
+            'late' => $window->isLate($now),
         ]);
+    }
+
+    /** Вікно відмітки «На місці» для цього слоту (розділ 8). */
+    public function arrivalWindow(): ArrivalWindow
+    {
+        return ArrivalWindow::forSlot($this->slotStart, $this->slotEnd);
+    }
+
+    /**
+     * Прибуття зафіксовано після кінця слоту — «із запізненням».
+     *
+     * Значення ПОХІДНЕ: рахується з `arrivedAt` і `slotEnd`, окремого поля
+     * в документі немає. Два джерела істини для одного факту розійшлися б
+     * рівно тоді, коли слот перенесли (EDIT-01), — а перенесення створює нове
+     * бронювання з новим слотом.
+     */
+    public function arrivedLate(): bool
+    {
+        return null !== $this->arrivedAt && $this->arrivedAt > $this->slotEnd;
     }
 
     /**

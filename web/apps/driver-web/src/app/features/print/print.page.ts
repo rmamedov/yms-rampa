@@ -92,8 +92,8 @@ export class PrintPage implements OnInit {
 
   async ngOnInit(): Promise<void> {
     try {
-      const sheet = await firstValueFrom(this.api.routeSheet(this.date()));
-      this.sheet.set(sheet);
+      const load = await firstValueFrom(this.api.routeSheet(this.date()));
+      this.sheet.set(load.sheet);
     } finally {
       this.loading.set(false);
     }

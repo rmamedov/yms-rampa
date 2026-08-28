@@ -73,10 +73,14 @@ export abstract class BookingApi {
 export abstract class RouteSheetApi {
   /** GET /api/supplier/v1/route-sheets?date=YYYY-MM-DD — параметр обовʼязковий. */
   abstract detail(date: string): Observable<RouteSheet>;
-  /** POST /api/supplier/v1/route-sheets/driver {date, driverId} (RSHT-02). */
+  /**
+   * POST /api/supplier/v1/route-sheets/driver {date, driverId} (RSHT-02).
+   * `null` знімає водія з усього листа — бекенд приймає порожній driverId,
+   * але саме поле в тілі має бути (інакше 422).
+   */
   abstract assignDriverToSheet(
     date: string,
-    driverId: string,
+    driverId: string | null,
   ): Observable<RouteSheetAssignment>;
   /** POST /api/supplier/v1/route-sheets/driver {bookingId, driverId}. */
   abstract assignDriverToBooking(

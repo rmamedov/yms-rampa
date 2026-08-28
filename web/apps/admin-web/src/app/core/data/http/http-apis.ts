@@ -8,6 +8,7 @@ import {
   AnalyticsExportDataset,
   AnalyticsFilter,
   AnalyticsKpi,
+  AuditLog,
   AuthSession,
   AuthTokens,
   BulkResultRow,
@@ -30,6 +31,7 @@ import {
   SupplierStatus,
   SyncLog,
   SyncReport,
+  SyncRunDetails,
   YmsStatus,
 } from '../../models';
 import { AuthApi } from '../auth.api';
@@ -47,6 +49,7 @@ import {
   UsersApi,
 } from '../users.api';
 import { SyncApi } from '../sync.api';
+import { AuditApi, AuditFilter } from '../audit.api';
 import { AnalyticsApi } from '../analytics.api';
 import {
   fromCalendarException,
@@ -65,6 +68,8 @@ import {
   toSupplierPage,
   toSyncLog,
   toSyncReport,
+  toSyncRunDetails,
+  toAuditLog,
   toTokens,
   WireBulkStatus,
   WireCity,
@@ -80,6 +85,8 @@ import {
   WireSupplierList,
   WireSyncLog,
   WireSyncReport,
+  WireSyncRunDetails,
+  WireAuditLog,
   WireTokenResponse,
 } from './wire';
 
@@ -524,8 +531,37 @@ export class HttpSyncApi extends SyncApi {
       .pipe(map(toSyncLog));
   }
 
+  runDetails(id: string): Observable<SyncRunDetails> {
+    return this.api
+      .get<WireSyncRunDetails>(`/sync/log/${encodeURIComponent(id)}`)
+      .pipe(map(toSyncRunDetails));
+  }
+
   run(): Observable<SyncReport> {
     return this.api.post<WireSyncReport>('/sync/run').pipe(map(toSyncReport));
+  }
+}
+
+/**
+ * /api/admin/v1/audit — identity-staff-service (RBAC-31).
+ *
+ * Журнал покриває зміни облікових записів і ролей: рівно те, що пише
+ * колекція `role_audit`. Дій над магазинами й бронюваннями тут немає —
+ * їх ведуть інші сервіси у власних журналах.
+ */
+@Injectable()
+export class HttpAuditApi extends AuditApi {
+  private readonly api = inject(ApiClient);
+
+  list(filter: AuditFilter, page: number, perPage: PageSize): Observable<AuditLog> {
+    return this.api
+      .get<WireAuditLog>('/audit', {
+        page,
+        perPage,
+        action: filter.action,
+        targetUserId: filter.targetUserId,
+      })
+      .pipe(map(toAuditLog));
   }
 }
 

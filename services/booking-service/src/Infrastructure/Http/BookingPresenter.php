@@ -51,6 +51,9 @@ final readonly class BookingPresenter
             'palletsCount' => $booking->palletsCount(),
             'delayed' => $booking->delayed()->toArray(),
             'arrivedAt' => $booking->arrivedAt()?->format('Y-m-d\TH:i:s\Z'),
+            // Позначка запізнення (розділ 8): прибуття зафіксовано після кінця
+            // слоту. Похідне від arrivedAt і slotEnd — див. Booking::arrivedLate().
+            'arrivedLate' => $booking->arrivedLate(),
             'unloadingStartedAt' => $booking->unloadingStartedAt()?->format('Y-m-d\TH:i:s\Z'),
             'completedAt' => $booking->completedAt()?->format('Y-m-d\TH:i:s\Z'),
             'cancelledAt' => $booking->cancelledAt()?->format('Y-m-d\TH:i:s\Z'),

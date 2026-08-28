@@ -36,7 +36,11 @@
     </thead>
     <tbody>
       @for (run of runs(); track run.id) {
-        <tr>
+        <tr
+          style="cursor: pointer"
+          [title]="'sync.details.open' | t"
+          (click)="openDetails(run)"
+        >
           <td>{{ formatDateTime(run.startedAt) }}</td>
           <td>
             {{ run.triggerLabel }}
@@ -74,6 +78,74 @@
     (pageSizeChange)="setPageSize($event)"
   />
 </div>
+
+@if (details(); as run) {
+  <app-modal [title]="'sync.report.title' | t" (closed)="details.set(null)">
+    <div class="row muted">
+      <span>{{ formatDateTime(run.startedAt) }}</span>
+      <span>·</span>
+      <span>{{ run.triggerLabel }}</span>
+      @if (run.initiator) {
+        <span>·</span>
+        <span>{{ run.initiator }}</span>
+      }
+      <span>·</span>
+      <span>{{ run.statusLabel }}</span>
+    </div>
+
+    <div class="row" style="margin-top: 8px">
+      <span class="badge">{{ 'sync.col.new' | t }}: {{ run.created }}</span>
+      <span class="badge">{{ 'sync.col.changed' | t }}: {{ run.updated }}</span>
+      <span class="badge">{{ 'sync.col.missing' | t }}: {{ run.missing }}</span>
+      <span class="badge">{{ 'sync.col.fetched' | t }}: {{ run.fetched }}</span>
+    </div>
+
+    @if (!run.changesRecorded) {
+      <div class="notice notice-info">{{ 'sync.details.notRecorded' | t }}</div>
+    } @else if (run.changes.length === 0) {
+      <app-empty-state [message]="'sync.details.empty' | t" />
+    } @else {
+      @if (run.changesTotal > run.changes.length) {
+        <div class="notice notice-info">
+          {{
+            'sync.details.truncated'
+              | t: { shown: run.changes.length, total: run.changesTotal }
+          }}
+        </div>
+      }
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th style="width: 140px">{{ 'sync.details.kind' | t }}</th>
+              <th style="width: 120px">{{ 'stores.col.externalId' | t }}</th>
+              <th>{{ 'sync.details.fields' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (change of run.changes; track change.branchId + change.kind) {
+              <tr>
+                <td>{{ change.kindLabel }}</td>
+                <td class="mono">{{ change.externalId }}</td>
+                <td>{{ fieldSummary(change) || '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    @for (error of run.errors; track error) {
+      <div class="field-error">{{ error }}</div>
+    }
+
+    <ng-container modalFooter>
+      <button type="button" class="btn" (click)="details.set(null)">
+        {{ 'common.close' | t }}
+      </button>
+    </ng-container>
+  </app-modal>
+}
 
 @if (lastReport(); as report) {
   <app-modal [title]="'sync.report.title' | t" (closed)="lastReport.set(null)">

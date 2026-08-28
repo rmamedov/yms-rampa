@@ -16,6 +16,7 @@ const NAV: readonly NavItem[] = [
   { section: 'users', link: '/users', labelKey: 'nav.users' },
   { section: 'sync', link: '/mcp-sync', labelKey: 'nav.sync' },
   { section: 'analytics', link: '/analytics', labelKey: 'nav.analytics' },
+  { section: 'audit', link: '/audit', labelKey: 'nav.audit' },
 ];
 
 /** Каркас адмінки: бічна навігація за ролями (ADM-02) + outlet. */

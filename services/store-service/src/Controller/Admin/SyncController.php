@@ -40,6 +40,18 @@ final class SyncController extends AbstractController
     }
 
     /**
+     * SYNC-01: деталізація одного запуску — які саме філії зʼявились,
+     * змінились і зникли, а не лише скільки їх.
+     */
+    #[Route('/log/{runId}', methods: ['GET'])]
+    public function logEntry(string $runId, Request $request): JsonResponse
+    {
+        $this->actors->staff($request);
+
+        return new JsonResponse($this->sync->entry($runId));
+    }
+
+    /**
      * SYNC-02 / INT-05: ручний запуск. Повторний запуск під час активної
      * синхронізації відхиляється з кодом SYNC_ALREADY_RUNNING (409).
      */

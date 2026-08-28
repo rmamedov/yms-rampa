@@ -68,6 +68,11 @@ final readonly class SupplierService
         return $supplier;
     }
 
+    /**
+     * Запис у будь-якому стані, включно з архівним (DATA-03): службовим
+     * викликам він потрібен, щоб відповісти «постачальник призупинений»
+     * замість «не знайдено».
+     */
     public function get(string $id): Supplier
     {
         return $this->suppliers->findById($id)
@@ -75,6 +80,30 @@ final readonly class SupplierService
                 \sprintf('Постачальника «%s» не знайдено.', $id),
                 'SUPPLIER_NOT_FOUND',
             );
+    }
+
+    /**
+     * SUP-06: видалений (заархівований) постачальник для адмін-контуру
+     * більше не існує.
+     *
+     * Решта вибірок — search/count, findByName, findByEdrpou — архівних не
+     * бачить, і лише пошук за ідентифікатором віддавав їх далі. Через це
+     * видалений постачальник зникав зі списку, але його картка лишалася
+     * доступною за прямим посиланням: її можна було відкрити, перейменувати
+     * й навіть «активувати» — і він повертався у роботу.
+     */
+    public function getManaged(string $id): Supplier
+    {
+        $supplier = $this->get($id);
+
+        if (null !== $supplier->archivedAt()) {
+            throw new NotFoundException(
+                \sprintf('Постачальника «%s» не знайдено.', $id),
+                'SUPPLIER_NOT_FOUND',
+            );
+        }
+
+        return $supplier;
     }
 
     /**
@@ -96,7 +125,7 @@ final readonly class SupplierService
      */
     public function rename(string $id, string $name): Supplier
     {
-        $supplier = $this->get($id);
+        $supplier = $this->getManaged($id);
         $this->assertNameFree(Supplier::normalizeName($name), $supplier->id());
         $supplier->rename($name, $this->clock->now());
         $this->suppliers->save($supplier);
@@ -106,7 +135,7 @@ final readonly class SupplierService
 
     public function changeEdrpou(string $id, ?string $edrpou): Supplier
     {
-        $supplier = $this->get($id);
+        $supplier = $this->getManaged($id);
         $this->assertEdrpouFree(Supplier::normalizeEdrpou($edrpou), $supplier->id());
         $supplier->changeEdrpou($edrpou, $this->clock->now());
         $this->suppliers->save($supplier);
@@ -119,7 +148,7 @@ final readonly class SupplierService
      */
     public function changeStoreAccess(string $id, StoreAccess $storeAccess): Supplier
     {
-        $supplier = $this->get($id);
+        $supplier = $this->getManaged($id);
         $supplier->changeStoreAccess($storeAccess, $this->clock->now());
         $this->suppliers->save($supplier);
 
@@ -131,7 +160,7 @@ final readonly class SupplierService
      */
     public function replaceContacts(string $id, array $contacts): Supplier
     {
-        $supplier = $this->get($id);
+        $supplier = $this->getManaged($id);
         $supplier->replaceContacts($contacts, $this->clock->now());
         $this->suppliers->save($supplier);
 
@@ -148,7 +177,7 @@ final readonly class SupplierService
      */
     public function suspend(string $id, ?string $reason = null): Supplier
     {
-        $supplier = $this->get($id);
+        $supplier = $this->getManaged($id);
         $now = $this->clock->now();
 
         if (!$supplier->suspend($now, $reason)) {
@@ -173,7 +202,7 @@ final readonly class SupplierService
      */
     public function activate(string $id): Supplier
     {
-        $supplier = $this->get($id);
+        $supplier = $this->getManaged($id);
 
         if (!$supplier->activate($this->clock->now())) {
             return $supplier;
@@ -191,7 +220,7 @@ final readonly class SupplierService
      */
     public function delete(string $id): void
     {
-        $supplier = $this->get($id);
+        $supplier = $this->getManaged($id);
 
         if ($this->bookings->supplierHasAnyBookings($supplier->id())) {
             throw new ConflictException(

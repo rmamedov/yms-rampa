@@ -168,6 +168,23 @@
   background: $color-warning;
 }
 
+/**
+ * Кнопка «На місці» до відкриття вікна відмітки: неактивна, з поясненням.
+ * Текст довший за назву дії, тому шрифт звичайний — інакше на 360 px він
+ * розповзається на три рядки.
+ */
+.arrive-locked {
+  font-size: $font-size-md;
+  font-weight: 600;
+}
+
+/** Позначка запізнення поруч із часом прибуття. */
+.late {
+  color: $color-warning;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .btn:disabled {
   background: $color-surface-muted;
   color: $color-text-muted;

@@ -89,8 +89,16 @@ final readonly class RouteSheetService
         return $this->sync($booking->supplierId, $booking->localDate());
     }
 
-    /** RSHT-02: призначення водія на весь лист. */
-    public function assignDriverToSheet(Actor $actor, string $supplierId, string $date, string $driverId, DateTimeImmutable $now): RouteSheet
+    /**
+     * RSHT-02: призначення водія на весь лист; `null` знімає водія з усіх
+     * точок листа одразу.
+     *
+     * Зняття — така сама повноцінна дія, як призначення: воно проходить тим
+     * самим шляхом (лист + кожне бронювання + подія BookingReassigned), тому
+     * driver-web бачить зміну наступним же полінгом, а не лише після
+     * перезавантаження.
+     */
+    public function assignDriverToSheet(Actor $actor, string $supplierId, string $date, ?string $driverId, DateTimeImmutable $now): RouteSheet
     {
         $this->assertSupplierManager($actor, $supplierId);
 
@@ -248,6 +256,9 @@ final readonly class RouteSheetService
             'status' => $booking->status()->value,
             'delayed' => $booking->delayed()->toArray(),
             'arrivedAt' => $booking->arrivedAt()?->format('Y-m-d\TH:i:s\Z'),
+            // Позначка запізнення (розділ 8) — щоб застосунок водія і друкована
+            // форма не рахували її самі з slotEnd, розходячись із доменом.
+            'arrivedLate' => $booking->arrivedLate(),
         ];
     }
 

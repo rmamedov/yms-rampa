@@ -131,6 +131,22 @@ final class InMemoryBookingRepository implements BookingRepository
         return false;
     }
 
+    public function hasActiveBySupplierAndPlate(string $supplierId, string $plateNumber): bool
+    {
+        foreach ($this->bookings as $booking) {
+            // SUP-VEH-04: рівно активні статуси і рівно цей держномер —
+            // закриті поставки видаленню авто з довідника не заважають.
+            if ($booking->supplierId === $supplierId
+                && $booking->isActive()
+                && $booking->vehicle()->plateNumber === $plateNumber
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function findOverlappingByPlate(
         string $supplierId,
         string $plateNumber,

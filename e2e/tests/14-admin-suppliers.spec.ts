@@ -469,12 +469,25 @@ test.describe('A-10 Постачальники', () => {
 
   test('A-10.19 форма створення дозволяє одразу задати доступ до магазинів', async ({ page }) => {
     await goto(page, '/suppliers/new');
-    const text = (await page.locator('body').innerText()).replace(/\s+/g, ' ');
+
+    // Вкладка «Магазини» має бути доступна ще до першого збереження — інакше
+    // новий постачальник до першого редагування має доступ за замовчуванням.
+    const storesTab = page.locator('.tabs button', { hasText: 'Магазини' });
+    await expect(storesTab, 'на формі створення є вкладка «Магазини»').toBeVisible();
+    await openTab(page, 'Магазини');
+
+    const mode = page.locator('#access-mode');
+    await expect(mode, 'режим доступу задається одразу на створенні').toBeVisible();
     expect(
-      text.includes('Доступ до магазинів') || text.includes('Усі магазини'),
-      'режим доступу до магазинів — частина заведення контрагента, ' +
-        'інакше новий постачальник до першого редагування має доступ за замовчуванням',
-    ).toBe(true);
+      (await mode.locator('option').allInnerTexts()).map((s) => s.trim()),
+      'обидва режими доступу пропонуються ще до збереження',
+    ).toEqual(['Усі магазини', expect.stringContaining('Перелік магазинів')]);
+
+    // Whitelist працює на створенні так само, як у картці: перелік філій
+    // завантажується і його можна вибирати.
+    await mode.selectOption('whitelist');
+    const options = await multiSelectOptions(page, 'Магазини');
+    expect(options.length, 'перелік філій доступний уже на формі створення').toBeGreaterThan(0);
   });
 
   test('A-10.20 видалення щойно створеного постачальника без бронювань', async ({ page }) => {

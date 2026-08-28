@@ -222,19 +222,28 @@ export class RouteSheetDetailComponent implements OnInit {
   }
 
   /**
-   * RSHT-02: бекенд вимагає driverId для листа цілком — зняти водія
-   * з усього листа одним запитом не можна (див. problems).
+   * RSHT-02: водій на весь лист. Порожній вибір — це ДІЯ «зняти водія
+   * з усього листа», а не «нічого не робити»: інакше список показував би
+   * «Водія не призначено» на листі, з якого водія ніхто не знімав (ISSUE-18).
+   *
+   * Стан списку не чіпаємо руками — після відповіді лист перечитується,
+   * тож на екрані завжди те, що є на сервері.
    */
   protected assignSheetDriver(driverId: string): void {
-    if (!driverId) {
-      return;
-    }
-    this.api.assignDriverToSheet(this.date(), driverId).subscribe({
+    const assigned = driverId || null;
+
+    this.api.assignDriverToSheet(this.date(), assigned).subscribe({
       next: () => {
-        this.toasts.success(this.i18n.t('rs.driverAssigned'));
+        this.toasts.success(
+          this.i18n.t(assigned ? 'rs.driverAssigned' : 'rs.driverRemoved'),
+        );
         this.load();
       },
-      error: (error: unknown) => this.toasts.problem(error),
+      error: (error: unknown) => {
+        this.toasts.problem(error);
+        // Відмова бекенду не має лишати в списку вибір, якого не сталося.
+        this.load();
+      },
     });
   }
 }

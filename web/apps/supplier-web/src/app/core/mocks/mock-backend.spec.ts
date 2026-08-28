@@ -465,6 +465,18 @@ describe('маршрутні листи (SUP-RS-01, SUP-RS-05)', () => {
     ).toBe(true);
   });
 
+  it('порожній водій знімає водія з усього листа (ISSUE-18)', () => {
+    const backend = backendAt();
+    backend.assignDriverToSheet(TODAY, 'drv-seed-2');
+
+    const assignment = backend.assignDriverToSheet(TODAY, null);
+
+    expect(assignment.entries.every((e) => e.driverId === null)).toBe(true);
+    expect(
+      backend.routeSheet(TODAY).points.every((p) => p.driverId === null),
+    ).toBe(true);
+  });
+
   it('призначення водія на окрему точку перекриває призначення листа', () => {
     const backend = backendAt();
     backend.assignDriverToSheet(TODAY, 'drv-seed-2');

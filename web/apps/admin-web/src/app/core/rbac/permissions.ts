@@ -144,17 +144,21 @@ export const ROLES_REQUIRING_STORES: readonly StaffRole[] = [
 /**
  * Розділи admin-web, які реально має бекенд контуру /api/admin/v1.
  *
- * Розділу «Журнал аудиту» тут немає: маршруту для аудит-логу бекенд не
- * надає (записи `role_audit` пишуться, але назовні не публікуються).
- * Розділ «Користувачі» зʼявився разом із /api/admin/v1/users
- * identity-staff-service (розділ 4.7).
+ * Розділ «Користувачі» зʼявився разом із /api/admin/v1/users, а «Журнал
+ * аудиту» — разом із /api/admin/v1/audit (identity-staff-service, RBAC-31):
+ * записи `role_audit` велися від початку, але назовні не публікувалися.
+ *
+ * ОБСЯГ АУДИТУ: журнал покриває зміни облікових записів і ролей. Дії над
+ * магазинами, постачальниками й бронюваннями ведуть інші сервіси у власних
+ * журналах, спільного маршруту для них немає.
  */
 export type SectionId =
   | 'stores'
   | 'suppliers'
   | 'users'
   | 'sync'
-  | 'analytics';
+  | 'analytics'
+  | 'audit';
 
 /** Розділ admin-web → право, що відкриває його (ADM-02). */
 export const SECTION_PERMISSION: Readonly<Record<SectionId, Permission>> = {
@@ -163,6 +167,7 @@ export const SECTION_PERMISSION: Readonly<Record<SectionId, Permission>> = {
   users: 'users.manage.staff',
   sync: 'store.sync.manage',
   analytics: 'analytics.view',
+  audit: 'audit.read',
 };
 
 export const SECTION_ORDER: readonly SectionId[] = [
@@ -171,6 +176,7 @@ export const SECTION_ORDER: readonly SectionId[] = [
   'users',
   'sync',
   'analytics',
+  'audit',
 ];
 
 /**

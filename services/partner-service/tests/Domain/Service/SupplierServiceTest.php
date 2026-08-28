@@ -190,6 +190,40 @@ final class SupplierServiceTest extends TestCase
     }
 
     /**
+     * SUP-06: після видалення картка недосяжна і за прямим посиланням —
+     * інакше видаленого постачальника можна було відкрити, перейменувати
+     * й «активувати», повернувши його в роботу повз список.
+     */
+    public function testDeletedSupplierIsNotReachableByAdminContour(): void
+    {
+        $supplier = $this->env->supplierService->create('ТОВ «Логістик Плюс»');
+        $this->env->supplierService->delete($supplier->id());
+
+        foreach (
+            [
+                'читання картки' => fn () => $this->env->supplierService->getManaged($supplier->id()),
+                'перейменування' => fn () => $this->env->supplierService->rename($supplier->id(), 'ТОВ «Інше»'),
+                'активація' => fn () => $this->env->supplierService->activate($supplier->id()),
+                'повторне видалення' => fn () => $this->env->supplierService->delete($supplier->id()),
+            ] as $case => $action
+        ) {
+            try {
+                $action();
+                self::fail(\sprintf('Очікувався SUPPLIER_NOT_FOUND: %s.', $case));
+            } catch (NotFoundException $e) {
+                self::assertSame('SUPPLIER_NOT_FOUND', $e->errorCode(), $case);
+            }
+        }
+
+        // Службовий контур бачить архівний запис і трактує його як призупинений
+        // (DATA-03) — booking-service має відповісти «немає доступу», а не 404.
+        self::assertSame(
+            SupplierStatus::Suspended,
+            $this->env->supplierService->accessSnapshot($supplier->id())->status,
+        );
+    }
+
+    /**
      * SUP-03: whitelist філій.
      */
     public function testStoreWhitelistLimitsVisibleStores(): void

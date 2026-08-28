@@ -166,6 +166,26 @@ final readonly class MongoBookingRepository implements BookingRepository
         return [] !== $cursor->toArray();
     }
 
+    /**
+     * SUP-VEH-04. Той самий прийом, що й у hasAnyBySupplier: питання булеве,
+     * тож досить першого документа. Фільтр лягає на індекс
+     * (supplierId, vehicle.plateNumber, status), яким уже користується
+     * findOverlappingByPlate (BOOK-04).
+     */
+    public function hasActiveBySupplierAndPlate(string $supplierId, string $plateNumber): bool
+    {
+        $cursor = $this->connection->manager()->executeQuery(
+            $this->connection->namespace(self::COLLECTION),
+            new Query([
+                'supplierId' => $supplierId,
+                'vehicle.plateNumber' => $plateNumber,
+                'status' => ['$in' => BookingStatus::activeValues()],
+            ], ['limit' => 1, 'projection' => ['_id' => 1]]),
+        );
+
+        return [] !== $cursor->toArray();
+    }
+
     public function findOverlappingByPlate(
         string $supplierId,
         string $plateNumber,

@@ -219,8 +219,9 @@ export const UK_DICTIONARY: Record<string, string> = {
   'rs.assignDriver': 'Призначити водія',
   'rs.assignDriverSheet': 'Призначити водія на весь лист',
   'rs.assignDriverSheetHint':
-    'Зняти водія з усього листа не можна — приберіть його в окремих точках',
+    'Вибір діє на всі точки листа; «Водія не призначено» знімає водія з усього листа',
   'rs.driverAssigned': 'Водія призначено',
+  'rs.driverRemoved': 'Водія знято з усього листа',
   'rs.vehicleChanged': 'Авто замінено',
   'rs.transfer': 'Перенести',
   'rs.cancel': 'Скасувати',

@@ -53,6 +53,46 @@ final readonly class MongoRoleAuditRepository implements RoleAuditRepository
         return $this->map($this->connection->find(self::COLLECTION, [], ['sort' => ['timestamp' => -1]]));
     }
 
+    public function recent(
+        int $limit,
+        int $offset = 0,
+        ?string $targetUserId = null,
+        ?RoleAuditAction $action = null,
+    ): array {
+        return $this->map($this->connection->find(
+            self::COLLECTION,
+            self::filter($targetUserId, $action),
+            [
+                'sort' => ['timestamp' => -1],
+                'skip' => max(0, $offset),
+                'limit' => max(1, $limit),
+            ],
+        ));
+    }
+
+    public function count(?string $targetUserId = null, ?RoleAuditAction $action = null): int
+    {
+        return $this->connection->count(self::COLLECTION, self::filter($targetUserId, $action));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function filter(?string $targetUserId, ?RoleAuditAction $action): array
+    {
+        $filter = [];
+
+        if (null !== $targetUserId && '' !== $targetUserId) {
+            $filter['targetUserId'] = $targetUserId;
+        }
+
+        if ($action instanceof RoleAuditAction) {
+            $filter['action'] = $action->value;
+        }
+
+        return $filter;
+    }
+
     /**
      * @param list<array<string, mixed>> $documents
      *

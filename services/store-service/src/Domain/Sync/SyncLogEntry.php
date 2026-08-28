@@ -11,7 +11,9 @@ namespace App\Domain\Sync;
 final readonly class SyncLogEntry
 {
     /**
-     * @param list<string> $errors
+     * @param list<string>       $errors
+     * @param list<BranchChange> $changes  поіменна деталізація (SYNC-01), обрізана
+     *                                     до SyncReport::CHANGE_LIST_LIMIT
      */
     public function __construct(
         public string $id,
@@ -29,6 +31,8 @@ final readonly class SyncLogEntry
         public int $skipped = 0,
         public array $errors = [],
         public ?string $source = null,
+        public array $changes = [],
+        public int $changesTotal = 0,
     ) {
     }
 
@@ -67,6 +71,8 @@ final readonly class SyncLogEntry
             skipped: $report->skipped,
             errors: $report->errors,
             source: $this->source,
+            changes: $report->storedChanges(),
+            changesTotal: \count($report->changes),
         );
     }
 

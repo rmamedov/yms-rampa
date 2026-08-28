@@ -86,7 +86,7 @@ describe('HttpDriverApi — контракт driver_route_sheet', () => {
       envelope('2026-08-27', [point('bk-1', '2026-08-27T06:00:00Z', '09:00')]),
     );
 
-    const sheet = await promise;
+    const { sheet, fromCache, cachedAt } = await promise;
     expect(sheet?.points[0].bookingId).toBe('bk-1');
     expect(sheet?.routeSheetIds).toEqual(['rs-2026-08-27']);
     // Координати, рампа і стан бронювання доїжджають до застосунку як є.
@@ -98,6 +98,33 @@ describe('HttpDriverApi — контракт driver_route_sheet', () => {
       reason: null,
       eta: null,
     });
+    // Відповідь із мережі не має ознак збереженої копії.
+    expect(fromCache).toBe(false);
+    expect(cachedAt).toBeNull();
+  });
+
+  /**
+   * ISSUE-10: без звʼязку service worker віддає збережену копію звичайним 200
+   * і підписує її заголовками. Застосунок мусить прочитати підпис — інакше
+   * офлайн-відповідь не відрізнити від свіжої.
+   */
+  it('позначає відповідь із кешу service worker як несвіжу', async () => {
+    const promise = firstValueFrom(api.routeSheet('2026-08-27'));
+
+    http.expectOne((r) => r.url === '/api/driver/v1/route-sheet').flush(
+      envelope('2026-08-27', [point('bk-1', '2026-08-27T06:00:00Z', '09:00')]),
+      {
+        headers: {
+          'x-yms-from-cache': '1',
+          'x-yms-cached-at': '2026-08-27T05:40:00.000Z',
+        },
+      },
+    );
+
+    const load = await promise;
+    expect(load.sheet?.points[0].bookingId).toBe('bk-1');
+    expect(load.fromCache).toBe(true);
+    expect(load.cachedAt).toBe(Date.parse('2026-08-27T05:40:00.000Z'));
   });
 
   it('порожній день бекенд віддає як 200 з routeSheets: [] → null', async () => {
@@ -107,7 +134,7 @@ describe('HttpDriverApi — контракт driver_route_sheet', () => {
       .expectOne((r) => r.url === '/api/driver/v1/route-sheet')
       .flush(envelope('2026-08-28', []));
 
-    expect(await promise).toBeNull();
+    expect((await promise).sheet).toBeNull();
   });
 
   it('кілька листів дати склеюються в один маршрут за часом слоту', async () => {
@@ -134,7 +161,7 @@ describe('HttpDriverApi — контракт driver_route_sheet', () => {
       ],
     } satisfies DriverRouteSheetResponse);
 
-    const sheet = await promise;
+    const { sheet } = await promise;
     expect(sheet?.points.map((p) => p.bookingId)).toEqual(['bk-early', 'bk-late']);
     expect(sheet?.routeSheetIds).toEqual(['rs-b', 'rs-a']);
   });

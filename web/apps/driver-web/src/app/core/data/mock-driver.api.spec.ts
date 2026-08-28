@@ -24,19 +24,27 @@ describe('MockDriverApi', () => {
   });
 
   it('віддає денний зріз на сьогодні', async () => {
-    const sheet = await firstValueFrom(api.routeSheet(kyivDateKey()));
+    const load = await firstValueFrom(api.routeSheet(kyivDateKey()));
 
-    expect(sheet?.date).toBe(kyivDateKey());
-    expect(sheet?.points.length).toBeGreaterThan(0);
-    expect(sheet?.routeSheetIds).toHaveLength(1);
+    expect(load.sheet?.date).toBe(kyivDateKey());
+    expect(load.sheet?.points.length).toBeGreaterThan(0);
+    expect(load.sheet?.routeSheetIds).toHaveLength(1);
+  });
+
+  /** Моку нема звідки взяти збережену копію — відповідь завжди «з мережі». */
+  it('мок не видає себе за офлайн-кеш', async () => {
+    const load = await firstValueFrom(api.routeSheet(kyivDateKey()));
+
+    expect(load.fromCache).toBe(false);
+    expect(load.cachedAt).toBeNull();
   });
 
   it('дата без поїздок дає null, а не помилку', async () => {
-    const sheet = await firstValueFrom(
+    const load = await firstValueFrom(
       api.routeSheet(addDaysToDateKey(kyivDateKey(), 30)),
     );
 
-    expect(sheet).toBeNull();
+    expect(load.sheet).toBeNull();
   });
 
   it('перелік дат покриває сьогодні + горизонт', async () => {
@@ -61,7 +69,7 @@ describe('MockDriverApi', () => {
   describe('дії водія', () => {
     /** Перша точка листа у статусі booked. */
     const bookedPoint = async () => {
-      const sheet = await firstValueFrom(api.routeSheet(kyivDateKey()));
+      const { sheet } = await firstValueFrom(api.routeSheet(kyivDateKey()));
       const point = sheet?.points.find((p) => p.status === 'booked');
       if (!point) {
         throw new Error('у моці немає точки зі статусом booked');

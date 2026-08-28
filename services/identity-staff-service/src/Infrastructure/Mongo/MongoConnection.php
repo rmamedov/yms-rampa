@@ -115,9 +115,15 @@ final class MongoConnection
      */
     public function count(string $collection, array $filter = []): int
     {
+        // Порожній PHP-масив кодується в BSON як МАСИВ, а не документ, і
+        // MongoDB відповідає «count.query is the wrong type 'array'». Тобто
+        // будь-який підрахунок без фільтра падав 500. Приводимо до обʼєкта.
         $cursor = $this->manager->executeCommand(
             $this->database,
-            new \MongoDB\Driver\Command(['count' => $collection, 'query' => $filter]),
+            new \MongoDB\Driver\Command([
+                'count' => $collection,
+                'query' => [] === $filter ? new \stdClass() : $filter,
+            ]),
         );
         $cursor->setTypeMap(['root' => 'array', 'document' => 'array', 'array' => 'array']);
 

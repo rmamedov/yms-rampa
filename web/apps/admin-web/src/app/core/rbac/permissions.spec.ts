@@ -79,6 +79,18 @@ describe('RBAC матриця (розділ 4.4)', () => {
     expect(grantFor('analyst', 'users.manage.staff')).toBe('denied');
   });
 
+  it('RBAC-31: розділ «Журнал аудиту» відкриває право audit.read', () => {
+    expect(SECTION_ORDER).toContain('audit');
+    expect(SECTION_PERMISSION['audit']).toBe('audit.read');
+
+    // Матриця 4.4: журнал бачать лише мережеві ролі.
+    expect(grantFor('super_admin', 'audit.read')).toBe('full');
+    expect(grantFor('network_manager', 'audit.read')).toBe('full');
+    expect(grantFor('store_manager', 'audit.read')).toBe('denied');
+    expect(grantFor('store_operator', 'audit.read')).toBe('denied');
+    expect(grantFor('analyst', 'audit.read')).toBe('denied');
+  });
+
   it('RBAC-23: у селекті ролі пропонується лише дерево призначення актора', () => {
     expect(assignableRoles('super_admin')).toContain('super_admin');
     expect(assignableRoles('network_manager')).toEqual([

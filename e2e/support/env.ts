@@ -6,10 +6,15 @@ import { join } from 'node:path';
 const IP = '104.248.132.130';
 
 export const HOSTS = {
-  supplier: `https://yms.${IP}.sslip.io`,
-  driver: `https://driver.${IP}.sslip.io`,
+  // SUPPLIER_HOST / DRIVER_HOST — той самий прийом, що й ADMIN_HOST нижче:
+  // прогін проти локальної прод-збірки (local-driver-server.mjs) з проксі
+  // на живий бекенд стенду, ще до розгортання.
+  supplier: process.env.SUPPLIER_HOST ?? `https://yms.${IP}.sslip.io`,
+  driver: process.env.DRIVER_HOST ?? `https://driver.${IP}.sslip.io`,
   store: process.env.STORE_HOST ?? `https://store.${IP}.sslip.io`,
-  admin: `https://admin.${IP}.sslip.io`,
+  // ADMIN_HOST дозволяє прогнати ті самі тести проти локальної прод-збірки
+  // адмінки (див. local-admin-server.mjs) ще до розгортання на стенд.
+  admin: process.env.ADMIN_HOST ?? `https://admin.${IP}.sslip.io`,
 };
 
 export const CREDS = {

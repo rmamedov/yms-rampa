@@ -16,6 +16,7 @@
  app_admin_store_update PATCH|PUT /api/admin/v1/stores/{storeId} 
  app_admin_store_bulkstatus POST /api/admin/v1/stores/bulk/status 
  app_admin_sync_log GET /api/admin/v1/sync/log 
+ app_admin_sync_logentry GET /api/admin/v1/sync/log/{runId} 
  app_admin_sync_run POST /api/admin/v1/sync/run 
  internal_store_settings GET /internal/v1/stores/{storeId}/settings 
  internal_store_list GET /internal/v1/stores 
@@ -93,6 +94,7 @@
  admin_users_deactivate POST /api/admin/v1/users/{id}/deactivate
  admin_users_activate POST /api/admin/v1/users/{id}/activate
  admin_users_password_reset POST /api/admin/v1/users/{id}/password/reset
+ admin_audit_list GET /api/admin/v1/audit
  internal_auth_verify GET /internal/v1/auth/verify
 ### identity-partner-service
  driver_auth_login POST /api/driver/v1/auth/login 

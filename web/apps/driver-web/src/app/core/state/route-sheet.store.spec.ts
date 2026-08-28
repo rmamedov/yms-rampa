@@ -17,6 +17,7 @@ import {
   rampLabel,
   type DayRouteSheet,
   type RoutePoint,
+  type RouteSheetLoad,
 } from '../models/route-sheet.model';
 import type {
   BookingActionResult,
@@ -87,11 +88,19 @@ class FakeDriverApi extends DriverApi {
   orderError: unknown = null;
   arrivedResult: BookingActionResult = actionResult();
 
-  override routeSheet(date: string): Observable<DayRouteSheet | null> {
+  /** Відповідь із кешу service worker замість мережевої (DRV-33). */
+  servedFromCache = false;
+  cachedAt: number | null = null;
+
+  override routeSheet(date: string): Observable<RouteSheetLoad> {
     this.requestedDates.push(date);
     return this.sheetError
       ? throwError(() => this.sheetError)
-      : of(this.byDate.get(date) ?? null);
+      : of({
+          sheet: this.byDate.get(date) ?? null,
+          fromCache: this.servedFromCache,
+          cachedAt: this.cachedAt,
+        });
   }
 
   override markArrived(
@@ -243,6 +252,41 @@ describe('RouteSheetStore', () => {
     expect(store.points()).toHaveLength(1);
     expect(store.error()).toBeNull();
     expect(network.online()).toBe(false);
+  });
+
+  /**
+   * ISSUE-10: без звʼязку service worker віддає збережену копію звичайним
+   * 200. «Запит не впав» ще не означає «дані свіжі» — і саме на цьому
+   * припущенні банер про збережений маршрут ніколи не зʼявлявся.
+   */
+  it('успішна відповідь із кешу service worker вважається несвіжою', async () => {
+    await store.initialize();
+    const syncedAt = store.lastSyncAt();
+    api.servedFromCache = true;
+    api.cachedAt = Date.parse('2026-08-27T05:40:00.000Z');
+
+    await store.load(kyivDateKey());
+
+    expect(store.points()).toHaveLength(1);
+    expect(store.error()).toBeNull();
+    expect(store.stale()).toBe(true);
+    expect(store.cachedAt()).toBe(Date.parse('2026-08-27T05:40:00.000Z'));
+    // «Оновлено HH:MM» не має оновлюватися: з сервером розмови не було.
+    expect(store.lastSyncAt()).toBe(syncedAt);
+    expect(network.online()).toBe(false);
+  });
+
+  it('відповідь із мережі знімає прапорець stale', async () => {
+    await store.initialize();
+    api.servedFromCache = true;
+    await store.load(kyivDateKey());
+    expect(store.stale()).toBe(true);
+
+    api.servedFromCache = false;
+    await store.load(kyivDateKey());
+
+    expect(store.stale()).toBe(false);
+    expect(network.online()).toBe(true);
   });
 
   it('порожній день (routeSheets: []) — це не помилка, а порожній список', async () => {

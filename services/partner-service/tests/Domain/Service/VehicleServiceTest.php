@@ -128,7 +128,7 @@ final class VehicleServiceTest extends TestCase
     public function testVehicleWithActiveBookingsCannotBeDeleted(): void
     {
         $vehicle = $this->env->vehicleService->create('sp-1', 'AA1234BB', 12.0);
-        $this->env->bookings->registerVehicleActiveBooking($vehicle->id());
+        $this->env->bookings->registerVehicleActiveBooking('sp-1', $vehicle->plateNumber());
 
         try {
             $this->env->vehicleService->delete('sp-1', $vehicle->id());
@@ -137,6 +137,35 @@ final class VehicleServiceTest extends TestCase
             self::assertSame('VEHICLE_HAS_ACTIVE_BOOKINGS', $e->errorCode());
             self::assertSame(409, $e->httpStatus());
         }
+    }
+
+    /**
+     * ISSUE-22: авто, з яким немає жодного бронювання, МАЄ видалятися.
+     * Раніше порт до booking-service був заглушкою «бронювання є завжди»,
+     * тому довідник авто був невидаляним, а повідомлення — неправдивим.
+     */
+    public function testVehicleWithoutBookingsIsDeleted(): void
+    {
+        $vehicle = $this->env->vehicleService->create('sp-1', 'AA1234BB', 12.0);
+
+        $this->env->vehicleService->delete('sp-1', $vehicle->id());
+
+        self::assertCount(0, $this->env->vehicleService->list('sp-1', includeInactive: true));
+    }
+
+    /**
+     * DATA-18: питання ставиться за парою «постачальник + номер». Той самий
+     * номер в іншого перевізника — чуже авто, і його бронювання не мають
+     * тримати наш довідник.
+     */
+    public function testForeignSupplierBookingsDoNotBlockDeletion(): void
+    {
+        $vehicle = $this->env->vehicleService->create('sp-1', 'AA1234BB', 12.0);
+        $this->env->bookings->registerVehicleActiveBooking('sp-2', 'AA1234BB');
+
+        $this->env->vehicleService->delete('sp-1', $vehicle->id());
+
+        self::assertCount(0, $this->env->vehicleService->list('sp-1', includeInactive: true));
     }
 
     /**

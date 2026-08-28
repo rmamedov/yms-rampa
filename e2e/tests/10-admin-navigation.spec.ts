@@ -58,15 +58,20 @@ test.describe('A-01 Вхід і навігація', () => {
   test('A-01.5 усі пункти меню відкриваються', async ({ page }) => {
     await loginAdmin(page);
 
+    // Перелік розділів super_admin — за матрицею 4.4: усе, на що він має право.
+    // «Користувачі» (users.manage.staff) і «Журнал аудиту» (audit.read) —
+    // рівноправні розділи, а не додатки до чотирьох попередніх.
     const expected = [
       { label: 'Магазини', url: '/stores', heading: 'Магазини' },
       { label: 'Постачальники', url: '/suppliers', heading: 'Постачальники' },
+      { label: 'Користувачі', url: '/users', heading: 'Користувачі' },
       { label: 'Синхронізація MCP', url: '/mcp-sync', heading: 'Синхронізація MCP' },
       { label: 'Аналітика', url: '/analytics', heading: 'Аналітика' },
+      { label: 'Журнал аудиту', url: '/audit', heading: 'Журнал аудиту' },
     ];
 
     const links = await page.locator('.sidebar-link').allInnerTexts();
-    expect(links.map((s) => s.trim()), 'меню super_admin має містити всі чотири розділи').toEqual(
+    expect(links.map((s) => s.trim()), 'меню super_admin має містити всі розділи').toEqual(
       expected.map((e) => e.label),
     );
 

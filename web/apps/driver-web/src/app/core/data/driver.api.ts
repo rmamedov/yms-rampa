@@ -1,5 +1,5 @@
 import { Observable, catchError, forkJoin, map, of } from 'rxjs';
-import type { AvailableDate, DayRouteSheet } from '../models/route-sheet.model';
+import type { AvailableDate, RouteSheetLoad } from '../models/route-sheet.model';
 import type {
   BookingActionResult,
   DelayReport,
@@ -29,9 +29,12 @@ export const AVAILABLE_DATES_HORIZON_DAYS = 2;
 export abstract class DriverApi {
   /**
    * GET /api/driver/v1/route-sheet?date=YYYY-MM-DD.
-   * `null` — на дату точок немає (бекенд віддає `routeSheets: []`, 200).
+   *
+   * Повертається не лише лист, а й його свіжість: без звʼязку service worker
+   * віддає збережену копію тим самим 200, і застосунок мусить знати, що
+   * показує саме її (DRV-33). `sheet: null` — на дату точок немає.
    */
-  abstract routeSheet(date: string): Observable<DayRouteSheet | null>;
+  abstract routeSheet(date: string): Observable<RouteSheetLoad>;
 
   /**
    * POST /api/driver/v1/bookings/{bookingId}/arrived — «На місці»
@@ -92,7 +95,10 @@ export abstract class DriverApi {
 
     return forkJoin(
       dates.map((date) =>
-        this.routeSheet(date).pipe(catchError(() => of(null))),
+        this.routeSheet(date).pipe(
+          map((load) => load.sheet),
+          catchError(() => of(null)),
+        ),
       ),
     ).pipe(
       map((sheets) =>

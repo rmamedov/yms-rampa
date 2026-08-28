@@ -9,6 +9,7 @@ use App\Domain\Access\AccessDeniedException;
 use App\Domain\Access\Actor;
 use App\Domain\Access\Role;
 use App\Domain\Booking\DelayReason;
+use App\Domain\Booking\Exception\ArrivalTooEarlyException;
 use App\Domain\Booking\Exception\TransitionNotAllowedException;
 use App\Domain\Booking\RejectionReason;
 use App\Domain\Exception\ValidationFailedException;
@@ -47,6 +48,50 @@ final class DriverContourTest extends TestCase
         );
 
         self::assertSame('arrived', $arrived->status()->value);
+        self::assertCount(1, $scenario->outbox->eventsOfType('BookingArrived'));
+    }
+
+    /**
+     * D-04, ISSUE-13: контур водія не обходить вікно відмітки — правило живе
+     * в агрегаті, тому прямий виклик API дає ту саму відмову, що й неактивна
+     * кнопка в застосунку.
+     */
+    public function testDriverCannotMarkArrivalTheDayBeforeTheSlot(): void
+    {
+        $scenario = new Scenario();
+        $booking = $scenario->book('2026-08-28 10:00', driverId: self::DRIVER_ID);
+
+        $this->expectException(ArrivalTooEarlyException::class);
+
+        $scenario->driverBookings->markArrived(
+            $scenario->driver(self::DRIVER_ID),
+            $booking->id,
+            Scenario::kyiv('2026-08-27 09:55'),
+        );
+    }
+
+    /**
+     * Ідемпотентність сильніша за вікно: прибуття вже відмічене (наприклад,
+     * магазином — «хто перший»), тож повтор повертає поточний стан і НЕ падає
+     * на перевірці часу. Другого переходу і другої події теж немає.
+     */
+    public function testRepeatedArrivalReturnsCurrentStateWithoutSecondEvent(): void
+    {
+        $scenario = new Scenario();
+        $booking = $scenario->book('2026-08-28 10:00', driverId: self::DRIVER_ID);
+        $scenario->lifecycle->markArrived(
+            $scenario->storeStaff(),
+            $booking->id,
+            Scenario::kyiv('2026-08-28 09:50'),
+        );
+
+        $again = $scenario->driverBookings->markArrived(
+            $scenario->driver(self::DRIVER_ID),
+            $booking->id,
+            Scenario::kyiv('2026-08-28 09:55'),
+        );
+
+        self::assertSame('arrived', $again->status()->value);
         self::assertCount(1, $scenario->outbox->eventsOfType('BookingArrived'));
     }
 

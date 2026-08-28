@@ -1034,3 +1034,266 @@
 {"kind":"driver","id":"ea803029-a5bb-44a4-ac51-d3c62c152763","note":"+380990002306 UITEST Водій-35719295-моб","at":"2026-08-28T00:02:37.598Z"}
 {"kind":"booking","id":"f7abec63-4f47-47be-a9d6-ac8756bbeb17","note":"UITEST-35719295-моб 2026-08-28 1932","at":"2026-08-28T00:02:37.916Z"}
 {"kind":"vehicle-plate","id":"UT7149XX","note":"бронювання f7abec63-4f47-47be-a9d6-ac8756bbeb17","at":"2026-08-28T00:02:37.917Z"}
+{"kind":"driver","id":"2158b3f4-e23d-4378-b3d8-712f9c0791e6","note":"+380990008012 UITEST Водій-58585221","at":"2026-08-28T00:06:26.305Z"}
+{"kind":"driver","id":"e774709f-3559-4993-836b-86237be116f7","note":"+380990003387 UITEST Водій-58585221-порожній","at":"2026-08-28T00:06:26.707Z"}
+{"kind":"booking","id":"c121aa1b-9ff7-4833-b661-1e1d3b194b2c","note":"UITEST-58585221-B 2026-08-28 1932","at":"2026-08-28T00:06:26.998Z"}
+{"kind":"vehicle-plate","id":"UT9725XX","note":"бронювання c121aa1b-9ff7-4833-b661-1e1d3b194b2c","at":"2026-08-28T00:06:26.998Z"}
+{"kind":"booking","id":"c06a296a-683d-4d10-bf59-e91c3d19bd40","note":"UITEST-58585221-A 2026-08-28 1932","at":"2026-08-28T00:06:27.367Z"}
+{"kind":"vehicle-plate","id":"UT2289XX","note":"бронювання c06a296a-683d-4d10-bf59-e91c3d19bd40","at":"2026-08-28T00:06:27.367Z"}
+{"kind":"booking","id":"70950f41-0692-450b-a3f0-7440d6951f3f","note":"UITEST-58585221-C 2026-08-29 1932","at":"2026-08-28T00:06:27.678Z"}
+{"kind":"vehicle-plate","id":"UT3168XX","note":"бронювання 70950f41-0692-450b-a3f0-7440d6951f3f","at":"2026-08-28T00:06:27.678Z"}
+{"kind":"booking","id":"2c943c67-e195-450a-8dca-f9139fc233d9","note":"UITEST-58779179-офлайн 2026-08-28 1932","at":"2026-08-28T00:06:28.101Z"}
+{"kind":"vehicle-plate","id":"UT3616XX","note":"бронювання 2c943c67-e195-450a-8dca-f9139fc233d9","at":"2026-08-28T00:06:28.101Z"}
+{"kind":"driver","id":"d198dc59-f4fc-41fe-93c1-35d3e59da6a3","note":"+380990009463 UITEST Водій-60897295","at":"2026-08-28T00:06:49.382Z"}
+{"kind":"driver","id":"12f8543b-9ddc-4594-bcbc-f96161c35c4a","note":"+380990007891 UITEST Водій-60897295-порожній","at":"2026-08-28T00:06:49.792Z"}
+{"kind":"booking","id":"5bce52f2-1573-47cd-8d30-b70a00cbd389","note":"UITEST-60897295-B 2026-08-28 1932","at":"2026-08-28T00:06:50.067Z"}
+{"kind":"vehicle-plate","id":"UT8772XX","note":"бронювання 5bce52f2-1573-47cd-8d30-b70a00cbd389","at":"2026-08-28T00:06:50.067Z"}
+{"kind":"booking","id":"9832c85b-c643-428e-ad5e-32f75cabcd02","note":"UITEST-60897295-A 2026-08-28 1932","at":"2026-08-28T00:06:50.419Z"}
+{"kind":"vehicle-plate","id":"UT6169XX","note":"бронювання 9832c85b-c643-428e-ad5e-32f75cabcd02","at":"2026-08-28T00:06:50.419Z"}
+{"kind":"booking","id":"49645ed2-8e59-487b-89d6-3f5825edbf4f","note":"UITEST-60897295-C 2026-08-29 1932","at":"2026-08-28T00:06:50.721Z"}
+{"kind":"vehicle-plate","id":"UT1141XX","note":"бронювання 49645ed2-8e59-487b-89d6-3f5825edbf4f","at":"2026-08-28T00:06:50.721Z"}
+{"kind":"booking","id":"647d1b4a-848f-4973-baca-2c129efc4a4c","note":"UITEST-61119842-офлайн 2026-08-28 1932","at":"2026-08-28T00:06:51.470Z"}
+{"kind":"vehicle-plate","id":"UT4616XX","note":"бронювання 647d1b4a-848f-4973-baca-2c129efc4a4c","at":"2026-08-28T00:06:51.470Z"}
+{"kind":"driver","id":"3cb2b069-2f0d-4da2-a874-4c53b6151895","note":"+380990007979","at":"2026-08-28T00:08:01.501Z"}
+{"kind":"booking","id":"d3e857fe-a265-4a14-80f3-7a809275e791","note":"UITEST-1358 2026-09-02T09:00:00Z","at":"2026-08-28T00:08:02.086Z"}
+{"kind":"vehicle","id":"f51c29bb-a06a-4b68-bc5e-57ca8733a22a","note":"UT1689XX","at":"2026-08-28T00:08:50.347Z"}
+{"kind":"driver","id":"ee2d36c2-5b3e-4b5e-a1fa-876ad31ae9f9","note":"+380990000321 UITEST Водій-85323262","at":"2026-08-28T00:10:53.693Z"}
+{"kind":"driver","id":"11047e3f-edc3-4638-8352-b83ea8e3eda0","note":"+380990000021 UITEST Водій-85323262-порожній","at":"2026-08-28T00:10:54.086Z"}
+{"kind":"booking","id":"62271fd0-c8a6-42c0-a9ab-c598b14ab113","note":"UITEST-85323262-B 2026-08-28 1932","at":"2026-08-28T00:10:54.385Z"}
+{"kind":"vehicle-plate","id":"UT8671XX","note":"бронювання 62271fd0-c8a6-42c0-a9ab-c598b14ab113","at":"2026-08-28T00:10:54.386Z"}
+{"kind":"booking","id":"6fac3ca9-dd06-4360-aab5-5435d81a343a","note":"UITEST-85323262-A 2026-08-28 1932","at":"2026-08-28T00:10:54.739Z"}
+{"kind":"vehicle-plate","id":"UT4180XX","note":"бронювання 6fac3ca9-dd06-4360-aab5-5435d81a343a","at":"2026-08-28T00:10:54.739Z"}
+{"kind":"booking","id":"505090e3-7c9f-4309-b9f3-087c48ad2d45","note":"UITEST-85323262-C 2026-08-29 1932","at":"2026-08-28T00:10:55.061Z"}
+{"kind":"vehicle-plate","id":"UT9250XX","note":"бронювання 505090e3-7c9f-4309-b9f3-087c48ad2d45","at":"2026-08-28T00:10:55.061Z"}
+{"kind":"driver","id":"c531432e-1be8-4eb7-9a27-520ca8c42098","note":"+380990008979 UITEST Водій-86171719-пароль","at":"2026-08-28T00:11:02.230Z"}
+{"kind":"booking","id":"7c14f86e-bed5-488c-ab2b-de4945d355c1","note":"UITEST-88662128-цикл 2026-08-28 1932","at":"2026-08-28T00:11:26.912Z"}
+{"kind":"vehicle-plate","id":"UT6814XX","note":"бронювання 7c14f86e-bed5-488c-ab2b-de4945d355c1","at":"2026-08-28T00:11:26.913Z"}
+{"kind":"driver","id":"b53aebd7-7863-4471-a5bc-6d3899f4ccd6","note":"+380990000388 UITEST Водій-89773447","at":"2026-08-28T00:11:38.120Z"}
+{"kind":"driver","id":"9d0d1b1e-a1ae-4356-9daa-03534051a60a","note":"+380990000145 UITEST Водій-89773447-порожній","at":"2026-08-28T00:11:38.515Z"}
+{"kind":"booking","id":"a69c5d64-ce91-43c8-9007-c9455ff21025","note":"UITEST-89773447-B 2026-08-28 1932","at":"2026-08-28T00:11:38.782Z"}
+{"kind":"vehicle-plate","id":"UT6506XX","note":"бронювання a69c5d64-ce91-43c8-9007-c9455ff21025","at":"2026-08-28T00:11:38.782Z"}
+{"kind":"booking","id":"0feccade-289e-45b6-bfa7-d1766c36c307","note":"UITEST-89773447-A 2026-08-28 1932","at":"2026-08-28T00:11:39.132Z"}
+{"kind":"vehicle-plate","id":"UT2598XX","note":"бронювання 0feccade-289e-45b6-bfa7-d1766c36c307","at":"2026-08-28T00:11:39.132Z"}
+{"kind":"booking","id":"38f5dcdf-81e0-464b-8d06-d142bc69bcc6","note":"UITEST-89773447-C 2026-08-29 1932","at":"2026-08-28T00:11:39.520Z"}
+{"kind":"vehicle-plate","id":"UT2661XX","note":"бронювання 38f5dcdf-81e0-464b-8d06-d142bc69bcc6","at":"2026-08-28T00:11:39.521Z"}
+{"kind":"booking","id":"f93587ac-7dc2-4e75-939b-844fb3206c2d","note":"UITEST-89962390-рано 2026-08-29 1932","at":"2026-08-28T00:11:39.922Z"}
+{"kind":"vehicle-plate","id":"UT2467XX","note":"бронювання f93587ac-7dc2-4e75-939b-844fb3206c2d","at":"2026-08-28T00:11:39.923Z"}
+{"kind":"driver","id":"6c595350-11c5-448e-bd24-20eb59d131ae","note":"+380990005118 UITEST Водій-90251992","at":"2026-08-28T00:11:42.977Z"}
+{"kind":"driver","id":"a5464d81-9703-43d0-8b3a-48b54ef627ef","note":"+380990006461 UITEST Водій-90251992-порожній","at":"2026-08-28T00:11:43.401Z"}
+{"kind":"booking","id":"eeeb7c38-0f61-4710-b114-01b3a7e5339a","note":"UITEST-90251992-B 2026-08-28 1932","at":"2026-08-28T00:11:43.725Z"}
+{"kind":"vehicle-plate","id":"UT3712XX","note":"бронювання eeeb7c38-0f61-4710-b114-01b3a7e5339a","at":"2026-08-28T00:11:43.725Z"}
+{"kind":"booking","id":"d7f5565f-b672-4645-b670-bd17c082bf6e","note":"UITEST-90251992-A 2026-08-28 1932","at":"2026-08-28T00:11:44.145Z"}
+{"kind":"vehicle-plate","id":"UT8827XX","note":"бронювання d7f5565f-b672-4645-b670-bd17c082bf6e","at":"2026-08-28T00:11:44.145Z"}
+{"kind":"booking","id":"d0cb3220-9dbb-4d17-985c-9dd96356f942","note":"UITEST-90251992-C 2026-08-29 1932","at":"2026-08-28T00:11:44.551Z"}
+{"kind":"vehicle-plate","id":"UT5771XX","note":"бронювання d0cb3220-9dbb-4d17-985c-9dd96356f942","at":"2026-08-28T00:11:44.552Z"}
+{"kind":"booking","id":"99022257-22ec-4fa1-bbd9-3d04248401e9","note":"UITEST-90465022-затримка 2026-08-28 1932","at":"2026-08-28T00:11:44.873Z"}
+{"kind":"vehicle-plate","id":"UT5864XX","note":"бронювання 99022257-22ec-4fa1-bbd9-3d04248401e9","at":"2026-08-28T00:11:44.873Z"}
+{"kind":"booking","id":"0d22f898-fa63-4b13-93be-5c2f831a5d1c","note":"UITEST-90886066-офлайн 2026-08-28 1932","at":"2026-08-28T00:11:49.121Z"}
+{"kind":"vehicle-plate","id":"UT3895XX","note":"бронювання 0d22f898-fa63-4b13-93be-5c2f831a5d1c","at":"2026-08-28T00:11:49.122Z"}
+{"kind":"driver","id":"3f758406-c878-4db9-99a0-d6eb98171186","note":"+380990005375 UITEST Водій-92982216","at":"2026-08-28T00:12:10.240Z"}
+{"kind":"driver","id":"87e98681-0408-45c7-bf8f-1ae134030dd2","note":"+380990005037 UITEST Водій-92982216-порожній","at":"2026-08-28T00:12:10.666Z"}
+{"kind":"booking","id":"ffd3116d-48c5-4d82-aef0-787ff2ed24cf","note":"UITEST-92982216-B 2026-08-28 1932","at":"2026-08-28T00:12:10.989Z"}
+{"kind":"vehicle-plate","id":"UT8447XX","note":"бронювання ffd3116d-48c5-4d82-aef0-787ff2ed24cf","at":"2026-08-28T00:12:10.989Z"}
+{"kind":"booking","id":"1f77795a-ff2b-40a6-9a1b-1577abf2cd8a","note":"UITEST-92982216-A 2026-08-28 1932","at":"2026-08-28T00:12:11.404Z"}
+{"kind":"vehicle-plate","id":"UT1786XX","note":"бронювання 1f77795a-ff2b-40a6-9a1b-1577abf2cd8a","at":"2026-08-28T00:12:11.404Z"}
+{"kind":"booking","id":"6dbb0678-5c65-4317-8b94-3d500f44d7c0","note":"UITEST-92982216-C 2026-08-29 1932","at":"2026-08-28T00:12:11.709Z"}
+{"kind":"vehicle-plate","id":"UT5318XX","note":"бронювання 6dbb0678-5c65-4317-8b94-3d500f44d7c0","at":"2026-08-28T00:12:11.709Z"}
+{"kind":"booking","id":"53a40c2c-4281-42cd-9299-c0a0f502c370","note":"UITEST-93184751-офлайн 2026-08-28 1932","at":"2026-08-28T00:12:12.091Z"}
+{"kind":"vehicle-plate","id":"UT6684XX","note":"бронювання 53a40c2c-4281-42cd-9299-c0a0f502c370","at":"2026-08-28T00:12:12.091Z"}
+{"kind":"booking","id":"cf6eb458-efa4-4f32-b86c-b5b1838b06d6","note":"UITEST-93624321-полінг 2026-08-28 1932","at":"2026-08-28T00:12:16.528Z"}
+{"kind":"vehicle-plate","id":"UT8362XX","note":"бронювання cf6eb458-efa4-4f32-b86c-b5b1838b06d6","at":"2026-08-28T00:12:16.528Z"}
+{"kind":"store-general","id":"2226","note":"назва/телефон/адреса, було: Сільпо, вул. Гвардійців-Широнінців, 42 [run=mtc7o6t5240]","at":"2026-08-28T00:26:32.568Z"}
+{"kind":"store-visibility","id":"2229","note":"було: true [run=mtc7o6t5240]","at":"2026-08-28T00:26:35.899Z"}
+{"kind":"store-status","id":"2227","note":"active→paused→active [run=mtc7o6t5240]","at":"2026-08-28T00:26:43.447Z"}
+{"kind":"store-config","id":"2230","note":"нова версія обмежень, було lead=60 [run=mtc7o6t5240]","at":"2026-08-28T00:28:17.754Z"}
+{"kind":"reserved-slot-rule","id":"2227/720b5da1-a3ff-46b4-b766-55acb1618f14","note":"резерв на середу [run=mtc7o6t5240]","at":"2026-08-28T00:28:29.310Z"}
+{"kind":"reserved-slot-rule","id":"2229/a9d8371b-a572-492f-89c3-94efce91d3a9","note":"перевірка перетину [run=mtc7o6t5240]","at":"2026-08-28T00:28:36.705Z"}
+{"kind":"reserved-slot-rule","id":"2226/85a8ac32-f5f0-4825-825f-53a6670f65bb","note":"резерв на 2026-08-29 [run=mtc7o6t5240]","at":"2026-08-28T00:28:41.766Z"}
+{"kind":"slot-block","id":"2230/396a679d-3e9f-4878-985d-1b03df9d5774","note":"UITEST блокування mtc7rbmy [run=mtc7o6t5240]","at":"2026-08-28T00:28:44.325Z"}
+{"kind":"slot-block","id":"2226/ed8bcf8f-4cc1-4813-bf63-e100f9fb8bac","note":"UITEST рампа mtc7rkt5 [run=mtc7o6t5240]","at":"2026-08-28T00:28:56.153Z"}
+{"kind":"supplier","id":"bc86b3e4-1890-4b48-ac00-8b50c32a5bf6","note":"UITEST-Постачальник-mtc7o6t5240-створення [run=mtc7o6t5240]","at":"2026-08-28T00:29:23.350Z"}
+{"kind":"supplier","id":"ffd235df-5f7e-4f20-8a8e-056e990d87dd","note":"UITEST-Постачальник-mtc7o6t5240-дублікат-1 [run=mtc7o6t5240]","at":"2026-08-28T00:29:26.659Z"}
+{"kind":"supplier","id":"49d9d6af-c75e-41fb-9932-2b8e9f2e2dd1","note":"UITEST-Постачальник-mtc7o6t5240-назва-дубль [run=mtc7o6t5240]","at":"2026-08-28T00:29:30.997Z"}
+{"kind":"supplier","id":"811ea407-fcb7-4bb6-9c21-40b7f5a780b2","note":"UITEST-Постачальник-mtc7o6t5240-редагування [run=mtc7o6t5240]","at":"2026-08-28T00:29:35.670Z"}
+{"kind":"supplier","id":"bff5cef3-c390-494b-92da-c6808395659c","note":"UITEST-Постачальник-mtc7o6t5240-пауза [run=mtc7o6t5240]","at":"2026-08-28T00:29:39.418Z"}
+{"kind":"supplier","id":"7cd83ea4-8946-4469-9553-598261bf5ff3","note":"UITEST-Постачальник-mtc7o6t5240-фільтр [run=mtc7o6t5240]","at":"2026-08-28T00:29:44.727Z"}
+{"kind":"supplier","id":"0c418030-96ee-46a2-8b41-1594958ac1d9","note":"UITEST-Постачальник-mtc7o6t5240-доступ [run=mtc7o6t5240]","at":"2026-08-28T00:29:48.106Z"}
+{"kind":"supplier","id":"ba8f4cda-9658-4bc9-9ce0-65251f029bef","note":"UITEST-Постачальник-mtc7o6t5240-повнота [run=mtc7o6t5240]","at":"2026-08-28T00:29:54.811Z"}
+{"kind":"supplier","id":"f3d05e13-d37f-4864-b7f5-0cee45750369","note":"UITEST-Постачальник-mtc7o6t5240-пошук-київ [run=mtc7o6t5240]","at":"2026-08-28T00:29:59.027Z"}
+{"kind":"supplier","id":"34501e46-36d3-4bd2-9d27-0db28ec9c607","note":"UITEST-Постачальник-mtc7o6t5240-сміття [run=mtc7o6t5240]","at":"2026-08-28T00:30:03.695Z"}
+{"kind":"supplier","id":"203b5c4e-3102-467e-8e68-700f318a2d2d","note":"UITEST-Постачальник-mtc7o6t5240-видалення [run=mtc7o6t5240]","at":"2026-08-28T00:30:10.892Z"}
+{"kind":"driver","id":"436d0eb4-c60a-4bee-bb6f-c66c28a2c528","note":"+380990002608 UITEST Водій-34492327","at":"2026-08-28T00:35:45.388Z"}
+{"kind":"driver","id":"9254986e-21d7-46ae-94fa-3d07826d65d2","note":"+380990007394 UITEST Водій-34492327-порожній","at":"2026-08-28T00:35:45.819Z"}
+{"kind":"booking","id":"a1cb1978-c1ce-4425-8ab6-6fac543e36b8","note":"UITEST-34492327-B 2026-08-28 1932","at":"2026-08-28T00:35:46.073Z"}
+{"kind":"vehicle-plate","id":"UT7335XX","note":"бронювання a1cb1978-c1ce-4425-8ab6-6fac543e36b8","at":"2026-08-28T00:35:46.074Z"}
+{"kind":"booking","id":"f01a63e0-b6bb-47cc-a8a4-97cacd86f60f","note":"UITEST-34492327-A 2026-08-28 1932","at":"2026-08-28T00:35:46.452Z"}
+{"kind":"vehicle-plate","id":"UT6519XX","note":"бронювання f01a63e0-b6bb-47cc-a8a4-97cacd86f60f","at":"2026-08-28T00:35:46.452Z"}
+{"kind":"booking","id":"1b4317e4-0b73-49b4-b9dd-1db4a93bb782","note":"UITEST-34492327-C 2026-08-29 1932","at":"2026-08-28T00:35:46.772Z"}
+{"kind":"vehicle-plate","id":"UT5291XX","note":"бронювання 1b4317e4-0b73-49b4-b9dd-1db4a93bb782","at":"2026-08-28T00:35:46.772Z"}
+{"kind":"booking","id":"2f891620-d57b-4042-a622-f44efe1929ca","note":"UITEST-34696069-цикл 2026-08-28 1932","at":"2026-08-28T00:35:47.240Z"}
+{"kind":"vehicle-plate","id":"UT8431XX","note":"бронювання 2f891620-d57b-4042-a622-f44efe1929ca","at":"2026-08-28T00:35:47.241Z"}
+{"kind":"booking","id":"c19e5edb-a97d-47c4-8b51-2f9638d11f86","note":"UITEST-35483095-рано 2026-08-29 1932","at":"2026-08-28T00:35:55.050Z"}
+{"kind":"vehicle-plate","id":"UT2793XX","note":"бронювання c19e5edb-a97d-47c4-8b51-2f9638d11f86","at":"2026-08-28T00:35:55.050Z"}
+{"kind":"driver","id":"60c5280c-9f09-476c-936f-4582abac052b","note":"+380990006035 UITEST Водій-35830485","at":"2026-08-28T00:35:59.120Z"}
+{"kind":"driver","id":"b73dfc2e-3d5c-4039-8372-ff956162e1f4","note":"+380990003985 UITEST Водій-35830485-порожній","at":"2026-08-28T00:35:59.739Z"}
+{"kind":"booking","id":"8952b613-91f4-4ec0-b097-3022c15eb834","note":"UITEST-35830485-B 2026-08-28 1932","at":"2026-08-28T00:35:59.985Z"}
+{"kind":"vehicle-plate","id":"UT6536XX","note":"бронювання 8952b613-91f4-4ec0-b097-3022c15eb834","at":"2026-08-28T00:35:59.985Z"}
+{"kind":"booking","id":"eefd63cd-7972-465b-aad7-0cb8c2d1d1c8","note":"UITEST-35830485-A 2026-08-28 1932","at":"2026-08-28T00:36:00.552Z"}
+{"kind":"vehicle-plate","id":"UT7153XX","note":"бронювання eefd63cd-7972-465b-aad7-0cb8c2d1d1c8","at":"2026-08-28T00:36:00.552Z"}
+{"kind":"booking","id":"256ff722-6779-48b6-be16-4772f65b8c43","note":"UITEST-35830485-C 2026-08-29 1932","at":"2026-08-28T00:36:01.127Z"}
+{"kind":"vehicle-plate","id":"UT4727XX","note":"бронювання 256ff722-6779-48b6-be16-4772f65b8c43","at":"2026-08-28T00:36:01.127Z"}
+{"kind":"booking","id":"afc0890d-54ed-4cf4-8a1b-de00b3dbf1d4","note":"UITEST-36123468-офлайн 2026-08-28 1932","at":"2026-08-28T00:36:01.548Z"}
+{"kind":"vehicle-plate","id":"UT7314XX","note":"бронювання afc0890d-54ed-4cf4-8a1b-de00b3dbf1d4","at":"2026-08-28T00:36:01.548Z"}
+{"kind":"driver","id":"9a5ccac4-b67c-419c-86c6-dd09c22978b4","note":"+380990001546 UITEST Водій-39621428","at":"2026-08-28T00:36:36.674Z"}
+{"kind":"driver","id":"0a5c9de7-cf27-4acd-ab24-98cd029acd8d","note":"+380990002012 UITEST Водій-39621428-порожній","at":"2026-08-28T00:36:37.056Z"}
+{"kind":"booking","id":"df8e2dbe-ecd1-4ab6-9dd2-4b5fc9580f47","note":"UITEST-39621428-B 2026-08-28 1932","at":"2026-08-28T00:36:37.384Z"}
+{"kind":"vehicle-plate","id":"UT6308XX","note":"бронювання df8e2dbe-ecd1-4ab6-9dd2-4b5fc9580f47","at":"2026-08-28T00:36:37.384Z"}
+{"kind":"booking","id":"8ecf08cd-41b6-4cbb-9a16-c314a729de8f","note":"UITEST-39621428-A 2026-08-28 1932","at":"2026-08-28T00:36:37.723Z"}
+{"kind":"vehicle-plate","id":"UT7912XX","note":"бронювання 8ecf08cd-41b6-4cbb-9a16-c314a729de8f","at":"2026-08-28T00:36:37.723Z"}
+{"kind":"booking","id":"52fc0243-4f90-45e7-85de-a0f096ff2131","note":"UITEST-39621428-C 2026-08-29 1932","at":"2026-08-28T00:36:38.048Z"}
+{"kind":"vehicle-plate","id":"UT6153XX","note":"бронювання 52fc0243-4f90-45e7-85de-a0f096ff2131","at":"2026-08-28T00:36:38.048Z"}
+{"kind":"booking","id":"f4a944af-a5ca-4032-bb98-4fd65f923d02","note":"UITEST-39814458-офлайн 2026-08-28 1932","at":"2026-08-28T00:36:38.425Z"}
+{"kind":"vehicle-plate","id":"UT5907XX","note":"бронювання f4a944af-a5ca-4032-bb98-4fd65f923d02","at":"2026-08-28T00:36:38.426Z"}
+{"kind":"driver","id":"aa9123ff-f3d9-4952-8dc4-142efae4146f","note":"+380990006222 UITEST Водій-43309637","at":"2026-08-28T00:37:13.465Z"}
+{"kind":"driver","id":"79d6223c-5cc9-4f57-ad31-f229c87da9f6","note":"+380990003144 UITEST Водій-43309637-порожній","at":"2026-08-28T00:37:13.896Z"}
+{"kind":"booking","id":"28d70893-00b8-4cc5-98d3-f6c9a7a69326","note":"UITEST-43309637-B 2026-08-28 1932","at":"2026-08-28T00:37:14.140Z"}
+{"kind":"vehicle-plate","id":"UT8676XX","note":"бронювання 28d70893-00b8-4cc5-98d3-f6c9a7a69326","at":"2026-08-28T00:37:14.140Z"}
+{"kind":"booking","id":"f90a0600-f17e-4c43-a51e-2c8390c5cc03","note":"UITEST-43309637-A 2026-08-28 1932","at":"2026-08-28T00:37:14.544Z"}
+{"kind":"vehicle-plate","id":"UT2256XX","note":"бронювання f90a0600-f17e-4c43-a51e-2c8390c5cc03","at":"2026-08-28T00:37:14.544Z"}
+{"kind":"booking","id":"788d2fc8-bb63-4adc-a4b6-4b303407e413","note":"UITEST-43309637-C 2026-08-29 1932","at":"2026-08-28T00:37:14.946Z"}
+{"kind":"vehicle-plate","id":"UT5358XX","note":"бронювання 788d2fc8-bb63-4adc-a4b6-4b303407e413","at":"2026-08-28T00:37:14.947Z"}
+{"kind":"booking","id":"adec30a0-e6ac-479d-ab4b-dc6296440151","note":"UITEST-43505344-офлайн 2026-08-28 1932","at":"2026-08-28T00:37:15.275Z"}
+{"kind":"vehicle-plate","id":"UT3016XX","note":"бронювання adec30a0-e6ac-479d-ab4b-dc6296440151","at":"2026-08-28T00:37:15.276Z"}
+{"kind":"driver","id":"4f7f0f74-5296-494e-916b-1d9be17c44f5","note":"+380990007715 UITEST Водій-48403265","at":"2026-08-28T00:38:04.783Z"}
+{"kind":"driver","id":"1e1be5d5-ae24-4be2-ab8f-1477ee9a91ec","note":"+380990006026 UITEST Водій-48403265-порожній","at":"2026-08-28T00:38:05.526Z"}
+{"kind":"booking","id":"52474f2e-18b6-4db7-808f-d573fe653e3c","note":"UITEST-48403265-B 2026-08-28 1932","at":"2026-08-28T00:38:05.933Z"}
+{"kind":"vehicle-plate","id":"UT7826XX","note":"бронювання 52474f2e-18b6-4db7-808f-d573fe653e3c","at":"2026-08-28T00:38:05.934Z"}
+{"kind":"booking","id":"f64c3fc1-e10d-4bc7-b47f-50eac27b524b","note":"UITEST-48403265-A 2026-08-28 1932","at":"2026-08-28T00:38:06.326Z"}
+{"kind":"vehicle-plate","id":"UT1170XX","note":"бронювання f64c3fc1-e10d-4bc7-b47f-50eac27b524b","at":"2026-08-28T00:38:06.327Z"}
+{"kind":"booking","id":"4ed6c5d6-392c-4fc4-a72e-7fdc1d199910","note":"UITEST-48403265-C 2026-08-29 1932","at":"2026-08-28T00:38:06.656Z"}
+{"kind":"vehicle-plate","id":"UT7586XX","note":"бронювання 4ed6c5d6-392c-4fc4-a72e-7fdc1d199910","at":"2026-08-28T00:38:06.656Z"}
+{"kind":"booking","id":"d9eaa0f1-b3af-4518-8371-b3af55696680","note":"UITEST-48675673-офлайн 2026-08-28 1932","at":"2026-08-28T00:38:07.074Z"}
+{"kind":"vehicle-plate","id":"UT1094XX","note":"бронювання d9eaa0f1-b3af-4518-8371-b3af55696680","at":"2026-08-28T00:38:07.074Z"}
+{"kind":"driver","id":"2bd0ec67-9107-48d2-851f-0951f3a9ab8a","note":"+380990001016 UITEST Водій-52113625","at":"2026-08-28T00:38:41.570Z"}
+{"kind":"driver","id":"225be69d-46f8-4cf7-8bab-f812b55b7266","note":"+380990000030 UITEST Водій-52113625-порожній","at":"2026-08-28T00:38:41.979Z"}
+{"kind":"booking","id":"fb640848-80e9-44d1-99df-2ab550dace80","note":"UITEST-52113625-B 2026-08-28 1932","at":"2026-08-28T00:38:42.224Z"}
+{"kind":"vehicle-plate","id":"UT8353XX","note":"бронювання fb640848-80e9-44d1-99df-2ab550dace80","at":"2026-08-28T00:38:42.224Z"}
+{"kind":"booking","id":"277ce194-a45d-4665-a085-a15610e15926","note":"UITEST-52113625-A 2026-08-28 1932","at":"2026-08-28T00:38:42.622Z"}
+{"kind":"vehicle-plate","id":"UT3643XX","note":"бронювання 277ce194-a45d-4665-a085-a15610e15926","at":"2026-08-28T00:38:42.622Z"}
+{"kind":"booking","id":"a9d1272a-66a7-4e2e-b1fc-7449e267a7bc","note":"UITEST-52113625-C 2026-08-29 1932","at":"2026-08-28T00:38:42.899Z"}
+{"kind":"vehicle-plate","id":"UT8714XX","note":"бронювання a9d1272a-66a7-4e2e-b1fc-7449e267a7bc","at":"2026-08-28T00:38:42.899Z"}
+{"kind":"booking","id":"ebd87c38-3bb7-4397-b5f4-cf28f6ed5b08","note":"UITEST-52305988-офлайн 2026-08-28 1932","at":"2026-08-28T00:38:43.289Z"}
+{"kind":"vehicle-plate","id":"UT8103XX","note":"бронювання ebd87c38-3bb7-4397-b5f4-cf28f6ed5b08","at":"2026-08-28T00:38:43.290Z"}
+{"kind":"driver","id":"61e1ebeb-0372-4333-af77-1a4108817b5b","note":"+380990000969 UITEST Водій-55710953","at":"2026-08-28T00:39:17.496Z"}
+{"kind":"driver","id":"459ec16d-b9b9-4ab2-b3b9-e088973e3e38","note":"+380990005456 UITEST Водій-55710953-порожній","at":"2026-08-28T00:39:17.877Z"}
+{"kind":"booking","id":"c43ab255-a7ea-4176-bcf9-0feae0871bdc","note":"UITEST-55710953-B 2026-08-28 1932","at":"2026-08-28T00:39:18.154Z"}
+{"kind":"vehicle-plate","id":"UT6884XX","note":"бронювання c43ab255-a7ea-4176-bcf9-0feae0871bdc","at":"2026-08-28T00:39:18.155Z"}
+{"kind":"booking","id":"0f47337b-6c6a-41c9-b1c2-a1ffea678537","note":"UITEST-55710953-A 2026-08-28 1932","at":"2026-08-28T00:39:18.498Z"}
+{"kind":"vehicle-plate","id":"UT8614XX","note":"бронювання 0f47337b-6c6a-41c9-b1c2-a1ffea678537","at":"2026-08-28T00:39:18.498Z"}
+{"kind":"booking","id":"cc5cfdde-8a4c-41a7-b35f-d66acaab5dbc","note":"UITEST-55710953-C 2026-08-29 1932","at":"2026-08-28T00:39:18.909Z"}
+{"kind":"vehicle-plate","id":"UT3190XX","note":"бронювання cc5cfdde-8a4c-41a7-b35f-d66acaab5dbc","at":"2026-08-28T00:39:18.909Z"}
+{"kind":"booking","id":"705410ca-805e-490b-ad4f-d0bdd84c642e","note":"UITEST-55900728-офлайн 2026-08-28 1932","at":"2026-08-28T00:39:19.324Z"}
+{"kind":"vehicle-plate","id":"UT4111XX","note":"бронювання 705410ca-805e-490b-ad4f-d0bdd84c642e","at":"2026-08-28T00:39:19.325Z"}
+{"kind":"driver","id":"48292a98-101d-4a64-b398-91e8e4f5666a","note":"+380990004756 UITEST Водій-62323280","at":"2026-08-28T00:40:23.687Z"}
+{"kind":"driver","id":"98354c03-20e5-47e9-9291-f2e78f4c54b5","note":"+380990000275 UITEST Водій-62323280-порожній","at":"2026-08-28T00:40:24.102Z"}
+{"kind":"booking","id":"56d470e7-d8f2-481c-9b5a-cb32232b422c","note":"UITEST-62323280-B 2026-08-28 1932","at":"2026-08-28T00:40:24.639Z"}
+{"kind":"vehicle-plate","id":"UT8617XX","note":"бронювання 56d470e7-d8f2-481c-9b5a-cb32232b422c","at":"2026-08-28T00:40:24.640Z"}
+{"kind":"booking","id":"5b6fa127-68f3-4c3a-8968-5568043f8224","note":"UITEST-62323280-A 2026-08-28 1932","at":"2026-08-28T00:40:24.994Z"}
+{"kind":"vehicle-plate","id":"UT1883XX","note":"бронювання 5b6fa127-68f3-4c3a-8968-5568043f8224","at":"2026-08-28T00:40:24.994Z"}
+{"kind":"booking","id":"f565159d-857b-4f76-8dc0-b1c4ab98df31","note":"UITEST-62323280-C 2026-08-29 1932","at":"2026-08-28T00:40:25.356Z"}
+{"kind":"vehicle-plate","id":"UT7786XX","note":"бронювання f565159d-857b-4f76-8dc0-b1c4ab98df31","at":"2026-08-28T00:40:25.356Z"}
+{"kind":"booking","id":"c6b35579-f4f2-48bb-895f-871b7bb68d55","note":"UITEST-62544090-офлайн 2026-08-28 1932","at":"2026-08-28T00:40:25.687Z"}
+{"kind":"vehicle-plate","id":"UT7633XX","note":"бронювання c6b35579-f4f2-48bb-895f-871b7bb68d55","at":"2026-08-28T00:40:25.688Z"}
+{"kind":"driver","id":"4c33190e-fdf4-4a87-a5bb-d20fbd88ed81","note":"+380990002319 UITEST Водій-64628412","at":"2026-08-28T00:40:46.760Z"}
+{"kind":"driver","id":"2222c63d-f565-4025-846b-e3af224a35bc","note":"+380990001899 UITEST Водій-64628412-порожній","at":"2026-08-28T00:40:47.286Z"}
+{"kind":"booking","id":"be3817d3-b59c-428b-907f-72def30054fe","note":"UITEST-64628412-B 2026-08-28 1932","at":"2026-08-28T00:40:47.657Z"}
+{"kind":"vehicle-plate","id":"UT3188XX","note":"бронювання be3817d3-b59c-428b-907f-72def30054fe","at":"2026-08-28T00:40:47.657Z"}
+{"kind":"booking","id":"e0e15455-cad1-4a72-a6b1-0c45e83b519b","note":"UITEST-64628412-A 2026-08-28 1932","at":"2026-08-28T00:40:48.078Z"}
+{"kind":"vehicle-plate","id":"UT4933XX","note":"бронювання e0e15455-cad1-4a72-a6b1-0c45e83b519b","at":"2026-08-28T00:40:48.078Z"}
+{"kind":"booking","id":"fe417087-b3cf-49ac-b559-88515721b7e7","note":"UITEST-64628412-C 2026-08-29 1932","at":"2026-08-28T00:40:48.428Z"}
+{"kind":"vehicle-plate","id":"UT7597XX","note":"бронювання fe417087-b3cf-49ac-b559-88515721b7e7","at":"2026-08-28T00:40:48.428Z"}
+{"kind":"driver","id":"fc295b52-974c-471b-ace2-a36753fbab27","note":"+380990001584 UITEST Водій-65262240-пароль","at":"2026-08-28T00:40:53.263Z"}
+{"kind":"booking","id":"ee498c16-1c8c-46a2-a862-8e5de7181f51","note":"UITEST-67307151-цикл 2026-08-28 1932","at":"2026-08-28T00:41:13.310Z"}
+{"kind":"vehicle-plate","id":"UT4665XX","note":"бронювання ee498c16-1c8c-46a2-a862-8e5de7181f51","at":"2026-08-28T00:41:13.312Z"}
+{"kind":"booking","id":"16a85e72-9ab6-4bc8-acb9-5e28b7b2484a","note":"UITEST-68018860-рано 2026-08-29 1932","at":"2026-08-28T00:41:20.455Z"}
+{"kind":"vehicle-plate","id":"UT8805XX","note":"бронювання 16a85e72-9ab6-4bc8-acb9-5e28b7b2484a","at":"2026-08-28T00:41:20.456Z"}
+{"kind":"driver","id":"d163ef43-2cfb-458a-bc5d-8b3de86d9823","note":"+380990006319 UITEST Водій-68351097","at":"2026-08-28T00:41:23.985Z"}
+{"kind":"driver","id":"9ffda19d-8cd0-4bff-8c4e-e128be62b4ac","note":"+380990009560 UITEST Водій-68351097-порожній","at":"2026-08-28T00:41:24.510Z"}
+{"kind":"booking","id":"bd5b21ab-13c1-4b40-9641-dceae68dd57b","note":"UITEST-68351097-B 2026-08-28 1932","at":"2026-08-28T00:41:24.771Z"}
+{"kind":"vehicle-plate","id":"UT2021XX","note":"бронювання bd5b21ab-13c1-4b40-9641-dceae68dd57b","at":"2026-08-28T00:41:24.772Z"}
+{"kind":"booking","id":"dda0767d-e01b-45a3-b4b7-c0325e148e96","note":"UITEST-68351097-A 2026-08-28 1932","at":"2026-08-28T00:41:25.146Z"}
+{"kind":"vehicle-plate","id":"UT4299XX","note":"бронювання dda0767d-e01b-45a3-b4b7-c0325e148e96","at":"2026-08-28T00:41:25.146Z"}
+{"kind":"booking","id":"614003df-b3db-43d7-b823-23ad7eef8ccc","note":"UITEST-68351097-C 2026-08-29 1932","at":"2026-08-28T00:41:25.452Z"}
+{"kind":"vehicle-plate","id":"UT6633XX","note":"бронювання 614003df-b3db-43d7-b823-23ad7eef8ccc","at":"2026-08-28T00:41:25.452Z"}
+{"kind":"booking","id":"21f01609-c39c-4401-8b06-9f62d5f65225","note":"UITEST-68557731-затримка 2026-08-28 1932","at":"2026-08-28T00:41:25.826Z"}
+{"kind":"vehicle-plate","id":"UT3251XX","note":"бронювання 21f01609-c39c-4401-8b06-9f62d5f65225","at":"2026-08-28T00:41:25.826Z"}
+{"kind":"booking","id":"1f5b099a-f841-4bc8-97df-4a0cad9f6e6f","note":"UITEST-68908264-офлайн 2026-08-28 1932","at":"2026-08-28T00:41:29.410Z"}
+{"kind":"vehicle-plate","id":"UT9900XX","note":"бронювання 1f5b099a-f841-4bc8-97df-4a0cad9f6e6f","at":"2026-08-28T00:41:29.410Z"}
+{"kind":"booking","id":"886888f0-4b71-4d4f-bd91-2230ed5340b7","note":"UITEST-69608253-полінг 2026-08-28 1932","at":"2026-08-28T00:41:36.565Z"}
+{"kind":"vehicle-plate","id":"UT9137XX","note":"бронювання 886888f0-4b71-4d4f-bd91-2230ed5340b7","at":"2026-08-28T00:41:36.566Z"}
+{"kind":"store-general","id":"2226","note":"назва/телефон/адреса, було: Сільпо, вул. Гвардійців-Широнінців, 42 [run=mtc86b9x666]","at":"2026-08-28T00:42:04.924Z"}
+{"kind":"store-visibility","id":"2229","note":"було: true [run=mtc86b9x666]","at":"2026-08-28T00:42:08.827Z"}
+{"kind":"driver","id":"aff02b43-bb95-4023-9ba8-58a6e8fbc67d","note":"+380990002619 UITEST Водій-73142943-моб","at":"2026-08-28T00:42:11.888Z"}
+{"kind":"booking","id":"43e15811-ee43-4a65-9dcf-019b12d71886","note":"UITEST-73142943-моб 2026-08-28 1932","at":"2026-08-28T00:42:12.217Z"}
+{"kind":"vehicle-plate","id":"UT8704XX","note":"бронювання 43e15811-ee43-4a65-9dcf-019b12d71886","at":"2026-08-28T00:42:12.217Z"}
+{"kind":"store-status","id":"2227","note":"active→paused→active [run=mtc86b9x666]","at":"2026-08-28T00:42:19.035Z"}
+{"kind":"driver","id":"98e1d22e-af43-488b-a040-96834cab28e6","note":"+380990008893 UITEST Водій-76846676","at":"2026-08-28T00:42:48.917Z"}
+{"kind":"booking","id":"277c0610-c5d5-4629-8e1a-37cb9114c137","note":"UITEST-76846676-lock 2026-08-29 1932","at":"2026-08-28T00:42:49.141Z"}
+{"kind":"vehicle-plate","id":"UT8121XX","note":"бронювання 277c0610-c5d5-4629-8e1a-37cb9114c137","at":"2026-08-28T00:42:49.141Z"}
+{"kind":"driver","id":"251ccfb2-27aa-4b55-be39-c6b8da0b62ae","note":"+380990004580","at":"2026-08-28T00:43:27.711Z"}
+{"kind":"booking","id":"931b7f61-9202-47b3-8ac8-4a7640e518d5","note":"UITEST-5440 2026-08-31T09:00:00Z","at":"2026-08-28T00:43:34.530Z"}
+{"kind":"booking","id":"dc8f64ac-bd62-4950-a400-2614bcff9a81","note":"UITEST-6273 2026-08-31T08:00:00Z","at":"2026-08-28T00:43:37.293Z"}
+{"kind":"booking","id":"5ea34c0e-63ec-4c05-992c-e92ff9806215","note":"UITEST-6520 2026-09-01T09:00:00Z","at":"2026-08-28T00:43:39.534Z"}
+{"kind":"driver","id":"ee4723e1-4f49-4dd2-9607-4a198d8bf9db","note":"+380990005508","at":"2026-08-28T00:43:59.173Z"}
+{"kind":"booking","id":"a4f75868-1079-47f2-9fdd-562ce5084eec","note":"UITEST-3429 2026-09-01T09:00:00Z","at":"2026-08-28T00:43:59.566Z"}
+{"kind":"vehicle","id":"d047ebda-8ec7-4d3b-b853-44b31c8ce672","note":"UT1424XX","at":"2026-08-28T00:44:04.044Z"}
+{"kind":"booking","id":"55b5417d-1665-496d-8a8c-edeb18dc9d2f","note":"UITEST-1424 2026-08-31T08:45:00Z","at":"2026-08-28T00:44:04.179Z"}
+{"kind":"booking","id":"cea09e00-757c-4f85-a0ef-84cc386b3cc9","note":"UITEST-3750 2026-08-31T12:40:00Z","at":"2026-08-28T00:44:08.224Z"}
+{"kind":"booking","id":"34ea2d86-0ec8-4686-80e2-8e10c2a01459","note":"UITEST-7701 2026-09-01T08:00:00Z","at":"2026-08-28T00:44:10.900Z"}
+{"kind":"booking","id":"8a100a25-ea9d-4b23-83ad-ac0bb956b86a","note":"UITEST-8325 2026-09-02T09:00:00Z","at":"2026-08-28T00:44:13.550Z"}
+{"kind":"store-config","id":"2230","note":"нова версія обмежень, було lead=60 [run=mtc86b9x666]","at":"2026-08-28T00:44:18.284Z"}
+{"kind":"reserved-slot-rule","id":"2227/85059bc4-29f5-47a9-9b17-eea9f6390254","note":"резерв на середу [run=mtc86b9x666]","at":"2026-08-28T00:44:32.805Z"}
+{"kind":"reserved-slot-rule","id":"2229/526fb39e-42cf-49bc-938a-10e6da30d647","note":"перевірка перетину [run=mtc86b9x666]","at":"2026-08-28T00:44:41.344Z"}
+{"kind":"reserved-slot-rule","id":"2226/ee028403-0edd-4573-822c-269d6e292a65","note":"резерв на 2026-08-29 [run=mtc86b9x666]","at":"2026-08-28T00:44:47.441Z"}
+{"kind":"slot-block","id":"2230/288a5947-1e92-48af-98e8-12f28de006a5","note":"UITEST блокування mtc8c137 [run=mtc86b9x666]","at":"2026-08-28T00:44:50.365Z"}
+{"kind":"slot-block","id":"2226/2c37587c-6dd4-4c36-be7a-a381e6552f9a","note":"UITEST рампа mtc8ccbw [run=mtc86b9x666]","at":"2026-08-28T00:45:04.956Z"}
+{"kind":"supplier","id":"981e8d19-ada2-4f3c-910b-962a3fa43969","note":"UITEST-Постачальник-mtc86b9x666-створення [run=mtc86b9x666]","at":"2026-08-28T00:45:38.313Z"}
+{"kind":"supplier","id":"092ceee8-47fc-40a6-b2c4-16800ec20754","note":"UITEST-Постачальник-mtc86b9x666-дублікат-1 [run=mtc86b9x666]","at":"2026-08-28T00:45:42.239Z"}
+{"kind":"supplier","id":"a4a59171-e290-4fc4-aee9-7172275da55d","note":"UITEST-Постачальник-mtc86b9x666-назва-дубль [run=mtc86b9x666]","at":"2026-08-28T00:45:46.740Z"}
+{"kind":"supplier","id":"3bd4db08-16a4-4283-81a7-de57b567d28a","note":"UITEST-Постачальник-mtc86b9x666-редагування [run=mtc86b9x666]","at":"2026-08-28T00:45:51.265Z"}
+{"kind":"supplier","id":"355748c7-23bc-4cec-9207-c7d54d0c1679","note":"UITEST-Постачальник-mtc86b9x666-пауза [run=mtc86b9x666]","at":"2026-08-28T00:45:55.611Z"}
+{"kind":"driver","id":"4ea26800-585a-42b5-a0c0-9db0e93c3ec2","note":"+380990005794","at":"2026-08-28T00:45:57.377Z"}
+{"kind":"supplier","id":"0caa8cfb-6125-4e93-98f0-f563147279e3","note":"UITEST-Постачальник-mtc86b9x666-фільтр [run=mtc86b9x666]","at":"2026-08-28T00:46:02.235Z"}
+{"kind":"booking","id":"e725e28b-4a9a-449e-81ba-e8ee09cb6142","note":"UITEST-3064 2026-08-31T09:00:00Z","at":"2026-08-28T00:46:04.595Z"}
+{"kind":"supplier","id":"44c49117-483a-481c-a1d7-f97bc615f525","note":"UITEST-Постачальник-mtc86b9x666-доступ [run=mtc86b9x666]","at":"2026-08-28T00:46:06.575Z"}
+{"kind":"booking","id":"99d12c55-74a7-4cf5-a345-7ddb1f8024d6","note":"UITEST-7597 2026-08-31T08:00:00Z","at":"2026-08-28T00:46:07.252Z"}
+{"kind":"booking","id":"c69e3bba-aef2-4b01-9e02-39d6dc26b360","note":"UITEST-6017 2026-09-01T09:00:00Z","at":"2026-08-28T00:46:09.805Z"}
+{"kind":"booking","id":"6206c630-9081-42e3-ab7f-4a721e6228a5","note":"UITEST-3069 2026-09-01T08:00:00Z","at":"2026-08-28T00:46:12.548Z"}
+{"kind":"supplier","id":"e3f42eec-0b92-4c88-a5b2-8b4e53317014","note":"UITEST-Постачальник-mtc86b9x666-повнота [run=mtc86b9x666]","at":"2026-08-28T00:46:14.527Z"}
+{"kind":"vehicle","id":"07b323d6-4d6d-4de1-b900-cdb5f698d299","note":"UT4982XX","at":"2026-08-28T00:46:17.229Z"}
+{"kind":"booking","id":"b54bf6fd-82d9-45b8-b21b-ae05184ee9e0","note":"UITEST-4982 2026-08-31T08:45:00Z","at":"2026-08-28T00:46:17.366Z"}
+{"kind":"supplier","id":"6aa120b0-c0c2-4cb8-be5d-4c6cc181d3ef","note":"UITEST-Постачальник-mtc86b9x666-пошук-київ [run=mtc86b9x666]","at":"2026-08-28T00:46:20.082Z"}
+{"kind":"booking","id":"e9b4ef19-2591-44ce-ab81-7677edddccf5","note":"UITEST-8253 2026-08-31T12:40:00Z","at":"2026-08-28T00:46:21.555Z"}
+{"kind":"booking","id":"e2a2500d-0770-40f3-98b6-55f5c8ea86d7","note":"UITEST-6717 2026-09-01T07:00:00Z","at":"2026-08-28T00:46:24.610Z"}
+{"kind":"supplier","id":"118c8981-9291-4355-982e-8c8406c948c1","note":"UITEST-Постачальник-mtc86b9x666-сміття [run=mtc86b9x666]","at":"2026-08-28T00:46:25.113Z"}
+{"kind":"booking","id":"6f6ed259-9b22-432e-a1bb-c4866396d4db","note":"UITEST-5828 2026-09-02T09:00:00Z","at":"2026-08-28T00:46:27.435Z"}
+{"kind":"supplier","id":"c45e41a2-c5b3-43fb-9817-367694b3a0f0","note":"UITEST-Постачальник-mtc86b9x666-видалення [run=mtc86b9x666]","at":"2026-08-28T00:46:37.073Z"}
+{"kind":"vehicle","id":"a8d5075b-4393-4155-8210-1b22538fea96","note":"UT4115XX","at":"2026-08-28T00:46:54.027Z"}
+{"kind":"vehicle","id":"6ce6d813-6e95-4675-8810-832a6b7353ed","note":"UT4085XX","at":"2026-08-28T00:46:59.133Z"}
+{"kind":"vehicle","id":"90a2e74a-1369-4e84-a9e8-fd4c9e9cd9e7","note":"UT5314XX","at":"2026-08-28T00:47:02.815Z"}
+{"kind":"vehicle","id":"67f15a0e-441d-48a4-b107-37e1a70566df","note":"UT4944XX","at":"2026-08-28T00:47:05.656Z"}
+{"kind":"vehicle","id":"6fda302f-26d8-4855-862e-5535e3859620","note":"UT1332XX","at":"2026-08-28T00:47:08.441Z"}
+{"kind":"vehicle","id":"4e751402-2171-4f00-8bdd-6500f2f12103","note":"UT1406XX","at":"2026-08-28T00:47:11.854Z"}
+{"kind":"vehicle","id":"fa918034-180a-4f54-84f7-59473e986492","note":"UT3493XX","at":"2026-08-28T00:47:16.469Z"}
+{"kind":"booking","id":"74df7393-6536-4c0f-996f-bbcbb5ff7389","note":"UITEST-veh-lock 2026-08-29T09:00:00Z","at":"2026-08-28T00:47:16.664Z"}
+{"kind":"vehicle","id":"e39e5ddd-75a7-4103-8f03-045e53cfbf11","note":"UT1090XX","at":"2026-08-28T00:47:35.550Z"}
+{"kind":"vehicle","id":"dc3f2f1d-d60a-46d1-832a-839bb284b495","note":"UT7694XX","at":"2026-08-28T00:47:39.248Z"}
+{"kind":"driver","id":"2699f8fa-9678-4fcf-9af3-51d9d88d61a8","note":"+380990007775","at":"2026-08-28T00:47:47.780Z"}
+{"kind":"driver","id":"8333ab46-aae8-4557-a8e0-b87aeae774fc","note":"+380990009855","at":"2026-08-28T00:47:49.365Z"}
+{"kind":"driver","id":"b62e1e69-0eb6-423a-a856-3db72248e022","note":"+380990006451","at":"2026-08-28T00:47:50.929Z"}
+{"kind":"driver","id":"60c6446c-91c1-4a1f-af21-0bf43f196897","note":"+380990005715","at":"2026-08-28T00:47:52.513Z"}
+{"kind":"driver","id":"82740291-f92d-459b-9f02-470027244ee2","note":"+380990004800","at":"2026-08-28T00:48:01.131Z"}
+{"kind":"vehicle","id":"1545091e-3b9d-42f8-958e-f3f582dc7297","note":"UT5317XX","at":"2026-08-28T00:48:16.477Z"}
+{"kind":"driver","id":"9f99c05d-02e9-44dc-8053-e0d0b6e95a19","note":"+380990008565","at":"2026-08-28T00:48:19.567Z"}
+{"kind":"vehicle","id":"d56a419e-cd42-421b-bf8c-263e3b0d2231","note":"UT8628XX","at":"2026-08-28T00:48:40.366Z"}
+{"kind":"booking","id":"a3e3ac8a-1bdc-4246-9c4a-9a9260e9fedd","note":"UITEST-veh-lock 2026-08-29T09:00:00Z","at":"2026-08-28T00:48:40.530Z"}

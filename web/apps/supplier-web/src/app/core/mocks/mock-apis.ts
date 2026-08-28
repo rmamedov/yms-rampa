@@ -140,7 +140,7 @@ export class MockRouteSheetApi extends RouteSheetApi {
 
   override assignDriverToSheet(
     date: string,
-    driverId: string,
+    driverId: string | null,
   ): Observable<RouteSheetAssignment> {
     return respond(() => this.backend.assignDriverToSheet(date, driverId));
   }

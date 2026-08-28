@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Mongo;
 
+use App\Domain\Sync\BranchChange;
 use App\Domain\Sync\SyncLogEntry;
 use App\Domain\Sync\SyncLogRepository;
 use App\Domain\Sync\SyncStatus;
@@ -40,6 +41,12 @@ final readonly class MongoSyncLogRepository implements SyncLogRepository
             'conflicts' => $entry->conflicts,
             'skipped' => $entry->skipped,
             'errors' => $entry->errors,
+            // SYNC-01: поіменний перелік змін, а не лише лічильники.
+            'changes' => array_map(
+                static fn (BranchChange $change): array => $change->toArray(),
+                $entry->changes,
+            ),
+            'changesTotal' => $entry->changesTotal,
         ]);
     }
 
@@ -100,6 +107,12 @@ final readonly class MongoSyncLogRepository implements SyncLogRepository
             $errors[] = (string) $error;
         }
 
+        $changes = [];
+
+        foreach ((array) ($document['changes'] ?? []) as $change) {
+            $changes[] = BranchChange::fromArray((array) $change);
+        }
+
         return new SyncLogEntry(
             id: (string) $document['_id'],
             status: SyncStatus::tryFrom((string) ($document['status'] ?? '')) ?? SyncStatus::Failed,
@@ -116,6 +129,8 @@ final readonly class MongoSyncLogRepository implements SyncLogRepository
             skipped: (int) ($document['skipped'] ?? 0),
             errors: $errors,
             source: isset($document['source']) ? (string) $document['source'] : null,
+            changes: $changes,
+            changesTotal: (int) ($document['changesTotal'] ?? \count($changes)),
         );
     }
 }

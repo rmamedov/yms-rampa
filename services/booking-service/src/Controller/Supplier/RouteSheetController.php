@@ -57,11 +57,19 @@ final readonly class RouteSheetController
                 $now,
             );
         } else {
+            // Поле має БУТИ в тілі, але може дорівнювати null або порожньому
+            // рядку — це «зняти водія з усього листа» (RSHT-02). Різниця
+            // важлива: відсутнє поле — майже завжди помилка клієнта, і мовчки
+            // знімати водія за неї не можна.
+            if (!$payload->has('driverId')) {
+                throw new ValidationFailedException('Поле «driverId» обовʼязкове');
+            }
+
             $sheet = $this->routeSheets->assignDriverToSheet(
                 $actor,
                 $payload->optionalString('supplierId') ?? (string) $actor->supplierId,
                 $payload->requiredString('date'),
-                $payload->requiredString('driverId'),
+                $payload->optionalString('driverId'),
                 $now,
             );
         }

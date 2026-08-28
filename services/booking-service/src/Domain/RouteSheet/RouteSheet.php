@@ -123,8 +123,15 @@ final class RouteSheet
         }
     }
 
-    /** RSHT-02: призначення водія на весь лист. */
-    public function assignDriverToSheet(string $driverId): void
+    /**
+     * RSHT-02: призначення водія на весь лист.
+     *
+     * `null` — це ЗНЯТТЯ водія з усього листа, а не «нічого не робити»:
+     * симетрично до assignDriverToBooking(). Кабінет постачальника пропонує
+     * варіант «Водія не призначено» у тому самому списку, і він мусить
+     * виконувати дію, а не показувати стан, якого не сталося (ISSUE-18).
+     */
+    public function assignDriverToSheet(?string $driverId): void
     {
         $this->entries = array_map(
             static fn (RouteSheetEntry $entry) => $entry->withDriver($driverId),

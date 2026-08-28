@@ -20,4 +20,18 @@ interface RoleAuditRepository
      * @return list<RoleAuditEntry>
      */
     public function all(): array;
+
+    /**
+     * Сторінка журналу від новіших до старіших (RBAC-31).
+     *
+     * @return list<RoleAuditEntry>
+     */
+    public function recent(
+        int $limit,
+        int $offset = 0,
+        ?string $targetUserId = null,
+        ?RoleAuditAction $action = null,
+    ): array;
+
+    public function count(?string $targetUserId = null, ?RoleAuditAction $action = null): int;
 }

@@ -6,7 +6,13 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { PageSize, SyncLogEntry, SyncReport } from '../../core/models';
+import {
+  BranchChange,
+  PageSize,
+  SyncLogEntry,
+  SyncReport,
+  SyncRunDetails,
+} from '../../core/models';
 import { SyncApi } from '../../core/data/sync.api';
 import { AuthService } from '../../core/auth/auth.service';
 import { ToastService } from '../../core/ui/toast.service';
@@ -17,10 +23,11 @@ import { ModalComponent } from '../../shared/ui/modal.component';
 import { formatDateTime, formatSeconds } from '../../core/utils/time.util';
 
 /**
- * Розділ «Синхронізація MCP» (5.6): журнал і ручний запуск.
+ * Розділ «Синхронізація MCP» (5.6): журнал, ручний запуск і деталізація запуску.
  *
- * Порядкового diff (створені/змінені/відсутні філії) бекенд не віддає —
- * SyncLogEntry несе лише лічильники, тож деталізація показує звіт запуску.
+ * Рядок журналу відкриває звіт із поіменним переліком нових, змінених і
+ * зниклих філій (GET /sync/log/{id}, SYNC-01). Перелік не тягнеться у список:
+ * у таблиці потрібні лічильники, а не сотні рядків на кожен запуск.
  */
 @Component({
   selector: 'app-sync-page',
@@ -48,6 +55,8 @@ export class SyncPage {
   protected readonly lastSuccessfulAt = signal<string | null>(null);
   protected readonly running = signal(false);
   protected readonly lastReport = signal<SyncReport | null>(null);
+  /** Обраний рядок журналу: деталізація конкретного запуску (SYNC-01). */
+  protected readonly details = signal<SyncRunDetails | null>(null);
 
   protected readonly formatDateTime = formatDateTime;
   protected readonly formatSeconds = formatSeconds;
@@ -110,6 +119,24 @@ export class SyncPage {
       });
   }
 
+  /** Клік по рядку журналу — деталізація саме цього запуску. */
+  protected openDetails(entry: SyncLogEntry): void {
+    this.api
+      .runDetails(entry.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (details) => this.details.set(details),
+        error: (error: unknown) => this.toast.error(error),
+      });
+  }
+
+  /** Стисле «поле: було → стало» для рядка деталізації. */
+  protected fieldSummary(change: BranchChange): string {
+    return Object.entries(change.fields)
+      .map(([name, value]) => `${name}: ${format(value.old)} → ${format(value.new)}`)
+      .join('; ');
+  }
+
   protected statusClass(entry: SyncLogEntry): string {
     switch (entry.status) {
       case 'success':
@@ -126,4 +153,12 @@ export class SyncPage {
   protected canRun(): boolean {
     return this.auth.can('store.sync.manage');
   }
+}
+
+/** Значення поля MCP у переліку змін; порожнє показуємо як «—». */
+function format(value: unknown): string {
+  if (value === null || value === undefined || value === '') {
+    return '—';
+  }
+  return typeof value === 'object' ? JSON.stringify(value) : String(value);
 }

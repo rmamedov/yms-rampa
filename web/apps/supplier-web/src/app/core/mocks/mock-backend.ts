@@ -910,9 +910,17 @@ export class MockBackend {
     };
   }
 
-  /** RSHT-02: водій на весь лист — driverId обовʼязковий. */
-  assignDriverToSheet(date: string, driverId: string): RouteSheetAssignment {
-    this.requireActiveDriver(driverId);
+  /**
+   * RSHT-02: водій на весь лист. `null` знімає водія з усіх точок листа —
+   * симетрично до assignDriverToBooking().
+   */
+  assignDriverToSheet(
+    date: string,
+    driverId: string | null,
+  ): RouteSheetAssignment {
+    if (driverId) {
+      this.requireActiveDriver(driverId);
+    }
     for (const booking of this.sheetBookings(date)) {
       if (booking.driverId !== driverId) {
         this.replaceBooking(booking.id, { ...booking, driverId });

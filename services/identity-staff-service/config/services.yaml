@@ -76,6 +76,7 @@ services:
     App\Domain\Auth\TokenService: ~
     App\Domain\Auth\AuthenticationService: ~
     App\Domain\UserManagement\StaffUserService: ~
+    App\Domain\UserManagement\AuditLogService: ~
 
     # --- HTTP -------------------------------------------------------------
     App\Http\ProblemDetailsFactory: ~

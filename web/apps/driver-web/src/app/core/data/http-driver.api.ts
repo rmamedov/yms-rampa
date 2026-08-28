@@ -5,8 +5,8 @@ import { DriverApi } from './driver.api';
 import { toDayRouteSheet } from './route-sheet.mapper';
 import { toBookingActionResult } from './booking-action.mapper';
 import type {
-  DayRouteSheet,
   DriverRouteSheetResponse,
+  RouteSheetLoad,
 } from '../models/route-sheet.model';
 import type {
   BookingActionResult,
@@ -14,6 +14,22 @@ import type {
   DelayReport,
 } from '../models/booking-action.model';
 import { environment } from '../../../environments/environment';
+
+/**
+ * Службові заголовки свіжості, які проставляє public/sw.js. Назви мають
+ * збігатися дослівно — це контракт між застосунком і його ж service worker.
+ */
+const FROM_CACHE_HEADER = 'x-yms-from-cache';
+const CACHED_AT_HEADER = 'x-yms-cached-at';
+
+/** ISO-момент запису в кеш → epoch ms; усе нерозбірливе — це «невідомо». */
+function parseCachedAt(raw: string | null): number | null {
+  if (!raw) {
+    return null;
+  }
+  const at = Date.parse(raw);
+  return Number.isNaN(at) ? null : at;
+}
 
 @Injectable()
 export class HttpDriverApi extends DriverApi {
@@ -24,13 +40,29 @@ export class HttpDriverApi extends DriverApi {
    * `date` передається ЗАВЖДИ: без нього контролер бере поточну київську
    * дату, і клієнт із іншим часовим поясом отримав би чужий день.
    * Некоректний формат бекенд відхиляє з 422 VALIDATION_FAILED.
+   *
+   * Читається саме ВІДПОВІДЬ цілком (`observe: 'response'`), бо свіжість
+   * листа живе в заголовках, які проставляє service worker:
+   *   x-yms-from-cache: 1        — відповідь зібрано з кешу, мережі не було;
+   *   x-yms-cached-at: <ISO>     — коли цю копію записали.
+   * Без них офлайн-відповідь не відрізнялася від свіжої, і водій бачив
+   * «Оновлено HH:MM» на добових даних (ISSUE-10).
    */
-  override routeSheet(date: string): Observable<DayRouteSheet | null> {
+  override routeSheet(date: string): Observable<RouteSheetLoad> {
     return this.http
       .get<DriverRouteSheetResponse>(`${this.base}/route-sheet`, {
         params: new HttpParams().set('date', date),
+        observe: 'response',
       })
-      .pipe(map(toDayRouteSheet));
+      .pipe(
+        map((response) => ({
+          sheet: toDayRouteSheet(
+            response.body ?? { driverId: '', date, routeSheets: [] },
+          ),
+          fromCache: '1' === response.headers.get(FROM_CACHE_HEADER),
+          cachedAt: parseCachedAt(response.headers.get(CACHED_AT_HEADER)),
+        })),
+      );
   }
 
   /**

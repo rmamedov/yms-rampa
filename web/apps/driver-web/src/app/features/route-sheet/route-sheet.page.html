@@ -84,6 +84,7 @@
       <li [attr.id]="'point-' + point.bookingId">
         <app-point-card
           [point]="point"
+          [now]="nowTick()"
           [active]="isActive(i)"
           [pending]="store.isPending(point.bookingId)"
           [queued]="store.isQueued(point.bookingId)"

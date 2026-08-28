@@ -121,6 +121,7 @@ final readonly class BranchSynchronizer
         $updatedDiff = [];
         $missingIds = [];
         $archivedIds = [];
+        $changes = [];
         $events = [];
         $touched = [];
 
@@ -132,11 +133,21 @@ final readonly class BranchSynchronizer
                 // INT-09: філія відсутня у ПОВНІЙ вибірці MCP.
                 ++$missing;
                 $missingIds[] = $branch->id();
+                $changes[] = new BranchChange(
+                    BranchChangeKind::Missing,
+                    $branch->id(),
+                    $branch->externalId(),
+                );
 
                 if ($branch->markMissingInSync($syncedAt)) {
                     $branch->archiveBySync($syncedAt);
                     ++$archived;
                     $archivedIds[] = $branch->id();
+                    $changes[] = new BranchChange(
+                        BranchChangeKind::Archived,
+                        $branch->id(),
+                        $branch->externalId(),
+                    );
                     $events[] = new BranchSynced(
                         $branch->id(),
                         $branch->externalId(),
@@ -153,12 +164,18 @@ final readonly class BranchSynchronizer
 
             unset($fresh[$branch->id()]);
 
-            $changes = $branch->applyMcpUpdate($data, $syncedAt);
+            $fieldChanges = $branch->applyMcpUpdate($data, $syncedAt);
 
-            if ([] !== $changes) {
+            if ([] !== $fieldChanges) {
                 ++$updated;
-                $updatedDiff[$branch->id()] = ['externalId' => $branch->externalId(), 'changes' => $changes];
-                $events[] = new BranchSynced($branch->id(), $branch->externalId(), 'updated', $changes, $syncedAt);
+                $updatedDiff[$branch->id()] = ['externalId' => $branch->externalId(), 'changes' => $fieldChanges];
+                $changes[] = new BranchChange(
+                    BranchChangeKind::Updated,
+                    $branch->id(),
+                    $branch->externalId(),
+                    $fieldChanges,
+                );
+                $events[] = new BranchSynced($branch->id(), $branch->externalId(), 'updated', $fieldChanges, $syncedAt);
             }
 
             if (!$branch->isEligible()) {
@@ -179,6 +196,11 @@ final readonly class BranchSynchronizer
                 $ineligibleByReason = SyncReport::tallyReasons($branch->ineligibilityReasons(), $ineligibleByReason);
             }
 
+            $changes[] = new BranchChange(
+                BranchChangeKind::Created,
+                $branch->id(),
+                $branch->externalId(),
+            );
             $events[] = new BranchSynced($branch->id(), $branch->externalId(), 'created', [], $syncedAt);
             $touched[] = $branch;
         }
@@ -205,6 +227,7 @@ final readonly class BranchSynchronizer
             missingBranchIds: $missingIds,
             archivedBranchIds: $archivedIds,
             errors: $errors,
+            changes: $changes,
         );
     }
 }

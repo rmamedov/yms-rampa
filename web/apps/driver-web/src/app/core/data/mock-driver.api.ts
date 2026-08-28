@@ -6,7 +6,7 @@ import { toBookingActionResult } from './booking-action.mapper';
 import { MockBackend } from '../mock/mock-backend';
 import { NetworkService } from '../offline/network.service';
 import { ApiProblemError } from '../models/problem.model';
-import type { DayRouteSheet } from '../models/route-sheet.model';
+import type { RouteSheetLoad } from '../models/route-sheet.model';
 import type {
   BookingActionResult,
   DelayReport,
@@ -20,9 +20,17 @@ export class MockDriverApi extends DriverApi {
   private readonly backend = inject(MockBackend);
   private readonly network = inject(NetworkService);
 
-  override routeSheet(date: string): Observable<DayRouteSheet | null> {
+  /**
+   * Мок завжди «з мережі»: service worker у dev-режимі не реєструється,
+   * тож збереженої копії, яку можна було б видати за свіжу, тут не буває.
+   */
+  override routeSheet(date: string): Observable<RouteSheetLoad> {
     // Той самий мапінг конверта, що й у HttpDriverApi — форма даних однакова.
-    return this.wrap(() => toDayRouteSheet(this.backend.routeSheet(date)));
+    return this.wrap(() => ({
+      sheet: toDayRouteSheet(this.backend.routeSheet(date)),
+      fromCache: false,
+      cachedAt: null,
+    }));
   }
 
   /**

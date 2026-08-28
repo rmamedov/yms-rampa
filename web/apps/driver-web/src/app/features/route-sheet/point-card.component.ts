@@ -9,9 +9,13 @@ import {
 import { LowerCasePipe } from '@angular/common';
 import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { StatusBadgeComponent } from '../../shared/ui/status-badge.component';
-import { rampLabel, type RoutePoint } from '../../core/models/route-sheet.model';
+import {
+  arrivalAvailable,
+  rampLabel,
+  type RoutePoint,
+} from '../../core/models/route-sheet.model';
 import { isClosedPoint } from '../../core/state/route-sheet.store';
-import { formatKyivTime } from '../../core/util/time.util';
+import { formatKyivDayMonth, formatKyivTime } from '../../core/util/time.util';
 
 /** Дії водія доступні рівно доти, доки бекенд їх приймає (Booking, 6.5). */
 const OPEN_FOR_DRIVER: readonly RoutePoint['status'][] = ['booked', 'arrived'];
@@ -20,7 +24,9 @@ const OPEN_FOR_DRIVER: readonly RoutePoint['status'][] = ['booked', 'arrived'];
  * Картка точки маршруту з діями контуру водія.
  *
  * Кнопки показуються рівно там, де бекенд їх прийме:
- *  - «На місці» — лише зі статусу `booked` (ST-01, booked → arrived);
+ *  - «На місці» — зі статусу `booked` І не раніше доби візиту (ArrivalWindow,
+ *    розділ 8): на завтрашній точці замість дії стоїть неактивна кнопка
+ *    з датою, коли відмітка відкриється;
  *  - затримка і orderId — у `booked` та `arrived`, бо після початку
  *    розвантаження обидві дії дають 422.
  */
@@ -42,6 +48,12 @@ export class PointCardComponent {
   readonly pending = input(false);
   /** Відмітка «На місці» стоїть у черзі до появи звʼязку. */
   readonly queued = input(false);
+  /**
+   * Поточний момент, epoch ms. Приходить ззовні, а не читається з Date.now()
+   * усередині: тоді доступність кнопки перераховується разом із тиком
+   * сторінки (і на переході через північ), а тест може задати будь-який час.
+   */
+  readonly now = input(Date.now());
 
   readonly routeRequested = output<RoutePoint>();
   readonly routeOptionsRequested = output<RoutePoint>();
@@ -53,7 +65,25 @@ export class PointCardComponent {
   /** Завершена точка згортається в компактний рядок (8.7). */
   protected readonly collapsed = computed(() => this.point().status === 'completed');
 
-  protected readonly canArrive = computed(() => this.point().status === 'booked');
+  /** Вікно відмітки вже відкрите — доба візиту настала (ArrivalWindow). */
+  protected readonly arrivalOpen = computed(() =>
+    arrivalAvailable(this.point(), this.now()),
+  );
+
+  protected readonly canArrive = computed(
+    () => this.point().status === 'booked' && this.arrivalOpen(),
+  );
+
+  /**
+   * Дата, з якої відмітка стане доступною, або null — коли пояснювати нічого
+   * (вікно вже відкрите або точка вже не в статусі «Очікує виїзду»).
+   */
+  protected readonly arrivalOpensOn = computed(() =>
+    this.point().status === 'booked' && !this.arrivalOpen()
+      ? formatKyivDayMonth(this.point().slotStart)
+      : null,
+  );
+
   protected readonly canEdit = computed(() =>
     OPEN_FOR_DRIVER.includes(this.point().status),
   );
@@ -80,6 +110,9 @@ export class PointCardComponent {
     const arrivedAt = this.point().arrivedAt;
     return arrivedAt ? formatKyivTime(arrivedAt) : null;
   });
+
+  /** Позначку запізнення ставить домен — тут вона лише показується. */
+  protected readonly arrivedLate = computed(() => this.point().arrivedLate === true);
 
   protected readonly editingOrder = signal(false);
   protected readonly orderDraft = signal('');

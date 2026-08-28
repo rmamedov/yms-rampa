@@ -96,6 +96,47 @@ final class RouteSheetTest extends TestCase
         self::assertSame('du-7', $scenario->reload($second)->driverId());
     }
 
+    /**
+     * RSHT-02, ISSUE-18: порожній driverId знімає водія з УСЬОГО листа.
+     *
+     * Раніше маршрут вимагав обовʼязковий driverId, тому кабінет постачальника
+     * пропонував варіант «Водія не призначено», який нічого не робив, — список
+     * показував стан, якого не сталося. Зняття має проходити тим самим шляхом,
+     * що й призначення: і лист, і кожне бронювання.
+     */
+    public function testDriverRemovedFromWholeSheet(): void
+    {
+        $scenario = new Scenario();
+        $first = $scenario->book('2026-08-28 10:00');
+        $second = $scenario->book('2026-08-28 12:00');
+
+        $scenario->routeSheets->assignDriverToSheet(
+            $scenario->supplier(),
+            Scenario::SUPPLIER_ID,
+            '2026-08-28',
+            'du-7',
+            $scenario->now(),
+        );
+
+        $sheet = $scenario->routeSheets->assignDriverToSheet(
+            $scenario->supplier(),
+            Scenario::SUPPLIER_ID,
+            '2026-08-28',
+            null,
+            $scenario->now(),
+        );
+
+        self::assertSame([null, null], array_map(
+            static fn (RouteSheetEntry $entry) => $entry->driverId,
+            $sheet->entries(),
+        ));
+        self::assertNull($scenario->reload($first)->driverId());
+        self::assertNull($scenario->reload($second)->driverId());
+        // RSHT-04: у застосунку водія лист зникає одразу, а не після
+        // перезавантаження кабінету.
+        self::assertSame([], $scenario->routeSheets->forDriver('du-7', '2026-08-28'));
+    }
+
     /** RSHT-02: призначення на окреме бронювання перекриває призначення листа. */
     public function testBookingLevelDriverOverridesSheetDriver(): void
     {

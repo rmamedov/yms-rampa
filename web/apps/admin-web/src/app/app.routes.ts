@@ -64,6 +64,12 @@ export const appRoutes: Route[] = [
           import('./features/sync/sync.page').then((m) => m.SyncPage),
       },
       {
+        path: 'audit',
+        canActivate: [sectionGuard('audit')],
+        loadComponent: () =>
+          import('./features/audit/audit-list.page').then((m) => m.AuditListPage),
+      },
+      {
         path: 'analytics',
         canActivate: [sectionGuard('analytics')],
         loadComponent: () =>

@@ -8,8 +8,13 @@
  *   identity-staff    AuthController::tokenResponse + LoginResult::profile.
  */
 import {
+  AuditAction,
+  AuditEntry,
+  AuditLog,
   AuthSession,
   AuthTokens,
+  BranchChange,
+  BranchChangeKind,
   CalendarException,
   CityOption,
   DayOfWeek,
@@ -33,6 +38,7 @@ import {
   SyncLog,
   SyncLogEntry,
   SyncReport,
+  SyncRunDetails,
   SyncStatus,
   SyncTrigger,
   TimeInterval,
@@ -540,6 +546,29 @@ export function toSyncEntry(wire: WireSyncEntry): SyncLogEntry {
   };
 }
 
+export interface WireBranchChange {
+  readonly kind: string;
+  readonly kindLabel: string;
+  readonly branchId: string;
+  readonly externalId: string;
+  readonly fields?: Readonly<Record<string, { old: unknown; new: unknown }>>;
+}
+
+export interface WireSyncRunDetails extends WireSyncEntry {
+  readonly changes?: readonly WireBranchChange[];
+  readonly changesTotal?: number;
+  readonly changesRecorded?: boolean;
+}
+
+export function toSyncRunDetails(wire: WireSyncRunDetails): SyncRunDetails {
+  return {
+    ...toSyncEntry(wire),
+    changes: (wire.changes ?? []).map(toBranchChange),
+    changesTotal: wire.changesTotal ?? 0,
+    changesRecorded: wire.changesRecorded ?? false,
+  };
+}
+
 export interface WireSyncLog {
   readonly items: readonly WireSyncEntry[];
   readonly total: number;
@@ -578,6 +607,18 @@ export interface WireSyncReport {
   readonly eligible: number;
   readonly ineligibleByReason: Readonly<Record<string, number>>;
   readonly errors: readonly string[];
+  readonly changes?: readonly WireBranchChange[];
+  readonly changesTotal?: number;
+}
+
+export function toBranchChange(wire: WireBranchChange): BranchChange {
+  return {
+    kind: wire.kind as BranchChangeKind,
+    kindLabel: wire.kindLabel,
+    branchId: wire.branchId,
+    externalId: wire.externalId,
+    fields: { ...(wire.fields ?? {}) },
+  };
 }
 
 export function toSyncReport(wire: WireSyncReport): SyncReport {
@@ -599,6 +640,68 @@ export function toSyncReport(wire: WireSyncReport): SyncReport {
     eligible: wire.eligible ?? 0,
     ineligibleByReason: { ...(wire.ineligibleByReason ?? {}) },
     errors: [...(wire.errors ?? [])],
+    changes: (wire.changes ?? []).map(toBranchChange),
+    changesTotal: wire.changesTotal ?? 0,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// identity-staff-service: журнал аудиту (RBAC-31)
+// ---------------------------------------------------------------------------
+
+export interface WireAuditEntry {
+  readonly actorUserId: string;
+  readonly actorName?: string;
+  readonly actorRole: string;
+  readonly actorRoleLabel?: string;
+  readonly targetUserId: string;
+  readonly targetName?: string;
+  readonly action: string;
+  readonly actionLabel?: string;
+  readonly before?: Readonly<Record<string, unknown>>;
+  readonly after?: Readonly<Record<string, unknown>>;
+  readonly timestamp: string;
+  readonly requestId: string | null;
+  readonly ip: string | null;
+}
+
+export interface WireAuditLog {
+  readonly items: readonly WireAuditEntry[];
+  readonly total: number;
+  readonly page: number;
+  readonly perPage: number;
+  readonly actions?: readonly { readonly value: string; readonly label: string }[];
+}
+
+export function toAuditEntry(wire: WireAuditEntry): AuditEntry {
+  return {
+    actorUserId: wire.actorUserId,
+    // Імена підставляє бекенд; якщо користувача вже немає — лишається id.
+    actorName: wire.actorName || wire.actorUserId,
+    actorRole: wire.actorRole as StaffRole,
+    actorRoleLabel: wire.actorRoleLabel ?? wire.actorRole,
+    targetUserId: wire.targetUserId,
+    targetName: wire.targetName || wire.targetUserId,
+    action: wire.action as AuditAction,
+    actionLabel: wire.actionLabel ?? wire.action,
+    before: { ...(wire.before ?? {}) },
+    after: { ...(wire.after ?? {}) },
+    timestamp: wire.timestamp,
+    requestId: wire.requestId ?? null,
+    ip: wire.ip ?? null,
+  };
+}
+
+export function toAuditLog(wire: WireAuditLog): AuditLog {
+  return {
+    items: (wire.items ?? []).map(toAuditEntry),
+    total: wire.total ?? 0,
+    page: wire.page ?? 1,
+    perPage: wire.perPage ?? 20,
+    actions: (wire.actions ?? []).map((a) => ({
+      value: a.value as AuditAction,
+      label: a.label,
+    })),
   };
 }
 

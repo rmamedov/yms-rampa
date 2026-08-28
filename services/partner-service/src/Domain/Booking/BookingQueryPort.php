@@ -26,6 +26,22 @@ interface BookingQueryPort
      */
     public function supplierHasAnyBookings(string $supplierId): bool;
 
-    /** SUP-VEH-04: чи є в авто активні бронювання (booked/arrived/unloading). */
-    public function vehicleHasActiveBookings(string $vehicleId): bool;
+    /**
+     * SUP-VEH-04: чи є в авто активні бронювання (booked/arrived/unloading).
+     *
+     * Ключ — ПАРА «постачальник + держномер», а не vehicleId: бронювання
+     * зберігає снапшот авто (DATA-13) і про наш довідник не знає нічого.
+     * Номер унікальний у межах постачальника (DATA-18), тож пара однозначна;
+     * той самий номер в іншого перевізника — чуже авто і чужі бронювання.
+     *
+     * Номер має передаватися вже нормалізованим (PlateNumberNormalizer) —
+     * так, як він лежить у нашому довіднику.
+     *
+     * Як і в supplierHasAnyBookings, вигадувати відповідь заборонено:
+     * недоступний сусід — це виняток, а не «бронювань немає».
+     *
+     * @throws BookingQueryUnavailableException сусід недоступний або відповів
+     *                                          не за контрактом
+     */
+    public function vehicleHasActiveBookings(string $supplierId, string $plateNumber): bool;
 }

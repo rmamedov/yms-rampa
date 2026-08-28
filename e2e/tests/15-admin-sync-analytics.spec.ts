@@ -422,7 +422,9 @@ test.describe('A-14 Аудит', () => {
   });
 
   test('A-14.3 прямий перехід на неіснуючий розділ не ламає застосунок', async ({ page }) => {
-    await page.goto(`${ADMIN}/audit`);
+    // Адреса /audit більше не «неіснуюча» — там живе журнал аудиту (A-14.1),
+    // тож перевіряємо wildcard на завідомо невідомому маршруті.
+    await page.goto(`${ADMIN}/zzz-no-such-section`);
     await page.waitForLoadState('networkidle');
     // wildcard-маршрут веде на головну, а не на порожній екран
     expect(page.url(), 'невідома адреса веде на робочий розділ').toMatch(/\/stores|\/$/);

@@ -78,6 +78,23 @@ interface BookingRepository
     public function hasAnyBySupplier(string $supplierId): bool;
 
     /**
+     * SUP-VEH-04: чи є в авто постачальника хоч одне АКТИВНЕ бронювання
+     * (booked | arrived | unloading).
+     *
+     * Питання ставить partner-service перед видаленням авто з довідника
+     * (службовий маршрут GET /internal/v1/bookings/suppliers/{id}/vehicles/{plate}).
+     *
+     * Ключ пари — держномер, а не ідентифікатор авто: бронювання зберігає
+     * СНАПШОТ авто (DATA-13) і id довідника не знає взагалі. Номер має
+     * приходити вже нормалізованим (VehicleSnapshot::normalizePlate).
+     *
+     * На відміну від SUP-06 тут саме «активні»: закриті поставки (completed,
+     * cancelled, no_show, rejected) — це історія, вона тримає снапшот авто
+     * в собі й видаленню запису з довідника не заважає.
+     */
+    public function hasActiveBySupplierAndPlate(string $supplierId, string $plateNumber): bool;
+
+    /**
      * BOOK-04: активні бронювання того самого постачальника з тим самим
      * держномером, що перетинаються за часом з [from, to) — незалежно від магазину.
      *
