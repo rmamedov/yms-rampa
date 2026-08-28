@@ -211,6 +211,11 @@ async function openBoard(page: Page, store?: SandboxStore): Promise<void> {
   await page.waitForLoadState('networkidle');
   await waitForScreen(page);
 
+  // Типовий режим — «Список», а перевірки нижче працюють із картками дошки.
+  // Перемикаємо явно: інакше кожна з них шукала б article.bcard, якого в
+  // списку немає, і падала б з незрозумілим «елемент не знайдено».
+  await useBoardView(page);
+
   const text = await pageText(page);
   expect(
     text,
@@ -242,6 +247,18 @@ async function pickerOptions(page: Page, query = ''): Promise<string[]> {
   const labels = await page.locator('.picker__option').allInnerTexts();
   await page.keyboard.press('Escape');
   return labels.map((s) => s.trim());
+}
+
+/** Перемикає екран у режим «Дошка за рампами». */
+async function useBoardView(page: Page): Promise<void> {
+  const board = page.locator('.segmented__btn', { hasText: 'Дошка за рампами' });
+  if ((await board.count()) === 0) {
+    return;
+  }
+  if (!(await board.first().getAttribute('class'))?.includes('--active')) {
+    await board.first().click();
+    await page.waitForTimeout(250);
+  }
 }
 
 /** Ставить дошку на потрібну філію (або перевіряє, що вона вже на ній). */
@@ -303,8 +320,8 @@ function cardByPlate(page: Page, plate: string) {
 
 /** Значення плитки денної статистики за підписом. */
 async function statValue(page: Page, label: string): Promise<number> {
-  const tile = page.locator('.stats__tile').filter({ hasText: label }).first();
-  const value = await tile.locator('.stats__value').innerText();
+  const tile = page.locator('.kpi__card').filter({ hasText: label }).first();
+  const value = await tile.locator('.kpi__value').innerText();
   return Number(value.replace(/\D/g, ''));
 }
 
@@ -1359,5 +1376,114 @@ test.describe('Наскрізні перевірки модуля магазин
         `дошка «Сьогодні» на ширині ${width}px має горизонтальний скрол`,
       ).toBe(false);
     }
+  });
+});
+
+// ===========================================================================
+// M-09. Оболонка й список прибуття (новий вигляд)
+// ===========================================================================
+
+test.describe('M-09 Оболонка й список прибуття', () => {
+  test('M-09.1 у боковому меню рівно один пункт — «Загальне»', async ({ page }) => {
+    await openBoard(page);
+
+    const items = page.locator('.sidenav__item');
+    await expect(items, 'меню має містити рівно один пункт').toHaveCount(1);
+    await expect(items.first()).toHaveText(/Загальне/);
+  });
+
+  test('M-09.2 список прибуття показує ті самі бронювання, що й дошка', async ({ page }) => {
+    test.setTimeout(120_000);
+    const booking = await makeBooking('list-view');
+    await openBoard(page, booking.store);
+
+    // Дошка. Той самий запис лежить і в прихованому мобільному списку, тому
+    // адресуємо саме колонки дошки, а не всі картки на сторінці.
+    const onBoard = page
+      .locator('.board article.bcard')
+      .filter({ hasText: booking.vehicle.plateNumber });
+    await expect(onBoard).toHaveCount(1);
+
+    // Той самий запис у списку
+    await page.locator('.segmented__btn', { hasText: 'Список' }).click();
+    await page.waitForTimeout(400);
+    const row = page.locator('.listtable tbody tr').filter({ hasText: booking.vehicle.plateNumber });
+    await expect(row, 'бронювання має бути й у списку').toHaveCount(1);
+    await expect(row).toContainText(booking.orderId ?? '');
+  });
+
+  test('M-09.3 клік по рядку відкриває картку з діями', async ({ page }) => {
+    test.setTimeout(120_000);
+    const booking = await makeBooking('list-open');
+    await openBoard(page, booking.store);
+    await page.locator('.segmented__btn', { hasText: 'Список' }).click();
+    await page.waitForTimeout(400);
+
+    await page
+      .locator('.listtable tbody tr')
+      .filter({ hasText: booking.vehicle.plateNumber })
+      .locator('.listtable__more')
+      .click();
+
+    await expect(page.locator('.modal')).toBeVisible();
+    await expect(page.locator('.modal article.bcard')).toHaveCount(1);
+  });
+
+  test('M-09.4 нижня зведена рахує зайняті рампи і чергу', async ({ page }) => {
+    await openBoard(page);
+    const summary = page.locator('.summary');
+    await expect(summary).toBeVisible();
+    await expect(summary).toContainText('Завантаженість рамп');
+    await expect(summary).toContainText('Черга на території');
+  });
+
+  /**
+   * Головна вимога мобільної версії: жодного горизонтального скролу.
+   * Перевіряємо саме сторінку зі списком — вона найширша.
+   */
+  test('M-09.5 на телефоні список без горизонтального скролу і таблиці', async ({ page }) => {
+    test.setTimeout(120_000);
+    const booking = await makeBooking('mobile-list');
+    await openBoard(page, booking.store);
+    await page.locator('.segmented__btn', { hasText: 'Список' }).click();
+    await page.waitForTimeout(400);
+
+    for (const width of [320, 360, 414, 768]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.waitForTimeout(300);
+      expect(
+        await hasHorizontalScroll(page),
+        `на ширині ${width}px не має бути горизонтального скролу`,
+      ).toBe(false);
+    }
+
+    // На вузькому екрані замість таблиці — картки.
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.waitForTimeout(300);
+    await expect(page.locator('.listcards__item').first()).toBeVisible();
+    await expect(
+      page.locator('.listcard__scroll'),
+      'таблиця на телефоні має бути схована',
+    ).toBeHidden();
+  });
+
+  test('M-09.6 бокове меню на телефоні відкривається кнопкою', async ({ page }) => {
+    await openBoard(page);
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.waitForTimeout(300);
+
+    const nav = page.locator('.sidenav');
+    const burger = page.locator('.topbar__burger');
+    await expect(burger, 'на телефоні має бути кнопка меню').toBeVisible();
+
+    const before = await nav.boundingBox();
+    await burger.click();
+    await page.waitForTimeout(350);
+    const after = await nav.boundingBox();
+
+    expect(
+      (after?.x ?? -999) > (before?.x ?? -999),
+      'після натискання панель має висунутися',
+    ).toBe(true);
   });
 });

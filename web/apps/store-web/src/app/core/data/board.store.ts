@@ -43,7 +43,14 @@ import {
 } from '../util/date.util';
 import { StoreGateway } from './gateways';
 
-export type BoardViewMode = 'board' | 'timeline';
+/**
+ * Режим показу прибуттів.
+ *
+ * «list» — плаский список рядками; саме він відкривається першим: приймальнику
+ * потрібен передусім перелік «хто і коли», а рампи й таймлайн — коли треба
+ * побачити завантаження двору.
+ */
+export type BoardViewMode = 'list' | 'board' | 'timeline';
 
 export interface Toast {
   readonly tone: 'success' | 'error';
@@ -77,7 +84,7 @@ export class BoardStore implements OnDestroy {
   private readonly toastSignal = signal<Toast | null>(null);
   private readonly viewDateSignal = signal(toKyivDateKey(new Date()));
   private readonly viewModeSignal = signal<BoardViewMode>(
-    (this.storage.getViewMode() as BoardViewMode | null) ?? 'board',
+    (this.storage.getViewMode() as BoardViewMode | null) ?? 'list',
   );
   private readonly filtersSignal = signal<BoardFilters>(EMPTY_FILTERS);
 

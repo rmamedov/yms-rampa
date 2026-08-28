@@ -2,11 +2,19 @@
   <header class="page__head">
     <div class="page__titles">
       <h1>{{ 'board.title' | t }}</h1>
-      <p class="muted">{{ dateLabel() }}</p>
+      <p class="muted">{{ 'board.subtitle' | t }}</p>
     </div>
 
     <div class="page__toolbar">
       <div class="segmented" role="group" [attr.aria-label]="'board.title' | t">
+        <button
+          type="button"
+          class="segmented__btn"
+          [class.segmented__btn--active]="store.viewMode() === 'list'"
+          (click)="setMode('list')"
+        >
+          {{ 'board.mode.list' | t }}
+        </button>
         <button
           type="button"
           class="segmented__btn"
@@ -44,7 +52,10 @@
         />
       </div>
 
-      <button type="button" class="btn btn--sm btn--primary" (click)="openWalkIn()">
+      <button type="button" class="btn btn--sm btn--primary page__walkin" (click)="openWalkIn()">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+          <path d="M12 6v12M6 12h12" />
+        </svg>
         {{ 'action.walkIn' | t }}
       </button>
     </div>
@@ -65,10 +76,22 @@
     <div class="banner" role="status">{{ 'board.readOnly' | t }}</div>
   }
 
-  <app-stats-bar [stats]="store.stats()" />
+  <app-stats-bar [stats]="store.stats()" [dateLabel]="dateLabel()" />
   <app-filters-bar />
 
-  @if (store.loading()) {
+  @if (store.viewMode() === 'list' && !store.loading()) {
+    <app-arrivals-table
+      [bookings]="store.listView()"
+      [ramps]="store.ramps()"
+      [nowIso]="store.nowIso()"
+      [readOnly]="store.isPastDate()"
+      (openBooking)="openDetails($event)"
+    />
+  }
+
+  @if (store.viewMode() === 'list') {
+    <!-- список уже відмальовано вище -->
+  } @else if (store.loading()) {
     <p class="muted">{{ 'common.loading' | t }}</p>
   } @else if (store.filteredBookings().length === 0) {
     <p class="muted">{{ 'board.emptyDay' | t }}</p>
@@ -138,7 +161,11 @@
     доки вантажилась нова дата, показував картки ПОПЕРЕДНЬОЇ — поруч із написом
     «Завантаження…», але з виглядом актуальних даних.
   -->
-  @if (!store.loading() && store.filteredBookings().length > 0) {
+  @if (
+    store.viewMode() !== 'list' &&
+    !store.loading() &&
+    store.filteredBookings().length > 0
+  ) {
     <div class="mobile-list">
       @for (booking of store.listView(); track booking.id) {
         <app-booking-card
@@ -150,7 +177,30 @@
       }
     </div>
   }
+
+  @if (!store.loading()) {
+    <app-summary-bar
+      [bookings]="store.filteredBookings()"
+      [ramps]="store.ramps()"
+      [stats]="store.stats()"
+    />
+  }
 </section>
+
+@if (dialog() === 'details' && selected(); as booking) {
+  <app-modal
+    [titleKey]="'list.details'"
+    [titleParams]="{ supplier: booking.supplierName }"
+    (closed)="closeDialog()"
+  >
+    <app-booking-card
+      [booking]="booking"
+      [atRisk]="isAtRisk(booking)"
+      [overrun]="isOverrun(booking)"
+      (action)="onAction(booking, $event)"
+    />
+  </app-modal>
+}
 
 @if (dialog() === 'complete' && selected()) {
   <app-complete-dialog

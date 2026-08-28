@@ -1,4 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/auth/auth.service';
@@ -38,6 +44,9 @@ export class App {
     () => this.auth.isAuthenticated() && this.auth.hasStoreAccess(),
   );
   readonly toast = this.store.toast;
+
+  /** Бокове меню на вузькому екрані ховається за кнопкою. */
+  readonly menuOpen = signal(false);
 
   readonly roleKey = computed(() => {
     const role = this.profile()?.role;

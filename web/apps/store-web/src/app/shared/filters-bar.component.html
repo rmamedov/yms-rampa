@@ -10,6 +10,17 @@
     <div class="filters__group">
       <span class="filters__label">{{ 'filters.ramp' | t }}</span>
       <div class="filters__chips">
+        <!-- «Усі» — не фільтр, а скидання групи: інакше зняти вибір можна лише
+             повторним кліком по кожному чипу. -->
+        <button
+          type="button"
+          class="chip"
+          [class.chip--active]="filters().rampIds.length === 0"
+          [attr.aria-pressed]="filters().rampIds.length === 0"
+          (click)="clearRamps()"
+        >
+          {{ 'filters.allRamps' | t }}
+        </button>
         @for (ramp of ramps(); track ramp.rampId) {
           <button
             type="button"
@@ -27,10 +38,20 @@
     <div class="filters__group">
       <span class="filters__label">{{ 'filters.status' | t }}</span>
       <div class="filters__chips">
+        <button
+          type="button"
+          class="chip"
+          [class.chip--active]="noStatusFilter()"
+          [attr.aria-pressed]="noStatusFilter()"
+          (click)="clearStatuses()"
+        >
+          {{ 'filters.allStatuses' | t }}
+        </button>
         @for (status of statuses; track status) {
           <button
             type="button"
             class="chip"
+            [class]="'chip chip--' + status"
             [class.chip--active]="isStatusActive(status)"
             [attr.aria-pressed]="isStatusActive(status)"
             (click)="toggleStatus(status)"
@@ -40,7 +61,7 @@
         }
         <button
           type="button"
-          class="chip"
+          class="chip chip--delayed"
           [class.chip--active]="filters().onlyDelayed"
           [attr.aria-pressed]="filters().onlyDelayed"
           (click)="toggleDelayed()"
@@ -49,7 +70,7 @@
         </button>
         <button
           type="button"
-          class="chip"
+          class="chip chip--walkin"
           [class.chip--active]="filters().onlyWalkIn"
           [attr.aria-pressed]="filters().onlyWalkIn"
           (click)="toggleWalkIn()"
@@ -63,22 +84,32 @@
       <label class="filters__label" for="supplier-query">{{
         'filters.supplier' | t
       }}</label>
-      <input
-        id="supplier-query"
-        class="input"
-        type="search"
-        [placeholder]="'filters.supplierPlaceholder' | t"
-        [ngModel]="supplierQuery()"
-        (ngModelChange)="onSupplierQuery($event)"
-      />
+      <div class="searchfield">
+        <input
+          id="supplier-query"
+          class="input searchfield__input"
+          type="search"
+          [placeholder]="'filters.supplierPlaceholder' | t"
+          [ngModel]="supplierQuery()"
+          (ngModelChange)="onSupplierQuery($event)"
+        />
+        <span class="searchfield__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="11" cy="11" r="6" /><path d="m20 20-3.6-3.6" />
+          </svg>
+        </span>
+      </div>
     </div>
 
     <button
       type="button"
-      class="btn btn--sm"
+      class="btn btn--sm filters__clear"
       [disabled]="activeCount() === 0"
       (click)="clear()"
     >
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+        <path d="M3 5h18l-7 8v5l-4 2v-7z" />
+      </svg>
       {{ 'filters.clear' | t }}
     </button>
   </div>

@@ -44,6 +44,26 @@ export class FiltersBarComponent {
     this.store.setFilters({ ...current, rampIds: next });
   }
 
+  /** Скидає лише вибір рамп, не чіпаючи інші фільтри. */
+  clearRamps(): void {
+    this.store.setFilters({ ...this.filters(), rampIds: [] });
+  }
+
+  /** «Усі статуси» знімає і статуси, і дві окремі ознаки поруч із ними. */
+  clearStatuses(): void {
+    this.store.setFilters({
+      ...this.filters(),
+      statuses: [],
+      onlyDelayed: false,
+      onlyWalkIn: false,
+    });
+  }
+
+  noStatusFilter(): boolean {
+    const f = this.filters();
+    return f.statuses.length === 0 && !f.onlyDelayed && !f.onlyWalkIn;
+  }
+
   toggleStatus(status: BookingStatus): void {
     const current = this.filters();
     const next = current.statuses.includes(status)

@@ -1,0 +1,850 @@
+// Оболонка модуля магазину: бокове меню + верхня панель.
+//
+// Головне обмеження — жодного горизонтального скролу на вузькому екрані.
+// Тому кожен елемент, що може розпирати рядок (назва філії, довгі підписи),
+// має min-width: 0 і обрізається трьома крапками, а не витягує сторінку.
+
+.shell {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  min-height: 100vh;
+}
+
+.shell__main {
+  // Без min-width: 0 грід-колонка розтягується під найширший вміст, і широка
+  // таблиця тягне за собою всю сторінку.
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.shell__content {
+  min-width: 0;
+  padding: var(--space-5);
+}
+
+// ---------------------------------------------------------------- бокове меню
+.sidenav {
+  width: 108px;
+  flex: none;
+  background: var(--c-surface);
+  border-right: 1px solid var(--c-border);
+  padding: var(--space-3) var(--space-2);
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+}
+
+.sidenav__nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.sidenav__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-3) var(--space-2);
+  border-radius: var(--radius-md);
+  color: var(--c-text-muted);
+  text-decoration: none;
+  font-size: var(--fs-xs);
+  text-align: center;
+  min-height: var(--tap-target);
+
+  &:hover {
+    background: var(--c-surface-2);
+    color: var(--c-text);
+  }
+
+  &--active {
+    background: var(--c-primary-soft);
+    color: var(--c-primary-dark);
+    font-weight: var(--fw-medium);
+  }
+}
+
+.sidenav__icon {
+  display: grid;
+  place-items: center;
+}
+
+// ---------------------------------------------------------------- верхня панель
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  min-width: 0;
+}
+
+.topbar__burger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-surface);
+  color: var(--c-text);
+  cursor: pointer;
+}
+
+.topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+
+.topbar__logo {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--c-primary);
+  color: var(--c-text-inverse);
+}
+
+.topbar__title {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+}
+
+.topbar__store {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.topbar__storename {
+  min-width: 0;
+  font-size: var(--fs-sm);
+  color: var(--c-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+  flex: none;
+}
+
+.topbar__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  color: var(--c-text-muted);
+  text-decoration: none;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+
+  &:hover {
+    background: var(--c-surface-2);
+    color: var(--c-text);
+  }
+
+  &--active {
+    background: var(--c-primary-soft);
+    color: var(--c-primary-dark);
+    font-weight: var(--fw-medium);
+  }
+}
+
+.topbar__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.topbar__user {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+}
+
+.topbar__username {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--c-text);
+}
+
+.topbar__role {
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.topbar__logout {
+  flex: none;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--c-surface-2);
+  }
+}
+
+// ---------------------------------------------------------------- планшет
+@media (max-width: 1100px) {
+  .topbar__role,
+  .topbar__username {
+    display: none;
+  }
+}
+
+// ---------------------------------------------------------------- телефон
+@media (max-width: 767px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  // Меню їде у висувну панель: на телефоні колонка з іконками зʼїдала б
+  // третину ширини заради одного пункту.
+  .sidenav {
+    position: fixed;
+    z-index: 60;
+    top: 0;
+    left: 0;
+    width: 220px;
+    transform: translateX(-100%);
+    transition: transform 0.18s ease;
+    box-shadow: var(--shadow-2, 0 10px 30px rgba(0, 0, 0, 0.18));
+
+    &--open {
+      transform: translateX(0);
+    }
+  }
+
+  .sidenav__item {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: var(--space-3);
+    font-size: var(--fs-md);
+    text-align: left;
+  }
+
+  .topbar {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .topbar__burger {
+    display: inline-flex;
+  }
+
+  .topbar__store {
+    order: 5;
+    width: 100%;
+  }
+
+  .topbar__nav {
+    order: 4;
+    margin-left: auto;
+  }
+
+  .topbar__user {
+    display: none;
+  }
+
+  .topbar__link {
+    padding: 8px 10px;
+  }
+
+  .shell__content {
+    padding: var(--space-3);
+  }
+}
+
+@media (max-width: 420px) {
+  .topbar__title {
+    display: none;
+  }
+}
+
+// ---------------------------------------------------------------- показники дня
+// Картка з кольоровою межею зліва: колір миттєво відрізняє «розвантажено» від
+// «не приїхали», не змушуючи читати підпис.
+.kpi {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.kpi__card {
+  min-width: 0;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-left: 4px solid var(--c-booked);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+}
+
+.kpi__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.kpi__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  color: var(--c-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kpi__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--c-booked);
+}
+
+.kpi__value {
+  font-size: 30px;
+  font-weight: var(--fw-bold);
+  line-height: 1.15;
+  // Цифри в різних картках мають стояти в одну лінію.
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi__hint {
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+  min-height: 1em;
+}
+
+.kpi__card--slate { border-left-color: var(--c-booked); .kpi__icon { color: var(--c-booked); } }
+.kpi__card--amber { border-left-color: var(--c-arrived); .kpi__icon { color: var(--c-arrived); } }
+.kpi__card--green { border-left-color: var(--c-completed); .kpi__icon { color: var(--c-completed); } }
+.kpi__card--red { border-left-color: var(--c-noshow); .kpi__icon { color: var(--c-noshow); } }
+.kpi__card--maroon { border-left-color: var(--c-rejected); .kpi__icon { color: var(--c-rejected); } }
+.kpi__card--walkin { border-left-color: var(--c-focus); .kpi__icon { color: var(--c-focus); } }
+.kpi__card--violet { border-left-color: var(--c-delayed); .kpi__icon { color: var(--c-delayed); } }
+
+@media (max-width: 767px) {
+  .kpi {
+    // Дві колонки замість семи: на телефоні сім карток у рядок дали б
+    // горизонтальний скрол, а стовпчик із семи — нескінченну прокрутку.
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
+  .kpi__card {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .kpi__value {
+    font-size: 22px;
+  }
+}
+
+// ---------------------------------------------------------------- список прибуття
+.listcard {
+  min-width: 0;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+}
+
+.listcard__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.listcard__title {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+}
+
+.listcard__count,
+.listcard__empty {
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+}
+
+// Прокрутка живе ТУТ, а не в сторінці: інакше широка таблиця тягне вбік усе.
+.listcard__scroll {
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.listtable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.listtable th {
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--c-border);
+  color: var(--c-text-muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.listtable td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--c-border);
+  vertical-align: middle;
+}
+
+.listtable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.listtable tbody tr:hover {
+  background: var(--c-surface-2);
+}
+
+.listtable__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.listtable__slot {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.listtable__primary {
+  font-weight: var(--fw-medium);
+}
+
+.listtable__secondary {
+  color: var(--c-text-muted);
+  font-size: var(--fs-xs);
+}
+
+.listtable__vehicle {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-start;
+}
+
+.listtable__eta {
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+
+  &--late { color: var(--c-noshow); }
+  &--wait { color: var(--c-arrived); }
+  &--muted { color: var(--c-text-muted); }
+}
+
+.listtable__actions-col {
+  width: 1%;
+  text-align: right;
+}
+
+.listtable__more {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: var(--c-surface);
+  color: var(--c-text-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--c-surface-2);
+    color: var(--c-text);
+  }
+}
+
+// Номер авто — моноширинним: його звіряють символ за символом.
+.plate {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--c-surface-2);
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.rampchip {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--c-primary-soft);
+  color: var(--c-primary-dark);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+// --- телефонний вигляд списку -------------------------------------------
+.listcards {
+  display: none;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  gap: var(--space-2);
+}
+
+.listcards__btn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.listcards__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+
+  &--meta {
+    justify-content: flex-start;
+  }
+}
+
+.listcards__slot {
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.listcards__supplier {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listcards__eta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+  font-size: var(--fs-xs);
+}
+
+@media (max-width: 767px) {
+  .listcard {
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+  }
+
+  // Таблиця з семи колонок на телефоні не влазить у принципі — показуємо картки.
+  .listcard__scroll {
+    display: none;
+  }
+
+  .listcards {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+// ---------------------------------------------------------------- нижня зведена
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+}
+
+.summary__item {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.summary__body {
+  min-width: 0;
+}
+
+.summary__label {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary__value {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.summary__share {
+  font-size: var(--fs-sm);
+  color: var(--c-noshow);
+}
+
+.summary__icon {
+  flex: none;
+  color: var(--c-text-muted);
+}
+
+@media (max-width: 767px) {
+  .summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: var(--space-3);
+  }
+}
+
+.listcard__sync {
+  margin-left: auto;
+  color: var(--c-text-muted);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.page__walkin {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (max-width: 767px) {
+  .listcard__head {
+    flex-wrap: wrap;
+  }
+
+  .listcard__sync {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+// ---------------------------------------------------------------- поле пошуку
+// Іконка лежить ПОВЕРХ поля, а не під ним: без position:relative на обгортці
+// вона просто падала наступним рядком.
+.searchfield {
+  position: relative;
+  min-width: 0;
+}
+
+.searchfield__input {
+  padding-left: 38px;
+}
+
+.searchfield__icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  color: var(--c-text-muted);
+  pointer-events: none;
+}
+
+// ---------------------------------------------------------------- чипи статусів
+// Колір чипа = колір статусу: приймальник упізнає фільтр за кольором, тим
+// самим, яким позначені картки.
+@mixin chip-tone($color, $soft) {
+  border-color: $soft;
+  color: $color;
+
+  &.chip--active {
+    background: $soft;
+    border-color: $color;
+    color: $color;
+  }
+}
+
+.chip--booked { @include chip-tone(var(--c-booked), var(--c-booked-soft)); }
+.chip--arrived { @include chip-tone(var(--c-arrived), var(--c-arrived-soft)); }
+.chip--unloading { @include chip-tone(var(--c-unloading), var(--c-unloading-soft)); }
+.chip--completed { @include chip-tone(var(--c-completed), var(--c-completed-soft)); }
+.chip--no_show { @include chip-tone(var(--c-noshow), var(--c-noshow-soft)); }
+.chip--rejected { @include chip-tone(var(--c-rejected), var(--c-rejected-soft)); }
+.chip--cancelled { @include chip-tone(var(--c-cancelled), var(--c-cancelled-soft)); }
+.chip--delayed { @include chip-tone(var(--c-delayed), var(--c-delayed-soft)); }
+.chip--walkin { @include chip-tone(var(--c-focus), #e8f0fe); }
+
+// ---------------------------------------------------------------- дрібні правки
+// Сім карток мають ставати в один рядок на широкому екрані — заради цього
+// і робилася вся зведена.
+.kpi {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+// Колонка меню має тягнутися на всю висоту сторінки, а не обриватися там,
+// де закінчився перший екран.
+.sidenav {
+  height: auto;
+  min-height: 100vh;
+}
+
+// Панель фільтрів у макеті завжди розгорнута; кнопка-шухляда — лише для
+// телефона (правило показу живе в _layout.scss, у блоці ≤767px).
+.filters__toggle {
+  display: none;
+}
+
+.filters__clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-end;
+}
+
+// ---------------------------------------------------------------- пріоритети
+// Ці три правила навмисно записані двома класами: одноклассові програвали
+// базовим .btn і .input, які оголошені в _layout.scss, і не спрацьовували
+// зовсім. Специфічність тут не примха, а єдиний спосіб перебити базу.
+.filters .filters__toggle {
+  display: none;
+}
+
+.searchfield .searchfield__input {
+  padding-left: 38px;
+}
+
+// Дата має стояти в одному рядку з кнопками дня, як у макеті, а не з’їжджати
+// під них: 378 px на поле — надлишок, вистачає й половини.
+.page__toolbar .datenav {
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+}
+
+.page__toolbar .datenav__picker {
+  width: 160px;
+  flex: none;
+}
+
+// Кнопка позапланового прибуття тримається праворуч, як у макеті.
+.page__toolbar {
+  align-items: center;
+}
+
+.page__toolbar .page__walkin {
+  margin-left: auto;
+}
+
+@media (max-width: 767px) {
+  .filters .filters__toggle {
+    display: inline-flex;
+  }
+
+  .page__toolbar .datenav {
+    flex-wrap: wrap;
+  }
+
+  .page__toolbar .datenav__picker {
+    width: 100%;
+  }
+
+  .page__toolbar .page__walkin {
+    margin-left: 0;
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+// ---------------------------------------------------------------- добірка дрібниць
+// Колонка меню має заповнювати всю висоту сторінки, а не обриватися сірою
+// смугою там, де закінчився перший екран. Саме меню лишається на видноті.
+.sidenav {
+  align-self: stretch;
+  height: auto;
+  min-height: 100%;
+  position: relative;
+}
+
+.sidenav__nav {
+  position: sticky;
+  top: var(--space-3);
+}
+
+@media (max-width: 767px) {
+  // На телефоні панель висувна — sticky всередині фіксованої панелі зайвий.
+  .sidenav {
+    align-self: auto;
+    height: 100vh;
+  }
+
+  .sidenav__nav {
+    position: static;
+  }
+
+  // «Вийти» до правого краю: інакше воно тулиться до логотипа, а праворуч
+  // лишається порожньо.
+  .topbar__logout {
+    margin-left: auto;
+  }
+
+  // Підпис показника хай переноситься на два рядки, ніж обривається на
+  // «Середнє очікува…».
+  .kpi__label {
+    white-space: normal;
+    overflow: visible;
+  }
+}

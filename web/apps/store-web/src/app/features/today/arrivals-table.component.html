@@ -1,0 +1,111 @@
+<div class="listcard">
+  <header class="listcard__head">
+    <h2 class="listcard__title">{{ 'list.title' | t }}</h2>
+    <span class="listcard__count">{{ 'list.count' | t: { n: rows().length } }}</span>
+  </header>
+
+  @if (rows().length === 0) {
+    <p class="listcard__empty">{{ 'board.emptyDay' | t }}</p>
+  } @else {
+    <!--
+      Обгортка з власною прокруткою: таблиця широка, і без неї горизонтальний
+      скрол діставався б усій сторінці. На телефоні таблиця взагалі ховається —
+      замість неї картки нижче.
+    -->
+    <div class="listcard__scroll">
+      <table class="listtable">
+        <thead>
+          <tr>
+            <th scope="col">
+              <button type="button" class="listtable__sort" (click)="toggleSort()">
+                {{ 'list.col.slot' | t }}
+                <span aria-hidden="true">{{ sort() === 'asc' ? '↑' : '↓' }}</span>
+              </button>
+            </th>
+            <th scope="col">{{ 'list.col.supplier' | t }}</th>
+            <th scope="col">{{ 'list.col.vehicle' | t }}</th>
+            <th scope="col">{{ 'list.col.ramp' | t }}</th>
+            <th scope="col">{{ 'list.col.status' | t }}</th>
+            <th scope="col">{{ 'list.col.eta' | t }}</th>
+            <th scope="col" class="listtable__actions-col">{{ 'list.col.actions' | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (booking of rows(); track booking.id) {
+            <tr>
+              <td class="listtable__slot">{{ slotRange(booking) }}</td>
+              <td>
+                <div class="listtable__primary">{{ booking.supplierName }}</div>
+                @if (supplierNote(booking); as note) {
+                  <div class="listtable__secondary">{{ note }}</div>
+                }
+              </td>
+              <td>
+                <div class="listtable__vehicle">
+                  @if (booking.vehicle.brand) {
+                    <span class="listtable__secondary">{{ booking.vehicle.brand }}</span>
+                  }
+                  <span class="plate">{{ booking.vehicle.plateNumber }}</span>
+                </div>
+              </td>
+              <td><span class="rampchip">{{ rampName(booking.rampId) }}</span></td>
+              <td><app-status-badge [status]="booking.status" /></td>
+              <td>
+                @if (etaLine(booking); as eta) {
+                  @if (eta.main) {
+                    <div class="listtable__eta" [class]="'listtable__eta listtable__eta--' + eta.tone">
+                      {{ eta.main }}
+                    </div>
+                  }
+                  @if (eta.note) {
+                    <div class="listtable__secondary">{{ eta.note }}</div>
+                  }
+                }
+              </td>
+              <td class="listtable__actions-col">
+                <button
+                  type="button"
+                  class="listtable__more"
+                  [attr.aria-label]="'list.open' | t"
+                  (click)="openBooking.emit(booking)"
+                >
+                  ⋮
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!--
+      Телефонний вигляд того самого списку. Не «та сама таблиця, але вужча»:
+      сім колонок на 360 px не влазять у принципі, тож кожен рядок стає карткою.
+    -->
+    <ul class="listcards">
+      @for (booking of rows(); track booking.id) {
+        <li class="listcards__item">
+          <button type="button" class="listcards__btn" (click)="openBooking.emit(booking)">
+            <div class="listcards__row">
+              <span class="listcards__slot">{{ slotRange(booking) }}</span>
+              <app-status-badge [status]="booking.status" />
+            </div>
+            <div class="listcards__supplier">{{ booking.supplierName }}</div>
+            <div class="listcards__row listcards__row--meta">
+              <span class="plate">{{ booking.vehicle.plateNumber }}</span>
+              <span class="rampchip">{{ rampName(booking.rampId) }}</span>
+            </div>
+            @if (etaLine(booking); as eta) {
+              <div class="listcards__eta">
+                @if (eta.main) {
+                  <span [class]="'listtable__eta listtable__eta--' + eta.tone">{{ eta.main }}</span>
+                }
+                <span class="listtable__secondary">{{ eta.note }}</span>
+              </div>
+            }
+          </button>
+        </li>
+      }
+    </ul>
+  }
+</div>

@@ -34,9 +34,13 @@ import { DelayDialogComponent } from './dialogs/delay-dialog.component';
 import { RejectDialogComponent } from './dialogs/reject-dialog.component';
 import { ReassignDialogComponent } from './dialogs/reassign-dialog.component';
 import { AuditDialogComponent } from './dialogs/audit-dialog.component';
+import { ModalComponent } from '../../shared/modal.component';
+import { ArrivalsTableComponent } from './arrivals-table.component';
+import { SummaryBarComponent } from '../../shared/summary-bar.component';
 import { WalkInDialogComponent } from '../walk-in/walk-in-dialog.component';
 
 type DialogKind =
+  | 'details'
   | 'complete'
   | 'noShow'
   | 'reject'
@@ -62,6 +66,9 @@ type DialogKind =
     RejectDialogComponent,
     ReassignDialogComponent,
     AuditDialogComponent,
+    ModalComponent,
+    ArrivalsTableComponent,
+    SummaryBarComponent,
     WalkInDialogComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -73,6 +80,16 @@ export class TodayPage implements OnInit, OnDestroy {
 
   readonly dialog = signal<DialogKind>(null);
   readonly selected = signal<Booking | null>(null);
+
+  /**
+   * Рядок списку відкриває ту саму картку з тими самими діями, що й на дошці.
+   * Дублювати кнопки в таблиці не варто: набір дій залежить від статусу і
+   * прав, і два місця з тією самою логікою неминуче розійдуться.
+   */
+  openDetails(booking: Booking): void {
+    this.selected.set(booking);
+    this.dialog.set('details');
+  }
 
   readonly dateLabel = computed(() => formatDate(this.store.viewDateKey()));
 
