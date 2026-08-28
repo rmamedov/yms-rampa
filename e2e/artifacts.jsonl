@@ -41,3 +41,26 @@
 {"kind":"supplier","id":"a9c9a005-633e-4401-9ca9-c6272069e620","note":"UITEST-Постачальник-mtcvvsy4355-видалення [run=mtcvvsy4355]","at":"2026-08-28T11:44:07.250Z"}
 {"kind":"supplier","id":"be4fc624-84df-4fc4-bac8-ce82f03bfae6","note":"UITEST-Постачальник-mtcvwaf4147-доступ [run=mtcvwaf4147]","at":"2026-08-28T11:44:30.666Z"}
 {"kind":"supplier","id":"a26e0f88-172a-4b04-b123-563fdf92dfa9","note":"UITEST-Постачальник-mtcvwaf4147-видалення [run=mtcvwaf4147]","at":"2026-08-28T11:44:40.616Z"}
+{"kind":"store-general","id":"2226","note":"назва/телефон/адреса, було: Сільпо, вул. Гвардійців-Широнінців, 42 [run=mtcvxw4y981]","at":"2026-08-28T11:47:26.301Z"}
+{"kind":"store-visibility","id":"2229","note":"було: true [run=mtcvxw4y981]","at":"2026-08-28T11:47:31.011Z"}
+{"kind":"store-status","id":"2227","note":"active→paused→active [run=mtcvxw4y981]","at":"2026-08-28T11:47:41.554Z"}
+{"kind":"store-config","id":"2230","note":"нова версія обмежень, було lead=60 [run=mtcvxw4y981]","at":"2026-08-28T11:49:58.645Z"}
+{"kind":"store-config","id":"2230","note":"негайна чинність, було no-show=30 [run=mtcvxw4y981]","at":"2026-08-28T11:50:03.649Z"}
+{"kind":"reserved-slot-rule","id":"2227/9ea228df-dea8-4a2f-8128-d0b19f9d60b5","note":"резерв на середу [run=mtcvxw4y981]","at":"2026-08-28T11:50:15.775Z"}
+{"kind":"reserved-slot-rule","id":"2229/236b7ebb-2ffe-4ec7-9b86-ebb42c6baa7e","note":"перевірка перетину [run=mtcvxw4y981]","at":"2026-08-28T11:50:25.322Z"}
+{"kind":"reserved-slot-rule","id":"2226/00c9d8fb-5014-4564-a79f-620eb10389e5","note":"резерв на 2026-08-29 [run=mtcvxw4y981]","at":"2026-08-28T11:50:31.994Z"}
+{"kind":"slot-block","id":"2230/1d0c2308-b421-4aa7-bba9-1fc7e8e19bf1","note":"UITEST блокування mtcw46pc [run=mtcvxw4y981]","at":"2026-08-28T11:50:35.208Z"}
+{"kind":"slot-block","id":"2226/2f7aa059-515f-4b1a-82bf-6901ee700505","note":"UITEST рампа mtcw4ivi [run=mtcvxw4y981]","at":"2026-08-28T11:50:50.979Z"}
+{"kind":"supplier","id":"3cbe23fa-12f0-4999-84a3-9df19427fdc7","note":"UITEST-Постачальник-mtcvxw4y981-доступ [run=mtcvxw4y981]","at":"2026-08-28T11:51:27.691Z"}
+{"kind":"supplier","id":"4dc42a1d-e771-405c-bd3d-01a4cd6c11dc","note":"UITEST-Постачальник-mtcvxw4y981-створення [run=mtcvxw4y981]","at":"2026-08-28T11:51:38.528Z"}
+{"kind":"supplier","id":"fd5599e1-45fb-48bf-98fa-8e6abb1d818f","note":"UITEST-Постачальник-mtcvxw4y981-дублікат-1 [run=mtcvxw4y981]","at":"2026-08-28T11:51:43.053Z"}
+{"kind":"supplier","id":"df2a8049-d1c6-4ccb-9779-3268105cafae","note":"UITEST-Постачальник-mtcvxw4y981-назва-дубль [run=mtcvxw4y981]","at":"2026-08-28T11:51:48.305Z"}
+{"kind":"supplier","id":"6fadbe61-5859-45d9-b99b-e564a20704b2","note":"UITEST-Постачальник-mtcvxw4y981-редагування [run=mtcvxw4y981]","at":"2026-08-28T11:51:53.537Z"}
+{"kind":"supplier","id":"b17e71bb-a222-4996-9ce7-dab5d843e90f","note":"UITEST-Постачальник-mtcvxw4y981-пауза [run=mtcvxw4y981]","at":"2026-08-28T11:51:58.831Z"}
+{"kind":"supplier","id":"5d909079-96c8-4b59-91a3-d30de602435e","note":"UITEST-Постачальник-mtcvxw4y981-фільтр [run=mtcvxw4y981]","at":"2026-08-28T11:52:05.985Z"}
+{"kind":"supplier","id":"c843bfc1-3421-41b4-bef5-cbd5a31552e4","note":"UITEST-Постачальник-mtcw6oel234-повнота [run=mtcw6oel234]","at":"2026-08-28T11:52:36.546Z"}
+{"kind":"supplier","id":"c24cf8a4-8a75-48ac-b67b-ec03141c6dd1","note":"UITEST-Постачальник-mtcw6oel234-пошук-київ [run=mtcw6oel234]","at":"2026-08-28T11:52:42.166Z"}
+{"kind":"supplier","id":"70ab7e1d-254e-4ffc-aff8-e22e6602f653","note":"UITEST-Постачальник-mtcw6oel234-сміття [run=mtcw6oel234]","at":"2026-08-28T11:52:47.963Z"}
+{"kind":"supplier","id":"82452aa2-a8ff-4e3c-a894-004b9b1922e5","note":"UITEST-Постачальник-mtcw6oel234-видалення [run=mtcw6oel234]","at":"2026-08-28T11:52:57.028Z"}
+{"kind":"booking","id":"283a7e6d-3794-40f1-85de-914299abfd87","note":"UITEST-busy 2026-08-31T03:00:00Z","at":"2026-08-28T11:55:24.767Z"}
+{"kind":"vehicle","id":"e2ecc7c4-a4f0-4b36-ae39-369875ae4aa9","note":"UT7313XX","at":"2026-08-28T11:56:25.790Z"}
