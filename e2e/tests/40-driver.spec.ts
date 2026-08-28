@@ -64,8 +64,11 @@ let shared: Shared;
 test.beforeAll(async () => {
   const ctx = await api();
   const supplierToken = await supplierAuth(ctx);
-  const stores = await kyivStores(ctx, supplierToken);
   const arrivalStores = await arrivalSandbox(ctx, supplierToken);
+  // Київські філії приймають до обіду, тож увечері вільних слотів на сьогодні
+  // в них немає. Цілодобова філія-пісочниця йде запасним варіантом, щоб набір
+  // не залежав від години прогону.
+  const stores = [...(await kyivStores(ctx, supplierToken)), ...arrivalStores];
   const label = mark();
   const driver = await createDriver(ctx, supplierToken, label);
   const emptyDriver = await createDriver(ctx, supplierToken, `${label}-порожній`);
