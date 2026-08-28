@@ -794,9 +794,19 @@ test.describe('M-03 Дії магазину', () => {
 
     // X-05: без причини і часу форма не проходить.
     await dialog.getByRole('button', { name: 'Зберегти' }).click();
-    const errors = (await dialog.locator('.form-error').allInnerTexts()).join(' ');
-    expect(errors, 'мають бути вимоги причини і нового часу').toContain('Оберіть причину затримки');
-    expect(errors).toContain('Вкажіть новий орієнтовний час');
+    // allInnerTexts() не чекає появи елементів і повертає порожньо, якщо
+    // Angular ще не перемалював форму після натискання. Тому чекаємо на текст
+    // через expect — саме так це зроблено в сусідніх перевірках.
+    // Помилок дві, тому адресуємо кожну окремо: toContainText на наборі з
+    // двох елементів зривається в strict mode.
+    await expect(
+      dialog.locator('.form-error', { hasText: 'Оберіть причину затримки' }),
+      'має вимагатися причина затримки',
+    ).toBeVisible();
+    await expect(
+      dialog.locator('.form-error', { hasText: 'Вкажіть новий орієнтовний час' }),
+      'має вимагатися новий час',
+    ).toBeVisible();
 
     // Новий час — на годину пізніше за початок слоту, у межах тієї самої доби.
     const eta = new Date(new Date(booking.slotStart).getTime() + 60 * 60_000).toISOString();
