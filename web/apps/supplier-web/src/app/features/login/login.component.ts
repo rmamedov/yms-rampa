@@ -24,7 +24,7 @@ export class LoginComponent {
   protected readonly errorKey = signal<string | null>(null);
   protected readonly driverHint = signal(false);
   protected readonly showDemo = environment.useMocks;
-  protected readonly demo = environment.demoLogin;
+  protected readonly demo = environment.demoLogin ?? { email: '', password: '' };
 
   protected submit(): void {
     if (this.pending()) {

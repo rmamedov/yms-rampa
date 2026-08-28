@@ -8,5 +8,6 @@ export const environment: AppEnvironment = {
   useMocks: false,
   apiBaseUrl: '/api',
   mockLatencyMs: 0,
-  demoLogin: { email: 'supplier@rampa.ua', password: 'rampa2026' },
+  // demoLogin у проді немає: підказка не рендериться (useMocks=false), а рядок
+  // із паролем усе одно їхав би в публічний бандл.
 };

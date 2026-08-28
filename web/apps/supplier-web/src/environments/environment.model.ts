@@ -6,6 +6,12 @@ export interface AppEnvironment {
   readonly apiBaseUrl: string;
   /** Затримка відповіді моків, мс (імітація мережі). */
   readonly mockLatencyMs: number;
-  /** Демо-облікові дані, що показуються на екрані логіну в мок-режимі. */
-  readonly demoLogin: { readonly email: string; readonly password: string };
+  /**
+   * Демо-доступ, що показується на екрані логіну В МОК-РЕЖИМІ.
+   *
+   * У прод-конфігурації його немає свідомо: там useMocks=false, підказка не
+   * рендериться, а рядок усе одно потрапляв би у публічний бандл і виглядав
+   * як справжній пароль. Тому поле необовʼязкове.
+   */
+  readonly demoLogin?: { readonly email: string; readonly password: string };
 }

@@ -83,7 +83,10 @@ interface LoginAttempts {
 const ACTIVE_STATUSES = new Set(['booked', 'arrived', 'unloading']);
 const LOCK_SECONDS = 900;
 
-export const DEMO_CREDENTIALS = environment.demoLogin;
+// Порожні значення — лише щоб задовольнити типи: мок-бекенд працює виключно
+// при useMocks=true, а там demoLogin заданий. Літерала з паролем тут свідомо
+// немає, інакше він потрапив би і в прод-бандл.
+export const DEMO_CREDENTIALS = environment.demoLogin ?? { email: '', password: '' };
 
 const DEFAULT_SETTINGS: NetworkSettings = {
   holdTtlMinutes: HOLD_TTL_MINUTES,
