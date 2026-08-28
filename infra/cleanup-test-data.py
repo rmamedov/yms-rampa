@@ -44,6 +44,20 @@ def call(method, base, path, token=None, body=None):
         return 0, {"error": str(e)}
 
 
+_BRANCH_CACHE: dict = {}
+
+
+def resolve_branch(external_id, token):
+    """externalId філії → branchId. Кешуємо: у реєстрі десятки записів на філію."""
+    if external_id in _BRANCH_CACHE:
+        return _BRANCH_CACHE[external_id]
+    st, res = call("GET", ADMIN, f"/api/admin/v1/stores?q={external_id}&perPage=20", token)
+    items = res.get("items") or []
+    match = next((i for i in items if i.get("externalId") == external_id), None)
+    _BRANCH_CACHE[external_id] = match["branchId"] if match else None
+    return _BRANCH_CACHE[external_id]
+
+
 def main():
     stats = Counter()
     print("Прибирання тестових даних" + (" (пробний запуск)" if DRY else ""))
@@ -98,14 +112,22 @@ def main():
         elif kind == "vehicle":
             st, _ = call("POST", SUPPLIER, f"/api/supplier/v1/vehicles/{ident}/deactivate", supplier_token)
             stats["авто деактивоване" if st in (200, 204) else f"авто не прибране ({st})"] += 1
-        elif kind == "reserved-slot-rule":
-            store = e.get("note", "").split("|")[0].strip()
-            st, _ = call("DELETE", ADMIN, f"/api/admin/v1/stores/{store}/reserved-slot-rules/{ident}", admin_token)
-            stats["резерв видалено" if st in (200, 204) else f"резерв не видалено ({st})"] += 1
-        elif kind == "slot-block":
-            store = e.get("note", "").split("|")[0].strip()
-            st, _ = call("DELETE", ADMIN, f"/api/admin/v1/stores/{store}/slot-blocks/{ident}", admin_token)
-            stats["блокування знято" if st in (200, 204) else f"блокування не знято ({st})"] += 1
+        elif kind in ("reserved-slot-rule", "slot-block"):
+            # Тести реєструють ці записи як «<externalId>/<id>»: сам ідентифікатор
+            # без філії марний, бо маршрут вкладений у магазин. Раніше філію
+            # шукали в полі note — там її не було, і жоден резерв не прибирався.
+            store_id, _, rule_id = ident.partition("/")
+            if not rule_id:
+                stats[f"{kind}: не розібрано ідентифікатор"] += 1
+                continue
+            branch = resolve_branch(store_id, admin_token)
+            if branch is None:
+                stats[f"{kind}: філію {store_id} не знайдено"] += 1
+                continue
+            path = "reserved-slot-rules" if kind == "reserved-slot-rule" else "slot-blocks"
+            st, _ = call("DELETE", ADMIN, f"/api/admin/v1/stores/{branch}/{path}/{rule_id}", admin_token)
+            label = "резерв" if kind == "reserved-slot-rule" else "блокування"
+            stats[f"{label} видалено" if st in (200, 204) else f"{label} не видалено ({st})"] += 1
         elif kind in ("walk-in",):
             # Walk-in створюється одразу в статусі arrived, тому скасувати його
             # штатним шляхом не можна. Лишаємо як історію — це не заважає.

@@ -258,7 +258,8 @@ export class MockStoresApi extends StoresApi {
       id: this.db.nextId('cfg'),
       storeId,
       version,
-      effectiveFrom: `${draft.effectiveFrom}T00:00:00+00:00`,
+      // Як і бекенд: нова версія діє з моменту збереження.
+      effectiveFrom: new Date().toISOString(),
       receivingWindows: draft.receivingWindows,
       slotSizeMinutes: draft.slotSizeMinutes,
       ramps: draft.ramps,

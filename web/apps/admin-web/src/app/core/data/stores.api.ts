@@ -26,7 +26,6 @@ import {
  */
 export interface StoreConfigurationDraft {
   /** STC-60: не раніше завтра (для першої версії — не раніше сьогодні). */
-  readonly effectiveFrom: string;
   readonly slotSizeMinutes: SlotSizeMinutes;
   readonly maxVehicleWeightTons: number;
   readonly receivingWindows: readonly ReceivingWindow[];

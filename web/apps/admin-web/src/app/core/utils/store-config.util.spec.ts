@@ -7,11 +7,9 @@ import {
   effectiveIntervals,
   emptyReceivingWindows,
   generateSlotStarts,
-  minimumEffectiveDate,
   normalizeReceivingWindows,
   ReservedRuleCandidate,
   validateDayIntervals,
-  validateEffectiveDate,
   validateException,
   validateRamps,
   validateReservedRule,
@@ -365,28 +363,5 @@ describe('STC-42 — правила резерву', () => {
         { ...base, active: true },
       ]),
     ).toContain('reserves.error.overlap');
-  });
-});
-
-describe('STC-60 — дата набрання чинності', () => {
-  const today = '2026-08-27';
-
-  it('для наступних версій мінімальна дата — завтра', () => {
-    expect(minimumEffectiveDate(false, today)).toBe('2026-08-28');
-    expect(validateEffectiveDate(today, false, today)).toBe(
-      'conflicts.error.effectiveFrom',
-    );
-    expect(validateEffectiveDate('2026-08-26', false, today)).toBe(
-      'conflicts.error.effectiveFrom',
-    );
-    expect(validateEffectiveDate('2026-08-28', false, today)).toBeNull();
-  });
-
-  it('для ПЕРШОЇ версії бекенд дозволяє сьогоднішню дату', () => {
-    expect(minimumEffectiveDate(true, today)).toBe(today);
-    expect(validateEffectiveDate(today, true, today)).toBeNull();
-    expect(validateEffectiveDate('2026-08-26', true, today)).toBe(
-      'conflicts.error.effectiveFrom',
-    );
   });
 });

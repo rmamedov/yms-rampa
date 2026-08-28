@@ -318,7 +318,6 @@ export class HttpStoresApi extends StoresApi {
   ): Observable<StoreConfiguration> {
     return this.api
       .post<WireConfiguration>(`/stores/${storeId}/configurations`, {
-        effectiveFrom: draft.effectiveFrom,
         slotSizeMinutes: draft.slotSizeMinutes,
         maxVehicleWeightTons: draft.maxVehicleWeightTons,
         receivingWindows: draft.receivingWindows.map((w) => ({

@@ -22,7 +22,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Прикладний шар конфігурації, резервів і блокувань: STC-42, STC-50..STC-52, STC-60, DATA-09.
+ * Прикладний шар конфігурації, резервів і блокувань: STC-42, STC-50..STC-52, DATA-09.
  */
 #[CoversClass(StoreConfigurationService::class)]
 #[CoversClass(ReservedSlotRuleService::class)]
@@ -67,25 +67,25 @@ final class StoreConfigurationServiceTest extends TestCase
         self::assertCount(2, $this->configs->findAllForStore(BranchFactory::KYIV_ID));
     }
 
-    /** STC-60: зміни сітки набирають чинності не раніше завтра. */
-    public function testEffectiveFromCannotBeTodayForSubsequentVersions(): void
+    /**
+     * Кожна наступна версія теж діє з сьогодні: правило «не раніше завтра»
+     * (STC-60) знято на вимогу експлуатації — зміни мають застосовуватися
+     * негайно.
+     */
+    public function testSubsequentVersionMayTakeEffectToday(): void
     {
         $this->configurations->createVersion(BranchFactory::KYIV_ID, $this->payload());
 
-        $this->expectException(ValidationException::class);
-        $this->expectExceptionMessage('не раніше');
-
-        $this->configurations->createVersion(
+        $result = $this->configurations->createVersion(
             BranchFactory::KYIV_ID,
             $this->payload(['effectiveFrom' => '2026-08-27T00:00:00+00:00']),
         );
+
+        self::assertSame(2, $result['version']);
+        self::assertSame('2026-08-27T00:00:00+00:00', $result['effectiveFrom']);
     }
 
-    /**
-     * Перша конфігурація магазину може діяти вже сьогодні: сітки досі не
-     * існувало, отже немає бронювань, які треба захищати. Без цього філію
-     * неможливо налаштувати й активувати того самого дня (сценарій E2E-01).
-     */
+    /** Конфігурація може діяти вже сьогодні — і перша, і будь-яка наступна. */
     public function testFirstConfigurationMayTakeEffectToday(): void
     {
         $result = $this->configurations->createVersion(
@@ -101,7 +101,7 @@ final class StoreConfigurationServiceTest extends TestCase
     public function testFirstConfigurationCannotTakeEffectInThePast(): void
     {
         $this->expectException(ValidationException::class);
-        $this->expectExceptionMessage('не раніше');
+        $this->expectExceptionMessage('заднім числом');
 
         $this->configurations->createVersion(
             BranchFactory::KYIV_ID,
@@ -109,14 +109,20 @@ final class StoreConfigurationServiceTest extends TestCase
         );
     }
 
-    public function testEffectiveFromDefaultsToTomorrowLocalMidnight(): void
+    /**
+     * Без явної дати конфігурація діє З МОМЕНТУ ЗБЕРЕЖЕННЯ, а не з наступного
+     * дня: саме цього очікує адміністратор, натискаючи «Зберегти».
+     */
+    public function testEffectiveFromDefaultsToNow(): void
     {
-        // Перша версія діє з сьогодні, тому дефолт «завтра» перевіряємо на другій.
         $this->configurations->createVersion(BranchFactory::KYIV_ID, $this->payload());
         $result = $this->configurations->createVersion(BranchFactory::KYIV_ID, $this->payload());
 
-        // Завтра опівночі за Києвом = 2026-08-27T21:00:00Z (літній час UTC+3).
-        self::assertSame('2026-08-27T21:00:00+00:00', $result['effectiveFrom']);
+        // Годинник тесту зупинено на 2026-08-27T08:00:00Z.
+        self::assertSame('2026-08-27T08:00:00+00:00', $result['effectiveFrom']);
+
+        // І ця версія одразу є чинною, без очікування наступної доби.
+        self::assertSame(2, $this->configurations->current(BranchFactory::KYIV_ID)['version']);
     }
 
     /** STC-20: розмір слоту поза enum відхиляється з кодом CONFIG_VALIDATION_FAILED. */
@@ -143,7 +149,10 @@ final class StoreConfigurationServiceTest extends TestCase
         self::assertSame(30, $current['slotSizeMinutes']);
     }
 
-    /** До дати X діє попередня версія конфігурації (STC-60). */
+    /**
+     * Явно майбутню дату через API все ще можна задати — тоді до неї діє
+     * попередня версія. Інтерфейс так не робить: там чинність негайна.
+     */
     public function testFutureVersionDoesNotOverrideCurrentBeforeEffectiveDate(): void
     {
         $this->configs->save(BranchFactory::completeConfiguration(maxWeight: 10.0));

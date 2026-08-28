@@ -1,0 +1,39 @@
+{"kind":"store-general","id":"2226","note":"назва/телефон/адреса, було: Сільпо, вул. Гвардійців-Широнінців, 42 [run=mtcue1pz245]","at":"2026-08-28T11:02:33.378Z"}
+{"kind":"store-visibility","id":"2229","note":"було: true [run=mtcue1pz245]","at":"2026-08-28T11:02:37.512Z"}
+{"kind":"store-status","id":"2227","note":"active→paused→active [run=mtcue1pz245]","at":"2026-08-28T11:02:47.244Z"}
+{"kind":"store-config","id":"2230","note":"нова версія обмежень, було lead=60 [run=mtcui1pw127]","at":"2026-08-28T11:05:54.863Z"}
+{"kind":"reserved-slot-rule","id":"2227/bbbfca82-8141-4137-aaee-460e98fcd648","note":"резерв на середу [run=mtcui1pw127]","at":"2026-08-28T11:06:10.597Z"}
+{"kind":"reserved-slot-rule","id":"2229/73c2b3c9-a338-48ed-a36b-cba21bdc45fd","note":"перевірка перетину [run=mtcuj3zo197]","at":"2026-08-28T11:06:20.259Z"}
+{"kind":"reserved-slot-rule","id":"2226/17a07a76-5a3b-48f4-8b92-92a936f8bd93","note":"резерв на 2026-08-29 [run=mtcuj3zo197]","at":"2026-08-28T11:06:26.949Z"}
+{"kind":"slot-block","id":"2230/1f58f2e8-1abf-4478-8107-bb5e327d2bd0","note":"UITEST блокування mtcujhq6 [run=mtcuj3zo197]","at":"2026-08-28T11:06:30.202Z"}
+{"kind":"slot-block","id":"2226/57fae25c-5e7f-40d3-9512-dd243af5a24a","note":"UITEST рампа mtcuju7a [run=mtcuj3zo197]","at":"2026-08-28T11:06:46.350Z"}
+{"kind":"store-general","id":"2226","note":"назва/телефон/адреса, було: Сільпо, вул. Гвардійців-Широнінців, 42 [run=mtcuqhkp764]","at":"2026-08-28T11:13:13.734Z"}
+{"kind":"store-visibility","id":"2229","note":"було: true [run=mtcuqhkp764]","at":"2026-08-28T11:13:17.946Z"}
+{"kind":"store-status","id":"2227","note":"active→paused→active [run=mtcuqhkp764]","at":"2026-08-28T11:13:27.390Z"}
+{"kind":"store-config","id":"2230","note":"нова версія обмежень, було lead=60 [run=mtcuqhkp764]","at":"2026-08-28T11:15:43.904Z"}
+{"kind":"reserved-slot-rule","id":"2227/e808784b-0f4e-46a9-8867-724fcee33875","note":"резерв на середу [run=mtcuqhkp764]","at":"2026-08-28T11:15:59.026Z"}
+{"kind":"reserved-slot-rule","id":"2229/66104a13-da98-4f70-b6f3-7e4b9a7dbe89","note":"перевірка перетину [run=mtcuvq1w609]","at":"2026-08-28T11:16:07.948Z"}
+{"kind":"reserved-slot-rule","id":"2226/d394ca41-240c-4570-917f-12caf64d9445","note":"резерв на 2026-08-29 [run=mtcuvq1w609]","at":"2026-08-28T11:16:14.321Z"}
+{"kind":"slot-block","id":"2230/549a436f-f7bf-46f4-973a-42d57cae0054","note":"UITEST блокування mtcuw2z5 [run=mtcuvq1w609]","at":"2026-08-28T11:16:17.482Z"}
+{"kind":"slot-block","id":"2226/7fc5f7d0-817b-4abf-acda-1523ab875c45","note":"UITEST рампа mtcuwf2d [run=mtcuvq1w609]","at":"2026-08-28T11:16:33.174Z"}
+{"kind":"store-general","id":"2226","note":"назва/телефон/адреса, було: Сільпо, вул. Гвардійців-Широнінців, 42 [run=mtcv46ha604]","at":"2026-08-28T11:22:52.153Z"}
+{"kind":"store-visibility","id":"2229","note":"було: true [run=mtcv46ha604]","at":"2026-08-28T11:22:56.260Z"}
+{"kind":"store-status","id":"2227","note":"active→paused→active [run=mtcv46ha604]","at":"2026-08-28T11:23:06.193Z"}
+{"kind":"store-config","id":"2230","note":"нова версія обмежень, було lead=60 [run=mtcv5nnq49]","at":"2026-08-28T11:25:41.448Z"}
+{"kind":"store-config","id":"2230","note":"негайна чинність, було no-show=30 [run=mtcv5nnq49]","at":"2026-08-28T11:25:45.880Z"}
+{"kind":"reserved-slot-rule","id":"2229/ab33bf74-7d21-4675-9df6-98b46f11be4e","note":"перевірка перетину [run=mtcv8rr1830]","at":"2026-08-28T11:26:16.310Z"}
+{"kind":"reserved-slot-rule","id":"2226/c58e32e6-d393-4902-8c31-7d33cd5b0e71","note":"резерв на 2026-08-29 [run=mtcv8rr1830]","at":"2026-08-28T11:26:22.851Z"}
+{"kind":"slot-block","id":"2230/79004e5a-00dc-4013-ac20-f8dd8272bb2b","note":"UITEST блокування mtcv94j8 [run=mtcv8rr1830]","at":"2026-08-28T11:26:26.085Z"}
+{"kind":"slot-block","id":"2226/19077531-736b-471e-9319-15b70e0c9daf","note":"UITEST рампа mtcv9glf [run=mtcv8rr1830]","at":"2026-08-28T11:26:41.781Z"}
+{"kind":"reserved-slot-rule","id":"2227/07ce467d-771a-47fd-90d2-04f73df5beba","note":"резерв на середу [run=mtcvc0z6499]","at":"2026-08-28T11:28:46.036Z"}
+{"kind":"reserved-slot-rule","id":"2227/f45f22b9-0d37-463b-8797-c6b29e1b7523","note":"резерв на середу [run=mtcvcd64754]","at":"2026-08-28T11:29:02.252Z"}
+{"kind":"store-general","id":"2226","note":"назва/телефон/адреса, було: Сільпо, вул. Гвардійців-Широнінців, 42 [run=mtcvd5es127]","at":"2026-08-28T11:30:51.900Z"}
+{"kind":"store-visibility","id":"2229","note":"було: true [run=mtcvd5es127]","at":"2026-08-28T11:30:55.963Z"}
+{"kind":"store-status","id":"2227","note":"active→paused→active [run=mtcvd5es127]","at":"2026-08-28T11:31:05.709Z"}
+{"kind":"store-config","id":"2230","note":"нова версія обмежень, було lead=60 [run=mtcvd5es127]","at":"2026-08-28T11:33:21.523Z"}
+{"kind":"store-config","id":"2230","note":"негайна чинність, було no-show=30 [run=mtcvd5es127]","at":"2026-08-28T11:33:26.138Z"}
+{"kind":"reserved-slot-rule","id":"2227/2aff0f77-6900-433c-9eed-37f2fd3d4a16","note":"резерв на середу [run=mtcvd5es127]","at":"2026-08-28T11:33:38.066Z"}
+{"kind":"reserved-slot-rule","id":"2229/108e631d-1fe4-49e8-b386-cd0c6103d534","note":"перевірка перетину [run=mtcvd5es127]","at":"2026-08-28T11:33:47.527Z"}
+{"kind":"reserved-slot-rule","id":"2226/31877e5f-0d0b-4c3c-bed6-e1f698344b28","note":"резерв на 2026-08-29 [run=mtcvd5es127]","at":"2026-08-28T11:33:54.700Z"}
+{"kind":"slot-block","id":"2230/0dbd4b72-711c-41bf-af89-43a49e1a9d7f","note":"UITEST блокування mtcvit4f [run=mtcvd5es127]","at":"2026-08-28T11:33:57.839Z"}
+{"kind":"slot-block","id":"2226/7f24282e-a4d6-4494-9145-5c81388ba2d8","note":"UITEST рампа mtcvj53e [run=mtcvd5es127]","at":"2026-08-28T11:34:13.343Z"}

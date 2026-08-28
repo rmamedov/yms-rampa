@@ -36,7 +36,7 @@ test.beforeEach(async ({ page }) => {
 async function openLimits(page: import('@playwright/test').Page, externalId: string) {
   const store = await sandboxStore(externalId);
   await goto(page, `/stores/${store.branchId}`);
-  await page.locator('.tabs').waitFor({ state: 'visible', timeout: 20_000 });
+  await page.locator('.section-nav').waitFor({ state: 'visible', timeout: 20_000 });
   await openTab(page, 'Обмеження');
   return store;
 }
@@ -74,7 +74,7 @@ test.describe('A-06 Вкладка «Обмеження»', () => {
     for (const value of ['0.5', '45', '12.3', '0', '40.5']) {
       await page.locator('#max-weight').fill(value);
       await expect(
-        page.locator('.field-error'),
+        page.locator('app-store-limits-tab .field-error'),
         `тоннаж ${value} має бути відхилений`,
       ).toContainText('Тоннаж — від 1.0 до 40.0 з кроком 0.5');
     }
@@ -196,7 +196,6 @@ test.describe('A-06 Вкладка «Обмеження»', () => {
     const before = await apiGet<any>(`/stores/${store.branchId}/configurations/current`);
 
     await page.locator('#max-weight').fill('45');
-    await page.locator('#effective-from').fill(dayOffset(2));
     const save = page.locator('button.btn-primary', { hasText: /Зберегти|Завантаження/ });
     if (await save.isEnabled()) {
       await save.click();
@@ -219,10 +218,9 @@ test.describe('A-06 Вкладка «Обмеження»', () => {
     const target = before.leadTimeMinutes === 90 ? 75 : 90;
 
     await goto(page, `/stores/${store.branchId}`);
-    await page.locator('.tabs').waitFor({ state: 'visible' });
+    await page.locator('.section-nav').waitFor({ state: 'visible' });
     await openTab(page, 'Обмеження');
     await page.locator('#lead-time').fill(String(target));
-    await page.locator('#effective-from').fill(dayOffset(1));
     await page.locator('button.btn-primary', { hasText: 'Зберегти' }).click();
     expect(await waitForToast(page)).toContain('Конфігурацію збережено');
 
@@ -236,7 +234,6 @@ test.describe('A-06 Вкладка «Обмеження»', () => {
     await goto(page, `/stores/${store.branchId}`);
     await openTab(page, 'Обмеження');
     await page.locator('#lead-time').fill(String(before.leadTimeMinutes));
-    await page.locator('#effective-from').fill(dayOffset(1));
     await page.locator('button.btn-primary', { hasText: 'Зберегти' }).click();
     await waitForToast(page);
 
@@ -247,13 +244,35 @@ test.describe('A-06 Вкладка «Обмеження»', () => {
     );
   });
 
-  test('A-06.15 дата набрання чинності раніше завтра відхиляється', async ({ page }) => {
-    await openLimits(page, '2230');
-    await page.locator('#lead-time').fill('75');
-    await page.locator('#effective-from').fill(dayOffset(-1));
-    await expect(page.locator('.field-error')).toContainText(
-      'Дата набрання чинності — не раніше завтра',
-    );
+  /**
+   * Поля «Набирає чинності з» більше немає: зміни застосовуються негайно.
+   * Перевіряємо саме це — нова версія стає ЧИННОЮ одразу, без очікування
+   * наступної доби.
+   */
+  test('A-06.15 збережена зміна діє негайно', async ({ page }) => {
+    const store = await sandboxStore('2230');
+    const before = await apiGet<any>(`/stores/${store.branchId}/configurations/current`);
+    track('store-config', store.externalId, `негайна чинність, було no-show=${before.noShowGraceMinutes}`);
+
+    await expect(page.locator('#effective-from'), 'поля дати не має бути').toHaveCount(0);
+
+    const target = before.noShowGraceMinutes === 30 ? 45 : 30;
+    await goto(page, `/stores/${store.branchId}`);
+    await page.locator('.section-nav').waitFor({ state: 'visible' });
+    await page.locator('#no-show-grace').fill(String(target));
+    await page.locator('button.btn-primary', { hasText: 'Зберегти' }).click();
+    expect(await waitForToast(page)).toContain('Конфігурацію збережено');
+
+    // current, а не latest: перевіряємо саме чинність, а не факт збереження.
+    const now = await apiGet<any>(`/stores/${store.branchId}/configurations/current`);
+    expect(now.noShowGraceMinutes, 'нова версія чинна одразу').toBe(target);
+    expect(now.version, 'і це саме нова версія').toBeGreaterThan(before.version);
+
+    // повертаємо як було
+    await goto(page, `/stores/${store.branchId}`);
+    await page.locator('#no-show-grace').fill(String(before.noShowGraceMinutes));
+    await page.locator('button.btn-primary', { hasText: 'Зберегти' }).click();
+    await waitForToast(page);
   });
 });
 
@@ -263,7 +282,7 @@ test.describe('A-07 Вкладка «Резерви»', () => {
   async function openReserves(page: import('@playwright/test').Page, externalId: string) {
     const store = await sandboxStore(externalId);
     await goto(page, `/stores/${store.branchId}`);
-    await page.locator('.tabs').waitFor({ state: 'visible', timeout: 20_000 });
+    await page.locator('.section-nav').waitFor({ state: 'visible', timeout: 20_000 });
     await openTab(page, 'Резерви');
     return store;
   }
@@ -303,11 +322,26 @@ test.describe('A-07 Вкладка «Резерви»', () => {
     const window = config.receivingWindows.find((w: any) => w.intervals.length > 0);
     const startTime = window.intervals[0].from;
 
+    // Тест має бути повторюваним: попередній прогін (або перерваний) міг
+    // лишити правило на цей самий слот, і створення відхилялося б через
+    // перетин — мовчки, бо ця перевірка клієнтська.
+    const existing = await apiGet<any>(`/stores/${store.branchId}/reserved-slot-rules`);
+    for (const rule of existing.items ?? []) {
+      if (rule.slotStartTime === startTime && rule.dayOfWeek === 3) {
+        await apiRaw('delete', `/stores/${store.branchId}/reserved-slot-rules/${rule.id}`);
+      }
+    }
+    await goto(page, `/stores/${store.branchId}`);
+    await page.locator('.section-nav').waitFor({ state: 'visible' });
+
     await page.locator('#res-mode').selectOption('weekly');
     await page.locator('#res-day').selectOption('3');
     await page.locator('#res-time').fill(startTime);
     await page.locator('#res-from').fill(dayOffset(1));
     await page.locator('button', { hasText: 'Додати правило резерву' }).click();
+    // Якщо форма відхилила локально — покажемо причину, а не мовчазний таймаут.
+    const formErrors = await page.locator('app-store-reserves-tab .field-error').allInnerTexts();
+    expect(formErrors, 'форма резерву не має відхиляти коректні дані').toEqual([]);
     await waitForToast(page);
 
     const rules = await apiGet<any>(`/stores/${store.branchId}/reserved-slot-rules`);
@@ -319,10 +353,12 @@ test.describe('A-07 Вкладка «Резерви»', () => {
 
     await goto(page, `/stores/${store.branchId}`);
     await openTab(page, 'Резерви');
-    await expect(page.locator('table.data tbody')).toContainText('Середа');
+    // Секції видно одночасно, тож адресуємо саме таблицю резервів.
+    const reserves = page.locator('app-store-reserves-tab table.data tbody');
+    await expect(reserves).toContainText('Середа');
 
-    await page
-      .locator('table.data tbody tr', { hasText: 'Середа' })
+    await reserves
+      .locator('tr', { hasText: 'Середа' })
       .first()
       .locator('button', { hasText: 'Видалити' })
       .click();
@@ -451,7 +487,7 @@ test.describe('A-08 Вкладка «Блокування слотів»', () =>
   async function openBlocks(page: import('@playwright/test').Page, externalId: string) {
     const store = await sandboxStore(externalId);
     await goto(page, `/stores/${store.branchId}`);
-    await page.locator('.tabs').waitFor({ state: 'visible', timeout: 20_000 });
+    await page.locator('.section-nav').waitFor({ state: 'visible', timeout: 20_000 });
     await openTab(page, 'Блокування слотів');
     return store;
   }
@@ -550,7 +586,7 @@ test.describe('A-09 Конфлікти конфігурації', () => {
   test('A-09.1 незавершена конфігурація не зберігається', async ({ page }) => {
     const store = await sandboxStore('2229');
     await goto(page, `/stores/${store.branchId}`);
-    await page.locator('.tabs').waitFor({ state: 'visible' });
+    await page.locator('.section-nav').waitFor({ state: 'visible' });
     await openTab(page, 'Слоти');
     await page.locator('#slot-size').selectOption('');
 

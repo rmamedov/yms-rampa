@@ -347,6 +347,6 @@ test.describe('A-02 Список магазинів', () => {
     await page.waitForURL(/\/stores\/[0-9a-f-]{8}/, { timeout: 15_000 });
     await page.waitForLoadState('networkidle');
     expect(page.url()).toMatch(/\/stores\/[0-9a-f-]+/);
-    await expect(page.locator('.tabs')).toBeVisible();
+    await expect(page.locator('.section-nav')).toBeVisible();
   });
 });

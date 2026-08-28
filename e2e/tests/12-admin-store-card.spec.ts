@@ -28,7 +28,7 @@ test.beforeEach(async ({ page }) => {
 async function openStore(page: import('@playwright/test').Page, externalId: string) {
   const store = await sandboxStore(externalId);
   await goto(page, `/stores/${store.branchId}`);
-  await page.locator('.tabs').waitFor({ state: 'visible', timeout: 20_000 });
+  await page.locator('.section-nav').waitFor({ state: 'visible', timeout: 20_000 });
   return store;
 }
 
@@ -185,7 +185,7 @@ test.describe('A-03 Картка магазину — вкладка «Зага�
     expect(target, 'на стенді має бути ненастроєний магазин').toBeTruthy();
 
     await goto(page, `/stores/${target.branchId}`);
-    await page.locator('.tabs').waitFor({ state: 'visible' });
+    await page.locator('.section-nav').waitFor({ state: 'visible' });
     await expect(page.locator('.notice-warn')).toContainText('Магазин не налаштовано');
 
     await page.locator('#ymsStatus').selectOption('active');
@@ -372,7 +372,6 @@ test.describe('A-04 Вкладка «Прийом поставок»', () => {
     await sunday.locator('input[type=time]').first().fill('08:00');
     await sunday.locator('input[type=time]').nth(1).fill('18:00');
 
-    await page.locator('#effective-from').fill(kyivDay(1));
     await page.locator('button.btn-primary', { hasText: 'Зберегти' }).click();
     expect(await waitForToast(page)).toContain('Конфігурацію збережено');
 
@@ -387,16 +386,13 @@ test.describe('A-04 Вкладка «Прийом поставок»', () => {
       page.locator('.day-row').nth(6).locator('input[type=time]').first(),
     ).toHaveValue('08:00');
 
-    // Версія ще не чинна — екран мусить про це сказати, інакше виглядатиме,
-    // ніби зміну застосували в магазині вже сьогодні.
-    await expect(
-      page.locator('.notice-info', { hasText: 'набирає чинності' }),
-      'екран має попередити, що відкрита версія ще не чинна',
-    ).toBeVisible();
+    // Зміни діють негайно, тож збережене вікно має бути ще й ЧИННИМ.
+    const current = await apiGet<any>(`/stores/${store.branchId}/configurations/current`);
+    const savedSunday = (current.receivingWindows ?? []).find((w: any) => w.dayOfWeek === 7);
+    expect(savedSunday?.intervals?.length, 'неділя чинна одразу після збереження').toBe(1);
 
     // Повертаємо неділю до вихідного стану ще однією версією.
     await apiRaw('post', `/stores/${store.branchId}/configurations`, {
-      effectiveFrom: `${kyivDay(1)}T00:00:00+00:00`,
       slotSizeMinutes: before.slotSizeMinutes,
       maxVehicleWeightTons: before.maxVehicleWeightTons,
       receivingWindows: before.receivingWindows,
@@ -407,6 +403,35 @@ test.describe('A-04 Вкладка «Прийом поставок»', () => {
       noShowGraceMinutes: before.noShowGraceMinutes,
       holdMaxMinutes: before.holdMaxMinutes,
     });
+  });
+
+  /**
+   * Налаштування — одна сторінка з ОДНІЄЮ кнопкою збереження, і вона видна
+   * одразу при відкритті, без пошуків по вкладках. Саме цього бракувало:
+   * раніше збереження було розкидане, а подекуди його не було зовсім.
+   */
+  test('A-04.20 на сторінці одна кнопка збереження, видна одразу', async ({ page }) => {
+    await openStore(page, '2229');
+
+    const save = page.locator('.save-bar button', { hasText: 'Зберегти' });
+    await expect(save, 'кнопка «Зберегти» на сторінці має бути рівно одна').toHaveCount(1);
+    await expect(save, 'кнопка видна без прокрутки').toBeInViewport();
+
+    // І всі шість розділів справді на цій же сторінці, а не за вкладками.
+    for (const id of ['general', 'receiving', 'slots', 'limits', 'reserves', 'blocks']) {
+      await expect(page.locator(`#section-${id}`), `розділ ${id}`).toHaveCount(1);
+    }
+  });
+
+  test('A-04.21 обовʼязкові поля позначені зірочкою', async ({ page }) => {
+    await openStore(page, '2229');
+
+    // Мінімум: назва, вікна прийому, розмір слоту, рампи, максимальний тоннаж.
+    await expect(page.locator('.req')).not.toHaveCount(0);
+    await expect(page.locator('label:has(.req)', { hasText: 'Назва для відображення' })).toHaveCount(1);
+    await expect(page.locator('label:has(.req)', { hasText: 'Розмір слоту' })).toHaveCount(1);
+    await expect(page.locator('label:has(.req)', { hasText: 'Максимальний тоннаж' })).toHaveCount(1);
+    await expect(page.getByText('Поля, позначені зірочкою')).toBeVisible();
   });
 
   test('A-04.4 перетин інтервалів одного дня відхиляється', async ({ page }) => {
@@ -617,7 +642,7 @@ test.describe('A-05 Вкладка «Слоти»', () => {
     const config = await apiGet<any>(`/stores/${store.branchId}/configurations/current`);
     await openTab(page, 'Слоти');
 
-    const rows = page.locator('.card', { hasText: 'Рампи' }).locator('table.data tbody tr');
+    const rows = page.locator('app-store-slots-tab .card', { hasText: 'Рампи' }).locator('table.data tbody tr');
     await expect(rows, 'кількість рамп збігається з конфігурацією').toHaveCount(
       config.ramps.length,
     );
@@ -634,7 +659,7 @@ test.describe('A-05 Вкладка «Слоти»', () => {
   test('A-05.5 додавання рампи', async ({ page }) => {
     await openStore(page, '2229');
     await openTab(page, 'Слоти');
-    const rows = page.locator('.card', { hasText: 'Рампи' }).locator('table.data tbody tr');
+    const rows = page.locator('app-store-slots-tab .card', { hasText: 'Рампи' }).locator('table.data tbody tr');
     const before = await rows.count();
 
     await page.locator('button', { hasText: 'Додати рампу' }).click();
@@ -646,7 +671,7 @@ test.describe('A-05 Вкладка «Слоти»', () => {
     await openStore(page, '2229');
     await openTab(page, 'Слоти');
     const nameInput = page
-      .locator('.card', { hasText: 'Рампи' })
+      .locator('app-store-slots-tab .card', { hasText: 'Рампи' })
       .locator('table.data tbody tr')
       .first()
       .locator('input[type=text]');
@@ -670,13 +695,13 @@ test.describe('A-05 Вкладка «Слоти»', () => {
   test('A-05.7 дублікат номера рампи відхиляється', async ({ page }) => {
     await openStore(page, '2229');
     await openTab(page, 'Слоти');
-    const rows = page.locator('.card', { hasText: 'Рампи' }).locator('table.data tbody tr');
+    const rows = page.locator('app-store-slots-tab .card', { hasText: 'Рампи' }).locator('table.data tbody tr');
     expect(await rows.count(), 'для перевірки потрібні щонайменше дві рампи').toBeGreaterThan(1);
 
     const firstNumber = await rows.first().locator('input[type=number]').inputValue();
     await rows.nth(1).locator('input[type=number]').fill(firstNumber);
 
-    await expect(page.locator('.card', { hasText: 'Рампи' }).locator('.field-error')).toContainText(
+    await expect(page.locator('app-store-slots-tab .card', { hasText: 'Рампи' }).locator('.field-error')).toContainText(
       'Номер рампи — ціле число ≥ 1, унікальне в межах магазину',
     );
   });
@@ -684,9 +709,9 @@ test.describe('A-05 Вкладка «Слоти»', () => {
   test('A-05.8 номер рампи менший за 1 відхиляється', async ({ page }) => {
     await openStore(page, '2229');
     await openTab(page, 'Слоти');
-    const rows = page.locator('.card', { hasText: 'Рампи' }).locator('table.data tbody tr');
+    const rows = page.locator('app-store-slots-tab .card', { hasText: 'Рампи' }).locator('table.data tbody tr');
     await rows.first().locator('input[type=number]').fill('0');
-    await expect(page.locator('.card', { hasText: 'Рампи' }).locator('.field-error')).toContainText(
+    await expect(page.locator('app-store-slots-tab .card', { hasText: 'Рампи' }).locator('.field-error')).toContainText(
       'Номер рампи — ціле число ≥ 1',
     );
   });
@@ -695,7 +720,7 @@ test.describe('A-05 Вкладка «Слоти»', () => {
     await openStore(page, '2229');
     await openTab(page, 'Слоти');
     const row = page
-      .locator('.card', { hasText: 'Рампи' })
+      .locator('app-store-slots-tab .card', { hasText: 'Рампи' })
       .locator('table.data tbody tr')
       .first();
     const checkbox = row.locator('input[type=checkbox]');
@@ -708,7 +733,7 @@ test.describe('A-05 Вкладка «Слоти»', () => {
   test('A-05.10 видалення останньої рампи відхиляється', async ({ page }) => {
     await openStore(page, '2229');
     await openTab(page, 'Слоти');
-    const card = page.locator('.card', { hasText: 'Рампи' });
+    const card = page.locator('app-store-slots-tab .card', { hasText: 'Рампи' });
     const rows = card.locator('table.data tbody tr');
 
     for (let n = await rows.count(); n > 0; n -= 1) {

@@ -46,11 +46,8 @@ import {
   ConfigFormState,
   configBlockingErrors,
   emptyReceivingWindows,
-  minimumEffectiveDate,
   normalizeReceivingWindows,
-  validateEffectiveDate,
 } from '../../core/utils/store-config.util';
-import { formatDate, kyivDate } from '../../core/utils/time.util';
 
 export type StoreTabId =
   | 'general'
@@ -124,40 +121,12 @@ export class StoreDetailPage {
   protected readonly dirty = computed(() => this.configDirty() || this.generalDirty());
   protected readonly saving = signal(false);
 
-  /** STC-60: перша версія може набрати чинності вже сьогодні. */
-  protected readonly isFirstVersion = computed(
-    () => this.store()?.configuration === null,
-  );
-  protected readonly effectiveFrom = signal(minimumEffectiveDate());
-
   /** ADM-05: конфігурацію редагують лише super_admin і network_manager. */
   protected readonly canConfigure = computed(() => this.auth.canConfigureStores());
   /** store_manager може редагувати лише разові блокування свого магазину. */
   protected readonly canBlock = computed(() =>
     this.auth.canBlockSlots(this.store()?.id ?? null),
   );
-
-  protected readonly effectiveDateError = computed(() =>
-    validateEffectiveDate(this.effectiveFrom(), this.isFirstVersion()),
-  );
-
-  /**
-   * Дата набуття чинності відкритої версії, якщо вона ще попереду.
-   *
-   * Екран редагує ОСТАННЮ версію, а нова за STC-60 діє не раніше завтра. Без
-   * цієї позначки збережена зміна виглядає так, ніби її застосували негайно,
-   * а в магазині сьогодні ще діє попередня версія.
-   */
-  protected readonly pendingSince = computed<string | null>(() => {
-    const config = this.store()?.configuration;
-    if (!config) {
-      return null;
-    }
-    const effective = config.effectiveFrom.slice(0, 10);
-    return effective > kyivDate() ? effective : null;
-  });
-
-  protected readonly formatDate = formatDate;
 
   /**
    * Усе, що робить чернетку незбережуваною: бракує обовʼязкових полів
@@ -189,8 +158,7 @@ export class StoreDetailPage {
       this.dirty() &&
       !this.saving() &&
       !this.generalInvalid() &&
-      this.configErrors().length === 0 &&
-      this.effectiveDateError() === null,
+      this.configErrors().length === 0,
   );
 
   protected readonly crumbs = computed<readonly Crumb[]>(() => {
@@ -242,7 +210,6 @@ export class StoreDetailPage {
     // Секція «Загальне» перезаповниться зі свого effect і сама віддасть стан;
     // скидаємо, щоб порівняння «перший емiт vs правка» почалося заново.
     this.generalPatch.set(null);
-    this.effectiveFrom.set(minimumEffectiveDate(store.configuration === null));
   }
 
   /** Навігація-якорі: секції всі на сторінці, тому просто прокручуємо до неї. */
@@ -308,14 +275,6 @@ export class StoreDetailPage {
     this.configDirty.set(true);
   }
 
-  protected setEffectiveFrom(value: string): void {
-    this.effectiveFrom.set(value);
-  }
-
-  protected minEffectiveDate(): string {
-    return minimumEffectiveDate(this.isFirstVersion());
-  }
-
   /**
    * Одна кнопка — обидві половини сторінки.
    *
@@ -348,7 +307,6 @@ export class StoreDetailPage {
             return of(null);
           }
           return this.api.createConfiguration(store.id, {
-            effectiveFrom: this.effectiveFrom(),
             slotSizeMinutes: config.slotSizeMinutes,
             maxVehicleWeightTons: config.maxVehicleWeightTons,
             receivingWindows: config.receivingWindows,

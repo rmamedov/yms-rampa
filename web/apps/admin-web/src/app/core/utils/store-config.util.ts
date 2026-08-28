@@ -321,29 +321,6 @@ export function validateReservedRule(
   return [...new Set(errors)];
 }
 
-/**
- * STC-60: зміни сітки слотів набирають чинності не раніше завтра.
- * Виняток — ПЕРША версія конфігурації: доти сітки не існувало, тож бекенд
- * дозволяє сьогоднішню дату (StoreConfigurationService::assertEffectiveFrom).
- */
-export function minimumEffectiveDate(
-  isFirstVersion = false,
-  today: string = kyivDate(),
-): string {
-  return isFirstVersion ? today : addDays(today, 1);
-}
-
-export function validateEffectiveDate(
-  date: string,
-  isFirstVersion = false,
-  today: string = kyivDate(),
-): string | null {
-  const minimum = isFirstVersion ? 0 : 1;
-  if (!isValidDate(date) || diffDays(today, date) < minimum) {
-    return 'conflicts.error.effectiveFrom';
-  }
-  return null;
-}
 
 export function emptyReceivingWindows(): ReceivingWindow[] {
   return ([1, 2, 3, 4, 5, 6, 7] as DayOfWeek[]).map((dow) => ({

@@ -26,8 +26,8 @@ use App\Domain\Shared\ValidationException;
  * Версіонована конфігурація магазину: вкладки «Прийом поставок», «Слоти», «Обмеження»
  * (5.3.2–5.3.4, DATA-09, DATA-10).
  *
- * STC-60: зміна сітки слотів застосовується «з дати X» — не раніше завтра
- * за локальним часом магазину; до дати X діє попередня версія.
+ * Нова версія набирає чинності НЕГАЙНО. Колишнє правило STC-60 («не раніше
+ * завтра») знято на вимогу експлуатації — див. assertEffectiveFrom().
  */
 final readonly class StoreConfigurationService
 {
@@ -72,11 +72,10 @@ final readonly class StoreConfigurationService
     /**
      * Остання за версією конфігурація — включно з тією, що ще не набрала чинності.
      *
-     * Навіщо окремо від current(): нова версія за STC-60 діє «з дати X», не
-     * раніше завтра. Якщо екран налаштувань читає current(), то одразу після
-     * збереження він показує стару, ще чинну версію — і щойно введена зміна
-     * зникає з очей. Адміністратор бачить не «збережено на завтра», а «не
-     * збереглося», і повторює спробу.
+     * Навіщо окремо від current(): версію можна створити й із майбутньою
+     * датою через API. Тоді current() віддав би стару, ще чинну, і щойно
+     * збережене зникло б з екрана налаштувань. Через інтерфейс такого вже не
+     * буває — там чинність негайна, — але контракт лишається чесним.
      *
      * @return array<string, mixed>
      */
@@ -103,12 +102,12 @@ final readonly class StoreConfigurationService
 
         $now = $this->clock->now();
         $version = $this->configurations->nextVersion($storeId);
-        $isFirstVersion = 1 === $version;
 
-        $effectiveFrom = $payload->dateTime('effectiveFrom')
-            ?? ($isFirstVersion ? $this->todayLocalMidnight($now) : $this->tomorrowLocalMidnight($now));
+        // За замовчуванням конфігурація діє НЕГАЙНО: адміністратор змінює
+        // налаштування тоді, коли їх треба застосувати, а не наступного дня.
+        $effectiveFrom = $payload->dateTime('effectiveFrom') ?? $now;
 
-        $this->assertEffectiveFrom($effectiveFrom, $now, $isFirstVersion);
+        $this->assertEffectiveFrom($effectiveFrom, $now);
 
         $slotSize = SlotSize::fromMinutes($payload->requireInt('slotSizeMinutes'));
 
@@ -137,40 +136,30 @@ final readonly class StoreConfigurationService
     }
 
     /**
-     * STC-60: зміна сітки слотів набирає чинності не раніше завтра — щоб
-     * не зламати вже наявні бронювання на сьогодні.
+     * Заднім числом конфігурацію не вводять: попередні версії вже відпрацювали,
+     * і бронювання створювалися за ними.
      *
-     * Виняток — ПЕРША конфігурація магазину: доти сітки не існувало, отже
-     * не існує й бронювань, які треба захищати. Без цього винятку філію
-     * неможливо налаштувати й активувати того самого дня, чого вимагає
-     * сценарій онбордингу магазину E2E-01.
+     * Правила «не раніше завтра» (STC-60) більше немає — його зняли на вимогу
+     * експлуатації: зміни мають діяти негайно. Наслідок треба знати: якщо
+     * звузити вікна прийому, вже створені на сьогодні бронювання опиняться поза
+     * новою сіткою. Вони не зникають — магазин бачить їх на дошці прибуттів і
+     * приймає, — але нових на цей час уже не забронюють.
      */
     private function assertEffectiveFrom(
         \DateTimeImmutable $effectiveFrom,
         \DateTimeImmutable $now,
-        bool $isFirstVersion,
     ): void {
-        $earliest = $isFirstVersion ? $this->todayLocalMidnight($now) : $this->tomorrowLocalMidnight($now);
+        $earliest = $this->todayLocalMidnight($now);
 
         if ($effectiveFrom < $earliest) {
             throw ValidationException::config(
                 \sprintf(
-                    'Зміни сітки слотів можуть набирати чинності не раніше %s',
+                    'Зміни сітки слотів не можуть набирати чинності заднім числом (раніше %s)',
                     $earliest->setTimezone(Timezone::storeLocal())->format('Y-m-d'),
                 ),
-                ['effectiveFrom' => $isFirstVersion
-                    ? 'Дата набрання чинності — не раніше сьогодні'
-                    : 'Дата набрання чинності — не раніше завтра'],
+                ['effectiveFrom' => 'Дата набрання чинності — не раніше сьогодні'],
             );
         }
-    }
-
-    private function tomorrowLocalMidnight(\DateTimeImmutable $now): \DateTimeImmutable
-    {
-        return $now
-            ->setTimezone(Timezone::storeLocal())
-            ->modify('tomorrow midnight')
-            ->setTimezone(Timezone::storage());
     }
 
     private function todayLocalMidnight(\DateTimeImmutable $now): \DateTimeImmutable

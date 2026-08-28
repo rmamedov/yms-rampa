@@ -19,7 +19,7 @@
   }
 
   <!-- Не вкладки, а якорі: усі секції на сторінці одночасно, і зберігаються
-       вони однією кнопкою внизу. -->
+       вони однією кнопкою в панелі нижче. -->
   <nav class="section-nav" aria-label="{{ 'store.sections' | t }}">
     @for (tab of tabs; track tab) {
       <a href="#section-{{ tab }}" (click)="scrollToSection(tab, $event)">
@@ -29,6 +29,33 @@
   </nav>
 
   <div class="notice notice-info">{{ 'store.requiredLegend' | t }}</div>
+
+  <div class="save-bar">
+    <div class="row">
+      <div>
+        @for (error of saveErrors(); track error) {
+          <div class="field-error">{{ error | t }}</div>
+        }
+        @if (canConfigure() && !dirty()) {
+          <div class="field-hint">{{ 'store.save.noChanges' | t }}</div>
+        }
+      </div>
+      <span class="spacer"></span>
+      @if (dirty()) {
+        <button type="button" class="btn" (click)="discardChanges()">
+          {{ 'store.save.discard' | t }}
+        </button>
+      }
+      <button
+        type="button"
+        class="btn btn-primary"
+        [disabled]="!canSave()"
+        (click)="save()"
+      >
+        {{ saving() ? ('common.loading' | t) : ('common.save' | t) }}
+      </button>
+    </div>
+  </div>
 
   <div class="section-head" id="section-general">
     <h2>{{ 'store.tab.general' | t }}</h2>
@@ -109,52 +136,6 @@
       (blockRelease)="releaseBlock($event)"
     />
   }
-
-  @if (pendingSince(); as since) {
-    <div class="notice notice-info">
-      {{ 'conflicts.pending' | t: { date: formatDate(since) } }}
-    </div>
-  }
-
-  <div class="save-bar">
-    <div class="row">
-      <div>
-        <label for="effective-from">{{ 'conflicts.effectiveFrom' | t }}</label>
-        <input
-          id="effective-from"
-          type="date"
-          [value]="effectiveFrom()"
-          [min]="minEffectiveDate()"
-          [disabled]="!canConfigure()"
-          (input)="setEffectiveFrom($any($event.target).value)"
-        />
-        <div class="field-hint">{{ 'conflicts.effectiveFrom.hint' | t }}</div>
-        @if (effectiveDateError(); as error) {
-          <div class="field-error">{{ error | t }}</div>
-        }
-        @for (error of saveErrors(); track error) {
-          <div class="field-error">{{ error | t }}</div>
-        }
-        @if (canConfigure() && !dirty()) {
-          <div class="field-hint">{{ 'store.save.noChanges' | t }}</div>
-        }
-      </div>
-      <span class="spacer"></span>
-      @if (dirty()) {
-        <button type="button" class="btn" (click)="discardChanges()">
-          {{ 'store.save.discard' | t }}
-        </button>
-      }
-      <button
-        type="button"
-        class="btn btn-primary"
-        [disabled]="!canSave()"
-        (click)="save()"
-      >
-        {{ saving() ? ('common.loading' | t) : ('common.save' | t) }}
-      </button>
-    </div>
-  </div>
 } @else {
   <p class="muted">{{ 'common.loading' | t }}</p>
 }
