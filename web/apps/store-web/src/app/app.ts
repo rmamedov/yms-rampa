@@ -5,11 +5,19 @@ import { AuthService } from './core/auth/auth.service';
 import { BoardStore } from './core/data/board.store';
 import { TranslatePipe } from './core/i18n/translate.pipe';
 import { StoreScope } from './core/models/auth.model';
+import { StorePickerComponent } from './shared/store-picker.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [FormsModule, RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe],
+  imports: [
+    FormsModule,
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    TranslatePipe,
+    StorePickerComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './app.html',
 })

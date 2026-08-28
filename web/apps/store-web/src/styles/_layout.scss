@@ -738,8 +738,106 @@
     width: 100%;
   }
 
-  .appbar__select {
+  app-store-picker,
+  .picker {
     min-width: 0;
     width: 100%;
   }
 }
+
+// ------------------------------------------------------------ вибір філії
+// Перемикач із пошуком: у керівника мережі філій бувають сотні, і звичайний
+// <select> для них непридатний.
+app-store-picker {
+  display: block;
+  // Без min-width: 0 флекс-елемент не стискається нижче вмісту, і на вузькому
+  // екрані шапка розпирає сторінку горизонтальною прокруткою.
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.picker {
+  position: relative;
+  min-width: 260px;
+  max-width: 460px;
+}
+
+.picker__trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 36px;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.picker__value {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker__caret {
+  flex: none;
+  color: var(--c-text-muted);
+}
+
+.picker__panel {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  // Список може бути довгим — прокрутка всередині панелі, а не сторінки.
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-2);
+  gap: var(--space-2);
+}
+
+.picker__search {
+  flex: none;
+  min-height: 36px;
+  font-size: var(--fs-sm);
+}
+
+.picker__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.picker__option {
+  display: block;
+  width: 100%;
+  padding: var(--space-2);
+  border: none;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--c-text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+
+  &--active,
+  &:hover {
+    background: var(--c-surface-2);
+  }
+
+  &[aria-selected='true'] {
+    font-weight: var(--fw-bold);
+  }
+}
+
+.picker__empty {
+  padding: var(--space-2);
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+}
+

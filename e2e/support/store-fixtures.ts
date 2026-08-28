@@ -221,19 +221,28 @@ export async function arrivalSandboxStore(
       continue;
     }
 
-    const grid = await slotGrid(ctx, supplierToken, store.storeId, kyivDateKey());
-    const now = Date.parse(grid.now) || Date.now();
-    const ready = grid.slots.filter(
-      (s) =>
-        s.state === 'available' &&
-        s.selectable &&
-        Date.parse(s.slotStart) - ARRIVAL_WINDOW_MINUTES * 60_000 <= now,
-    );
+    // Дивимось і на завтра: вікно відмітки відкривається за годину до слоту,
+    // тож близько опівночі придатні слоти лежать уже в наступній добі, а
+    // сьогоднішні всі минулі. Без цього набір не міг пройти останню годину дня.
+    let ready = 0;
+    for (const dateKey of [kyivDateKey(), kyivDateKey(1)]) {
+      const grid = await slotGrid(ctx, supplierToken, store.storeId, dateKey);
+      const now = Date.parse(grid.now) || Date.now();
+      ready += grid.slots.filter(
+        (s) =>
+          s.state === 'available' &&
+          s.selectable &&
+          Date.parse(s.slotStart) - ARRIVAL_WINDOW_MINUTES * 60_000 <= now,
+      ).length;
+      if (ready > 0) {
+        break;
+      }
+    }
 
-    if (ready.length > 0) {
+    if (ready > 0) {
       return store;
     }
-    tried.push(`${externalId}: вільних слотів із відкритим вікном немає`);
+    tried.push(`${externalId}: вільних слотів із відкритим вікном немає (сьогодні й завтра)`);
   }
 
   throw new Error(

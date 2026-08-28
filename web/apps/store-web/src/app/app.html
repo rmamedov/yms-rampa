@@ -6,26 +6,12 @@
     </div>
 
     @if (showSwitcher()) {
-      <label class="appbar__store">
-        <span class="visually-hidden">{{ 'header.selectStore' | t }}</span>
-        <!--
-          Вибір іде через ngModel, а не через [value] на самому <select>.
-          Причина: властивість `value` виставляється РАНІШЕ, ніж @for устигає
-          створити <option>, тому браузер відкидав її і лишав перший варіант —
-          у шапці стояла одна філія, а дошка показувала іншу (STW-03).
-          SelectControlValueAccessor переприсвоює вибір після появи кожного
-          варіанта, тож перемикач переживає і перезавантаження сторінки.
-        -->
-        <select
-          class="select appbar__select"
-          [ngModel]="selectedStoreId()"
-          (ngModelChange)="onStoreChange($event)"
-        >
-          @for (store of stores(); track store.storeId) {
-            <option [value]="store.storeId">{{ storeLabel(store) }}</option>
-          }
-        </select>
-      </label>
+      <app-store-picker
+        class="appbar__store"
+        [stores]="stores()"
+        [selectedId]="selectedStoreId()"
+        (selected)="onStoreChange($event)"
+      />
     } @else if (selectedStore(); as store) {
       <span class="appbar__storename">{{ storeLabel(store) }}</span>
     }

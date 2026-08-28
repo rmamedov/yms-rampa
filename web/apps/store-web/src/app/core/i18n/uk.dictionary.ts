@@ -50,6 +50,8 @@ export const UK_DICTIONARY: Record<string, string> = {
 
   // --- Шапка ---
   'header.store': 'Магазин',
+  'header.storeSearch': 'Пошук: код, назва, місто або адреса',
+  'header.storeSearch.empty': 'Філій за таким запитом немає',
   'header.selectStore': 'Оберіть магазин',
   'header.logout': 'Вийти',
   'header.today': 'Сьогодні',

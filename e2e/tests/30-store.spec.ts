@@ -223,29 +223,57 @@ async function openBoard(page: Page, store?: SandboxStore): Promise<void> {
   if (store) await selectStore(page, store);
 }
 
+/**
+ * Перемикач філії — не `<select>`, а панель із пошуком: у керівника мережі
+ * філій сотні. Помічники нижче ховають цю механіку від самих перевірок.
+ */
+async function pickerLabel(page: Page): Promise<string> {
+  // Саме підпис, а не вся кнопка: у неї ще й стрілка, яка до назви не належить.
+  return (await page.locator('.picker__value').innerText()).trim();
+}
+
+/** Відкриває панель і повертає підписи всіх філій (за потреби — з пошуком). */
+async function pickerOptions(page: Page, query = ''): Promise<string[]> {
+  await page.locator('.picker__trigger').click();
+  if (query) {
+    await page.locator('.picker__search').fill(query);
+  }
+  await page.waitForTimeout(150);
+  const labels = await page.locator('.picker__option').allInnerTexts();
+  await page.keyboard.press('Escape');
+  return labels.map((s) => s.trim());
+}
+
 /** Ставить дошку на потрібну філію (або перевіряє, що вона вже на ній). */
 async function selectStore(page: Page, store: SandboxStore): Promise<void> {
-  const select = page.locator('.appbar__select');
-  if (await select.count()) {
-    const values = await select
-      .locator('option')
-      .evaluateAll((els) => els.map((e) => (e as HTMLOptionElement).value));
-    expect(
-      values,
-      `у перемикачі має бути філія ${store.externalId} (${store.address})`,
-    ).toContain(store.storeId);
+  const trigger = page.locator('.picker__trigger');
+  if (await trigger.count()) {
+    // Уже на потрібній філії — перемикати нема чого (і події теж не буде).
+    if ((await pickerLabel(page)).includes(store.externalId)) {
+      return;
+    }
+
+    await trigger.click();
+    // Шукаємо за кодом філії: він унікальний, на відміну від назви й адреси.
+    await page.locator('.picker__search').fill(store.externalId);
+    const option = page.locator('.picker__option', { hasText: store.externalId }).first();
+    await expect(
+      option,
+      `у перемикачі має знаходитися філія ${store.externalId} (${store.address})`,
+    ).toBeVisible();
+
     await withBoardResponse(
       page,
       (url) => url.includes(`storeId=${store.storeId}`),
       async () => {
-        await select.selectOption(store.storeId);
+        await option.click();
       },
     );
     // Перемикач має показувати ту саму філію, дані якої лягли на дошку.
     expect(
-      await select.inputValue(),
+      await pickerLabel(page),
       `перемикач має стояти на філії ${store.externalId}, дані якої показує дошка`,
-    ).toBe(store.storeId);
+    ).toContain(store.externalId);
   } else {
     const label = await page.locator('.appbar__storename').innerText().catch(() => '');
     expect(
@@ -426,13 +454,13 @@ test.describe('M-01 Вхід і вибір магазину', () => {
 
     await openBoard(page);
 
-    const selectCount = await page.locator('.appbar__select').count();
+    const selectCount = await page.locator('.picker__trigger').count();
     expect(
       selectCount,
       `користувач має доступ до ${expected.length} магазинів — потрібен перемикач`,
     ).toBe(1);
 
-    const shown = await optionTexts(page, '.appbar__select');
+    const shown = await pickerOptions(page);
     expect(
       shown.length,
       `у перемикачі ${shown.length} магазинів, а доступно ${expected.length}`,
@@ -441,25 +469,28 @@ test.describe('M-01 Вхід і вибір магазину', () => {
 
   test('M-01.6 перемикання магазину змінює дошку і зберігається після перезавантаження', async ({ page }) => {
     await openBoard(page);
-    const select = page.locator('.appbar__select');
-    const values = await select.locator('option').evaluateAll((els) =>
-      els.map((e) => (e as HTMLOptionElement).value),
-    );
-    expect(values.length, 'для перемикання потрібно 2+ магазини').toBeGreaterThan(1);
+    const labels = await pickerOptions(page);
+    expect(labels.length, 'для перемикання потрібно 2+ магазини').toBeGreaterThan(1);
 
+    // Беремо іншу філію, ніж та, що стоїть зараз.
+    const current = await pickerLabel(page);
+    const target = labels.find((l) => l !== current);
+    expect(target, 'потрібна інша філія, ніж поточна').toBeTruthy();
+
+    await page.locator('.picker__trigger').click();
     await withBoardResponse(
       page,
-      (url) => url.includes(`storeId=${values[1]}`),
+      (url) => url.includes('storeId='),
       async () => {
-        await select.selectOption(values[1]);
+        await page.locator('.picker__option', { hasText: target! }).first().click();
       },
     );
-    const chosen = await select.inputValue();
-    expect(chosen, 'перемикач має показувати щойно обрану філію').toBe(values[1]);
+    const chosen = await pickerLabel(page);
+    expect(chosen, 'перемикач має показувати щойно обрану філію').toBe(target);
 
     await reloadBoard(page);
     expect(
-      await page.locator('.appbar__select').inputValue(),
+      await pickerLabel(page),
       'вибір магазину має зберігатися між перезавантаженнями',
     ).toBe(chosen);
   });
