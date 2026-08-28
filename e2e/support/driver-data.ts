@@ -12,7 +12,7 @@
  *   бронювання — orderId `UITEST-<мітка>`
  */
 import { APIRequestContext, Page, expect } from '@playwright/test';
-import { ARRIVAL_SANDBOX_EXTERNAL_ID, CREDS, HOSTS, registerArtifact } from './env';
+import { ARRIVAL_SANDBOX_EXTERNAL_IDS, CREDS, HOSTS, registerArtifact } from './env';
 
 // --- Дати в календарі Києва -------------------------------------------------
 
@@ -156,7 +156,7 @@ export const ARRIVAL_WINDOW_MINUTES = 60;
 
 /**
  * Філія, у якій відмітку «На місці» можна перевіряти о будь-якій годині:
- * цілодобовий прийом і lead time 0 (див. ARRIVAL_SANDBOX_EXTERNAL_ID у env.ts).
+ * цілодобовий прийом і lead time 0 (див. ARRIVAL_SANDBOX_EXTERNAL_IDS у env.ts).
  *
  * Повертається списком, бо саме список приймає createBooking. Перевірка тут
  * не формальна: якщо філію на стенді скинули або переналаштували, тест має
@@ -172,38 +172,53 @@ export async function arrivalSandbox(
   );
   expect(res.ok(), `каталог філій Харкова: ${res.status()}`).toBeTruthy();
 
-  const store = ((await res.json()).items as CatalogStore[]).find(
-    (s) => s.externalId === ARRIVAL_SANDBOX_EXTERNAL_ID,
-  );
-  expect(
-    store,
-    `філія ${ARRIVAL_SANDBOX_EXTERNAL_ID} має бути активною і видимою постачальникам — ` +
-      'без неї відмітку «На місці» неможливо перевірити поза годинами прийому ' +
-      '(як відновити — див. коментар ARRIVAL_SANDBOX_EXTERNAL_ID у support/env.ts)',
-  ).toBeTruthy();
+  const catalogue = (await res.json()).items as CatalogStore[];
+  const ready: CatalogStore[] = [];
+  const tried: string[] = [];
 
-  const grid = await ctx.get(
-    `${HOSTS.supplier}/api/supplier/v1/stores/${store!.storeId}/slots?date=${kyivDateKey()}`,
-    { headers: bearer(token) },
-  );
-  expect(grid.ok(), `сітка слотів ${ARRIVAL_SANDBOX_EXTERNAL_ID}: ${grid.status()}`).toBeTruthy();
+  // Перебираємо цілодобові філії і лишаємо ті, де ПРЯМО ЗАРАЗ є вільний слот
+  // із відкритим вікном відмітки. Перевірка не формальна: якщо стенд скинули,
+  // тест має впасти з поясненням, ЩО відновити, а не з «немає слотів».
+  for (const externalId of ARRIVAL_SANDBOX_EXTERNAL_IDS) {
+    const store = catalogue.find((s) => s.externalId === externalId);
+    if (!store) {
+      tried.push(`${externalId}: немає в каталозі`);
+      continue;
+    }
 
-  const body = await grid.json();
-  const now = Date.parse(body.now ?? '') || Date.now();
-  const open = ((body.slots ?? []) as GridSlot[]).filter(
-    (s) =>
-      s.state === 'available' &&
-      s.selectable !== false &&
-      Date.parse(s.slotStart) - ARRIVAL_WINDOW_MINUTES * 60_000 <= now,
-  );
+    const grid = await ctx.get(
+      `${HOSTS.supplier}/api/supplier/v1/stores/${store.storeId}/slots?date=${kyivDateKey()}`,
+      { headers: bearer(token) },
+    );
+    if (!grid.ok()) {
+      tried.push(`${externalId}: сітка слотів ${grid.status()}`);
+      continue;
+    }
+
+    const body = await grid.json();
+    const now = Date.parse(body.now ?? '') || Date.now();
+    const open = ((body.slots ?? []) as GridSlot[]).filter(
+      (s) =>
+        s.state === 'available' &&
+        s.selectable !== false &&
+        Date.parse(s.slotStart) - ARRIVAL_WINDOW_MINUTES * 60_000 <= now,
+    );
+
+    if (open.length > 0) {
+      ready.push(store);
+    } else {
+      tried.push(`${externalId}: вільних слотів із відкритим вікном немає`);
+    }
+  }
+
   expect(
-    open.length,
-    `у філії ${ARRIVAL_SANDBOX_EXTERNAL_ID} має бути слот із уже відкритим вікном відмітки ` +
-      `(lead time ${body.leadTimeMinutes} хв, вільних слотів ${(body.slots ?? []).length}); ` +
-      'саме заради цього вона налаштована цілодобово',
+    ready.length,
+    'Немає цілодобової філії з вільним слотом, чиє вікно відмітки «На місці» вже відкрите. ' +
+      `Перевірено: ${tried.join('; ')}. ` +
+      'Як відновити або додати таку філію — див. ARRIVAL_SANDBOX_EXTERNAL_IDS у support/env.ts.',
   ).toBeGreaterThan(0);
 
-  return [store!];
+  return ready;
 }
 
 interface GridSlot {
