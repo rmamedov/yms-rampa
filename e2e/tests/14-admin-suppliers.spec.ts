@@ -50,7 +50,27 @@ async function createSupplier(
   await goto(page, '/suppliers/new');
   await fillSupplierForm(page, data);
   await page.locator('button.btn-primary', { hasText: 'Зберегти' }).click();
-  await page.waitForURL(/\/suppliers\/(?!new)[0-9a-f-]{8}/, { timeout: 20_000 });
+
+  // Чекаємо або на перехід у картку, або на тост із відмовою. Раніше тут стояв
+  // самий waitForURL, і будь-яка помилка сервера виглядала як «таймаут
+  // навігації» — причину доводилося шукати вручну.
+  await Promise.race([
+    page.waitForURL(/\/suppliers\/(?!new)[0-9a-f-]{8}/, { timeout: 20_000 }),
+    page.locator('.toast').first().waitFor({ state: 'visible', timeout: 20_000 }),
+  ]).catch(() => undefined);
+
+  if (!/\/suppliers\/(?!new)[0-9a-f-]{8}/.test(page.url())) {
+    const toastText = await page
+      .locator('.toast')
+      .first()
+      .innerText()
+      .catch(() => '');
+    const fieldErrors = await page.locator('.field-error').allInnerTexts();
+    throw new Error(
+      `Постачальника «${data.name}» не створено. Тост: «${toastText.replace(/✕/g, '').trim()}». ` +
+        `Помилки полів: ${fieldErrors.join(' | ') || 'немає'}. URL: ${page.url()}`,
+    );
+  }
   const id = page.url().split('/suppliers/')[1].split('?')[0];
   track('supplier', id, data.name);
   return id;
@@ -189,7 +209,7 @@ test.describe('A-10 Постачальники', () => {
    * Перевіряємо не лише форму, а й головне: цим логіном справді входять.
    */
   test('A-10.30 постачальника можна створити разом із логіном і паролем', async ({ page }) => {
-    const name = testSupplierName('доступ');
+    const name = testSupplierName('логін-пароль');
     const login = `uitest.${Date.now().toString(36)}@rampa.ua`;
     const password = 'Nadiyn1yParol';
 

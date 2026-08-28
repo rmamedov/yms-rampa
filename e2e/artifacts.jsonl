@@ -127,3 +127,209 @@
 {"kind":"driver","id":"6b505ccd-dc94-44f5-8755-5338d983d0aa","note":"+380990006152","at":"2026-08-28T12:57:17.342Z"}
 {"kind":"driver","id":"03f73930-1a7e-4e76-84e4-6bfd9c0165a1","note":"+380990002162","at":"2026-08-28T12:57:45.930Z"}
 {"kind":"driver","id":"1772bbaa-c742-4211-ba64-75afa723c65c","note":"+380990005288","at":"2026-08-28T12:58:27.651Z"}
+{"kind":"store-general","id":"2226","note":"назва/телефон/адреса, було: Сільпо, вул. Гвардійців-Широнінців, 42 [run=mtcykvxp418]","at":"2026-08-28T13:01:20.655Z"}
+{"kind":"store-visibility","id":"2229","note":"було: true [run=mtcykvxp418]","at":"2026-08-28T13:01:24.859Z"}
+{"kind":"store-status","id":"2227","note":"active→paused→active [run=mtcykvxp418]","at":"2026-08-28T13:01:34.933Z"}
+{"kind":"store-config","id":"2230","note":"нова версія обмежень, було lead=60 [run=mtcykvxp418]","at":"2026-08-28T13:03:55.124Z"}
+{"kind":"store-config","id":"2230","note":"негайна чинність, було no-show=30 [run=mtcykvxp418]","at":"2026-08-28T13:03:59.561Z"}
+{"kind":"reserved-slot-rule","id":"2227/e7069bd4-12b4-4e94-9232-2f652b3d4eeb","note":"резерв на середу [run=mtcykvxp418]","at":"2026-08-28T13:04:11.902Z"}
+{"kind":"reserved-slot-rule","id":"2229/dfba2216-6187-4680-bf1a-c7b3072cf98f","note":"перевірка перетину [run=mtcykvxp418]","at":"2026-08-28T13:04:23.803Z"}
+{"kind":"reserved-slot-rule","id":"2226/fd84faf4-329c-42a4-bddb-b1eaeecdeb43","note":"резерв на 2026-08-29 [run=mtcykvxp418]","at":"2026-08-28T13:04:30.971Z"}
+{"kind":"slot-block","id":"2230/9c53c857-35a2-4aca-9c52-233acc261206","note":"UITEST блокування mtcyrc0x [run=mtcykvxp418]","at":"2026-08-28T13:04:34.446Z"}
+{"kind":"slot-block","id":"2226/456b3c31-dbd0-436f-8649-7dbc44b37125","note":"UITEST рампа mtcyroxo [run=mtcykvxp418]","at":"2026-08-28T13:04:51.223Z"}
+{"kind":"supplier","id":"185bfc9d-6ef2-496c-93d8-c03fcf3bd67f","note":"UITEST-Постачальник-mtcykvxp418-доступ [run=mtcykvxp418]","at":"2026-08-28T13:05:31.071Z"}
+{"kind":"supplier","id":"28a06d48-34d8-4b31-8df9-ab10ceeb729e","note":"UITEST-Постачальник-mtcykvxp418-створення [run=mtcykvxp418]","at":"2026-08-28T13:05:42.328Z"}
+{"kind":"supplier","id":"c7806369-3435-4f56-8cd9-f7437cc4b681","note":"UITEST-Постачальник-mtcykvxp418-дублікат-1 [run=mtcykvxp418]","at":"2026-08-28T13:05:46.855Z"}
+{"kind":"supplier","id":"e6f8142e-489f-43e4-81f2-3b22416f1192","note":"UITEST-Постачальник-mtcykvxp418-назва-дубль [run=mtcykvxp418]","at":"2026-08-28T13:05:52.293Z"}
+{"kind":"supplier","id":"e2b4fc97-b942-48ef-bb03-a7021c36d3ab","note":"UITEST-Постачальник-mtcykvxp418-редагування [run=mtcykvxp418]","at":"2026-08-28T13:05:57.670Z"}
+{"kind":"supplier","id":"5ee91a91-8f12-4b45-9612-a5c09374264c","note":"UITEST-Постачальник-mtcykvxp418-пауза [run=mtcykvxp418]","at":"2026-08-28T13:06:03.253Z"}
+{"kind":"supplier","id":"2c97b90b-de88-4846-acde-73a8ced8ac1c","note":"UITEST-Постачальник-mtcykvxp418-фільтр [run=mtcykvxp418]","at":"2026-08-28T13:06:09.920Z"}
+{"kind":"supplier","id":"210ad445-8805-433c-8943-96c6c7b698cf","note":"UITEST-Постачальник-mtcytxaj931-повнота [run=mtcytxaj931]","at":"2026-08-28T13:06:40.520Z"}
+{"kind":"supplier","id":"fd7515e8-4d2b-4d4b-8ebe-a5f8f26c0ba0","note":"UITEST-Постачальник-mtcytxaj931-пошук-київ [run=mtcytxaj931]","at":"2026-08-28T13:06:45.568Z"}
+{"kind":"supplier","id":"b7152539-2181-482e-9e6f-d6eacffa1363","note":"UITEST-Постачальник-mtcytxaj931-сміття [run=mtcytxaj931]","at":"2026-08-28T13:06:51.153Z"}
+{"kind":"supplier","id":"699755a9-3ff2-4207-ac24-597af5dc5569","note":"UITEST-Постачальник-mtcytxaj931-видалення [run=mtcytxaj931]","at":"2026-08-28T13:07:00.283Z"}
+{"kind":"booking","id":"86c5f5b0-b79b-40a0-932e-6b16b55ab7ea","note":"UITEST-busy 2026-08-31T03:00:00Z","at":"2026-08-28T13:09:39.780Z"}
+{"kind":"vehicle","id":"1b4bf986-ca71-423e-a80e-9343fd8e2821","note":"UT2899XX","at":"2026-08-28T13:10:43.078Z"}
+{"kind":"booking","id":"6b13cbcb-826c-40d3-bbd8-f2d877a12894","note":"UITEST-8213 2026-08-29T12:40:00Z","at":"2026-08-28T13:11:07.664Z"}
+{"kind":"vehicle","id":"3bb0374e-4c75-45ca-b017-013d34669543","note":"UT9370XX","at":"2026-08-28T13:11:08.998Z"}
+{"kind":"booking","id":"d86d1860-38ba-46dc-b7cb-bf2256e82518","note":"UITEST-9370 2026-08-31T12:40:00Z","at":"2026-08-28T13:11:12.796Z"}
+{"kind":"vehicle","id":"c6a38fbb-dcbf-47dc-9f2c-6894ecc0037e","note":"UT2414XX","at":"2026-08-28T13:11:12.951Z"}
+{"kind":"booking","id":"d033dfb6-25f3-46e7-a5dc-4bf4bc1eec24","note":"конкуренція 2026-08-31T12:40:00Z","at":"2026-08-28T13:11:35.652Z"}
+{"kind":"vehicle","id":"3d3c22d6-be12-44d1-8e28-654ee536ba70","note":"UT3126XX","at":"2026-08-28T13:11:38.667Z"}
+{"kind":"vehicle","id":"337a3f14-e168-493c-9cf0-edb3a4852953","note":"UT3353XX","at":"2026-08-28T13:11:44.786Z"}
+{"kind":"vehicle","id":"97159744-f5d1-41e8-9584-77af322cdfb5","note":"UT4011XX","at":"2026-08-28T13:11:48.979Z"}
+{"kind":"vehicle","id":"2c1b88a4-0cb7-4066-a99b-a36c5bd4a0c4","note":"UT8393XX","at":"2026-08-28T13:11:52.275Z"}
+{"kind":"vehicle","id":"e34100fd-2fa7-4aad-a25e-da5be4db7d16","note":"UT1780XX","at":"2026-08-28T13:11:55.724Z"}
+{"kind":"vehicle","id":"79c10ffe-8c32-46c4-8879-1983d49f1644","note":"UT6858XX","at":"2026-08-28T13:11:59.768Z"}
+{"kind":"vehicle","id":"5fec0dbe-8486-47f9-8681-f0e82cf4c491","note":"UT6583XX","at":"2026-08-28T13:12:02.966Z"}
+{"kind":"booking","id":"954af19a-3d38-4fba-acbe-f21ff432dab5","note":"UITEST-veh-lock 2026-08-29T09:00:00Z","at":"2026-08-28T13:12:03.137Z"}
+{"kind":"vehicle","id":"6d81dd72-dc53-4d11-9b81-5e0cbfdfa15d","note":"UT1912XX","at":"2026-08-28T13:12:06.430Z"}
+{"kind":"vehicle","id":"d55b2c53-30b4-4737-989a-89412f1f06b9","note":"UT1035XX","at":"2026-08-28T13:12:10.939Z"}
+{"kind":"driver","id":"526e42ae-649d-4dd5-ba3b-e6db4d1b8dfe","note":"+380990003226","at":"2026-08-28T13:12:21.165Z"}
+{"kind":"driver","id":"d51ad199-e6d8-4112-9cb5-3df49627b99c","note":"+380990003754","at":"2026-08-28T13:12:22.865Z"}
+{"kind":"driver","id":"f32738bd-7401-4d0b-aab0-f2a5a19e5e40","note":"+380990002808","at":"2026-08-28T13:12:24.595Z"}
+{"kind":"driver","id":"08a7ee5c-2346-4166-ac0a-badf562cadb3","note":"+380990002294","at":"2026-08-28T13:12:26.316Z"}
+{"kind":"driver","id":"313de544-b0d7-4098-aa59-b7569fe03bc8","note":"+380990005108","at":"2026-08-28T13:12:37.395Z"}
+{"kind":"vehicle","id":"5be90db8-11ed-4919-904a-2c611ad4c46e","note":"UT3220XX","at":"2026-08-28T13:12:54.094Z"}
+{"kind":"driver","id":"a3d04bb2-d5a9-444b-8c17-7bc9e103dc09","note":"+380990003501","at":"2026-08-28T13:12:57.630Z"}
+{"kind":"driver","id":"9a7dcd94-292e-4f1d-9ed3-b0f07b5e54af","note":"+380990006306","at":"2026-08-28T13:13:04.741Z"}
+{"kind":"booking","id":"e6a10ace-f09c-4b07-ba94-40069eaebe71","note":"UITEST-4456 2026-08-31T09:00:00Z","at":"2026-08-28T13:13:12.770Z"}
+{"kind":"booking","id":"d38c68b3-462c-45e7-876b-24fe2bde2eac","note":"UITEST-7895 2026-08-31T08:00:00Z","at":"2026-08-28T13:13:16.468Z"}
+{"kind":"booking","id":"6cf9eca8-4d68-4629-978c-89ad31bf85ab","note":"UITEST-7317 2026-09-01T09:00:00Z","at":"2026-08-28T13:13:19.553Z"}
+{"kind":"booking","id":"c1a10066-6718-400f-a245-609eb469f142","note":"UITEST-5543 2026-09-01T08:00:00Z","at":"2026-08-28T13:13:24.898Z"}
+{"kind":"vehicle","id":"e2fcb26f-e546-4570-b87a-7bf6ac475f87","note":"UT2732XX","at":"2026-08-28T13:13:31.448Z"}
+{"kind":"booking","id":"b9c90bad-76ed-4ab7-bcaf-cea3acd6e1c6","note":"UITEST-2732 2026-08-31T08:45:00Z","at":"2026-08-28T13:13:31.633Z"}
+{"kind":"booking","id":"b0cf78a4-1956-4dd1-b986-c4f739b3f297","note":"UITEST-9786 2026-08-31T12:40:00Z","at":"2026-08-28T13:13:37.610Z"}
+{"kind":"booking","id":"fd8f12ba-42b1-4485-9959-45cf7d7370d4","note":"UITEST-1181 2026-09-01T07:00:00Z","at":"2026-08-28T13:13:42.665Z"}
+{"kind":"booking","id":"dbe4385d-6f5d-422d-b1e8-47bfcf3c7209","note":"UITEST-7575 2026-09-02T09:00:00Z","at":"2026-08-28T13:13:47.812Z"}
+{"kind":"booking","id":"497d0823-99ed-4979-a162-a488efe4d9f2","note":"UITEST-backend-chain-56942 · UTTCZ3TNY1XX · філія 2233","at":"2026-08-28T13:14:17.163Z"}
+{"kind":"walk-in","id":"f90f16f7-e2d8-429e-8c3b-6bee6ddd854a","note":"UTTCZ3UJT2XX · перевірка контракту","at":"2026-08-28T13:14:18.201Z"}
+{"kind":"booking","id":"287d6b9f-635d-45a0-b413-a2eaf432fade","note":"UITEST-board-73072 · UTTCZ46403XX · філія 2233","at":"2026-08-28T13:14:33.275Z"}
+{"kind":"booking","id":"286b3f8c-8a54-4a72-9abb-087a0498259b","note":"UITEST-timeline-75807 · UTTCZ487Z4XX · філія 2233","at":"2026-08-28T13:14:36.015Z"}
+{"kind":"booking","id":"522504c3-cbc6-4f65-9a71-3f6ba0cbfa78","note":"UITEST-arrive-83333 · UTTCZ4E115XX · філія 2233","at":"2026-08-28T13:14:43.516Z"}
+{"kind":"booking","id":"66d59bcb-3bee-4122-b401-688945d6605b","note":"UITEST-unload-88587 · UTTCZ4I2Z6XX · філія 2233","at":"2026-08-28T13:14:48.787Z"}
+{"kind":"booking","id":"27487c72-f2e3-4e64-abbe-32a88a715949","note":"UITEST-complete-94961 · UTTCZ4N017XX · філія 2233","at":"2026-08-28T13:14:55.206Z"}
+{"kind":"booking","id":"aa83fb93-2145-4cf2-823b-dab3abadf069","note":"UITEST-partial-03069 · UTTCZ4T998XX · філія 2233","at":"2026-08-28T13:15:03.319Z"}
+{"kind":"booking","id":"fdb46108-d5be-450c-b49b-307e80047423","note":"UITEST-reject-11457 · UTTCZ4ZQ99XX · філія 2233","at":"2026-08-28T13:15:11.660Z"}
+{"kind":"booking","id":"7c152000-d7dd-462d-b255-747d2637fe5b","note":"UITEST-noshow-18373 · UTTCZ552DAXX · філія 2233","at":"2026-08-28T13:15:18.594Z"}
+{"kind":"booking","id":"250775ef-d445-409b-ad3c-cf9b3ea04d66","note":"UITEST-delay-21235 · UTTCZ579VBXX · філія 2233","at":"2026-08-28T13:15:21.430Z"}
+{"kind":"booking","id":"a677cc02-adab-463d-8313-d172e99a6ac4","note":"UITEST-reassign-26769 · UTTCZ5BJLCXX · філія 2233","at":"2026-08-28T13:15:26.998Z"}
+{"kind":"walk-in","id":"d8056ce0-6af1-4fb5-86a6-c98f9afed1ec","note":"UTTCZ5MALDXX · UITEST-walkin","at":"2026-08-28T13:15:41.007Z"}
+{"kind":"walk-in","id":"b50ef79c-976e-4eea-8785-5e05d960ee97","note":"UTTCZ5PAEEXX · UITEST-Поза системою","at":"2026-08-28T13:15:44.903Z"}
+{"kind":"booking","id":"33d32c1f-7a57-4dd5-a50a-1b3d46ecea3f","note":"UITEST-filter-a-46272 · UTTCZ5QLCFXX · філія 2233","at":"2026-08-28T13:15:46.586Z"}
+{"kind":"booking","id":"fc007007-69ed-4f91-af32-c02354eb3cd3","note":"UITEST-filter-b-46821 · UTTCZ5R0LGXX · філія 2233","at":"2026-08-28T13:15:47.111Z"}
+{"kind":"booking","id":"1354f5ed-3766-4d95-9300-a683b776b714","note":"UITEST-supfilter-50785 · UTTCZ5U2PHXX · філія 2233","at":"2026-08-28T13:15:50.995Z"}
+{"kind":"booking","id":"6a45e0a9-50fd-4f74-b06a-6f8c647ea489","note":"UITEST-statusfilter-56313 · UTTCZ5YC9IXX · філія 2233","at":"2026-08-28T13:15:56.551Z"}
+{"kind":"booking","id":"55181943-335b-4801-9684-1b1c95c1a052","note":"UITEST-stats-59582 · UTTCZ60V2JXX · філія 2233","at":"2026-08-28T13:15:59.772Z"}
+{"kind":"booking","id":"86163e0c-a785-4602-8c4a-d582154876e2","note":"UITEST-tomorrow-62843 · UTTCZ63DNKXX · філія 2229","at":"2026-08-28T13:16:02.964Z"}
+{"kind":"booking","id":"c6085b77-dbaf-4d34-a36d-edf03cf20ea3","note":"UITEST-audit-70320 · UTTCZ695CLXX · філія 2233","at":"2026-08-28T13:16:10.518Z"}
+{"kind":"driver","id":"91fdb57c-cbee-45e9-86a0-4af9bcdcb796","note":"+380990009875 UITEST Водій-99063048","at":"2026-08-28T13:16:31.152Z"}
+{"kind":"driver","id":"2d14a9a8-7344-4d1b-8c1c-fbf43be90a04","note":"+380990002047 UITEST Водій-99063048-порожній","at":"2026-08-28T13:16:31.575Z"}
+{"kind":"booking","id":"0b806d6d-7f6c-43ec-92b5-0012b54af5fb","note":"UITEST-99063048-B 2026-08-28 1932","at":"2026-08-28T13:16:32.956Z"}
+{"kind":"vehicle-plate","id":"UT7306XX","note":"бронювання 0b806d6d-7f6c-43ec-92b5-0012b54af5fb","at":"2026-08-28T13:16:32.957Z"}
+{"kind":"booking","id":"6cd6c598-ef82-4ece-a2d0-4f6706b59bcb","note":"UITEST-99063048-A 2026-08-28 1932","at":"2026-08-28T13:16:34.525Z"}
+{"kind":"vehicle-plate","id":"UT2490XX","note":"бронювання 6cd6c598-ef82-4ece-a2d0-4f6706b59bcb","at":"2026-08-28T13:16:34.526Z"}
+{"kind":"booking","id":"3be4d7fe-9769-44c3-a43c-a1f4c9d3d57c","note":"UITEST-99063048-C 2026-08-29 1932","at":"2026-08-28T13:16:36.077Z"}
+{"kind":"vehicle-plate","id":"UT2444XX","note":"бронювання 3be4d7fe-9769-44c3-a43c-a1f4c9d3d57c","at":"2026-08-28T13:16:36.078Z"}
+{"kind":"driver","id":"5d56fdcf-31ad-4460-b403-3162f1af3876","note":"+380990007761 UITEST Водій-00285343-пароль","at":"2026-08-28T13:16:43.267Z"}
+{"kind":"booking","id":"14cf00a0-f6d4-48af-b4b5-bc9ced08ff46","note":"UITEST-02891030-цикл 2026-08-28 2231","at":"2026-08-28T13:17:09.425Z"}
+{"kind":"vehicle-plate","id":"UT3186XX","note":"бронювання 14cf00a0-f6d4-48af-b4b5-bc9ced08ff46","at":"2026-08-28T13:17:09.426Z"}
+{"kind":"booking","id":"fdf8eefb-a36d-4c13-a812-bf6bba813d1e","note":"UITEST-03873458-рано 2026-08-29 1932","at":"2026-08-28T13:17:20.146Z"}
+{"kind":"vehicle-plate","id":"UT6848XX","note":"бронювання fdf8eefb-a36d-4c13-a812-bf6bba813d1e","at":"2026-08-28T13:17:20.146Z"}
+{"kind":"booking","id":"3f5832fe-7919-4eb1-b3cc-15ec7f5e1fce","note":"UITEST-04073319-затримка 2026-08-28 1932","at":"2026-08-28T13:17:22.180Z"}
+{"kind":"vehicle-plate","id":"UT8264XX","note":"бронювання 3f5832fe-7919-4eb1-b3cc-15ec7f5e1fce","at":"2026-08-28T13:17:22.180Z"}
+{"kind":"booking","id":"593569f5-cd02-48df-bbc0-8ec49f37eae6","note":"UITEST-04647681-офлайн 2026-08-28 2231","at":"2026-08-28T13:17:27.032Z"}
+{"kind":"vehicle-plate","id":"UT9320XX","note":"бронювання 593569f5-cd02-48df-bbc0-8ec49f37eae6","at":"2026-08-28T13:17:27.033Z"}
+{"kind":"booking","id":"0bc2cb0d-b3ff-4040-ad13-212730c8041b","note":"UITEST-05529267-полінг 2026-08-28 1932","at":"2026-08-28T13:17:36.687Z"}
+{"kind":"vehicle-plate","id":"UT7458XX","note":"бронювання 0bc2cb0d-b3ff-4040-ad13-212730c8041b","at":"2026-08-28T13:17:36.687Z"}
+{"kind":"driver","id":"c21e4be4-13bc-4ac3-869a-4ed88b51ab10","note":"+380990003481 UITEST Водій-09205650-моб","at":"2026-08-28T13:18:12.472Z"}
+{"kind":"booking","id":"c73f2328-f69c-42d3-9757-bffbc4979f3a","note":"UITEST-09205650-моб 2026-08-28 2231","at":"2026-08-28T13:18:13.254Z"}
+{"kind":"vehicle-plate","id":"UT5955XX","note":"бронювання c73f2328-f69c-42d3-9757-bffbc4979f3a","at":"2026-08-28T13:18:13.254Z"}
+{"kind":"supplier","id":"5ae2de7c-0a26-42f7-8967-ce281cf4781e","note":"UITEST-Постачальник-mtczah5m327-доступ [run=mtczah5m327]","at":"2026-08-28T13:19:31.218Z"}
+{"kind":"supplier","id":"64b80b7f-2463-4a94-a95a-9d17280b0032","note":"UITEST-Постачальник-mtczans0515-доступ [run=mtczans0515]","at":"2026-08-28T13:19:39.187Z"}
+{"kind":"supplier","id":"484b05ab-84d6-4c28-8e1b-e6af83dd6643","note":"UITEST-Постачальник-mtczckpt724-доступ [run=mtczckpt724]","at":"2026-08-28T13:21:08.815Z"}
+{"kind":"supplier","id":"39a29aec-e88c-4115-bb3e-2d1a07f7eec4","note":"UITEST-Постачальник-mtczcr9j732-доступ [run=mtczcr9j732]","at":"2026-08-28T13:21:17.204Z"}
+{"kind":"supplier","id":"8f775038-39d5-4c52-839d-8aba365b69e4","note":"UITEST-Постачальник-mtczcxnc841-доступ [run=mtczcxnc841]","at":"2026-08-28T13:21:25.477Z"}
+{"kind":"supplier","id":"df1833bd-f919-4d0f-a540-7c914bb41f01","note":"UITEST-Постачальник-mtczd4br233-доступ [run=mtczd4br233]","at":"2026-08-28T13:21:33.988Z"}
+{"kind":"supplier","id":"9b37595a-22e0-42a2-9787-2ae21fdc87cd","note":"UITEST-Постачальник-mtczdhsm612-доступ [run=mtczdhsm612]","at":"2026-08-28T13:22:16.681Z"}
+{"kind":"supplier","id":"7ed4b8e7-be05-4b2d-8eb7-51fe5e1872b9","note":"UITEST-Постачальник-mtczdhsm612-створення [run=mtczdhsm612]","at":"2026-08-28T13:22:26.733Z"}
+{"kind":"supplier","id":"44a2df90-9507-45f2-8d1c-2f55d1c8a7d0","note":"UITEST-Постачальник-mtczdhsm612-дублікат-1 [run=mtczdhsm612]","at":"2026-08-28T13:22:30.634Z"}
+{"kind":"supplier","id":"7474d5f8-de0d-43ca-b2a1-7c852e6833cd","note":"UITEST-Постачальник-mtczdhsm612-назва-дубль [run=mtczdhsm612]","at":"2026-08-28T13:22:35.634Z"}
+{"kind":"supplier","id":"f0e655c5-035d-4158-832b-d927a75ea8e0","note":"UITEST-Постачальник-mtczdhsm612-редагування [run=mtczdhsm612]","at":"2026-08-28T13:22:40.351Z"}
+{"kind":"supplier","id":"d14df341-8718-4eed-934d-f3a3c928b0f9","note":"UITEST-Постачальник-mtczdhsm612-пауза [run=mtczdhsm612]","at":"2026-08-28T13:22:45.065Z"}
+{"kind":"supplier","id":"d1c7b402-c36f-4239-a72f-8f9161ba723a","note":"UITEST-Постачальник-mtczdhsm612-фільтр [run=mtczdhsm612]","at":"2026-08-28T13:22:51.061Z"}
+{"kind":"supplier","id":"07166740-fbbf-4191-bc48-1c35541003ec","note":"UITEST-Постачальник-mtczexyy251-повнота [run=mtczexyy251]","at":"2026-08-28T13:23:00.499Z"}
+{"kind":"supplier","id":"6f373b23-c86f-455f-903e-b3d7164431fe","note":"UITEST-Постачальник-mtczexyy251-пошук-київ [run=mtczexyy251]","at":"2026-08-28T13:23:05.531Z"}
+{"kind":"supplier","id":"34e120bd-a05f-42b6-9de0-c7da1045eb50","note":"UITEST-Постачальник-mtczexyy251-сміття [run=mtczexyy251]","at":"2026-08-28T13:23:10.664Z"}
+{"kind":"supplier","id":"f63d5086-3312-4d77-a9b3-9ba6295fd987","note":"UITEST-Постачальник-mtczexyy251-видалення [run=mtczexyy251]","at":"2026-08-28T13:23:19.054Z"}
+{"kind":"supplier","id":"6f75f442-a988-417a-8a56-1a09e31e2033","note":"UITEST-Постачальник-mtczfiwv934-доступ [run=mtczfiwv934]","at":"2026-08-28T13:23:52.321Z"}
+{"kind":"supplier","id":"e8e8d5d6-6389-441f-8455-9598c290df68","note":"UITEST-Постачальник-mtczfiwv934-створення [run=mtczfiwv934]","at":"2026-08-28T13:24:02.159Z"}
+{"kind":"supplier","id":"2d7f52b8-a444-4ae2-9cef-d48ce461d486","note":"UITEST-Постачальник-mtczfiwv934-дублікат-1 [run=mtczfiwv934]","at":"2026-08-28T13:24:06.248Z"}
+{"kind":"supplier","id":"c2b555eb-9e1a-4a2e-8039-f997aff0465f","note":"UITEST-Постачальник-mtczfiwv934-назва-дубль [run=mtczfiwv934]","at":"2026-08-28T13:24:10.956Z"}
+{"kind":"supplier","id":"a0fa5644-65c8-46b3-b9f1-b3870ffb67f9","note":"UITEST-Постачальник-mtczfiwv934-редагування [run=mtczfiwv934]","at":"2026-08-28T13:24:15.583Z"}
+{"kind":"supplier","id":"641a0987-96db-4025-90d2-ccd478a999df","note":"UITEST-Постачальник-mtczfiwv934-пауза [run=mtczfiwv934]","at":"2026-08-28T13:24:20.395Z"}
+{"kind":"supplier","id":"cd545bc6-613f-4775-9360-b56e63cb4be9","note":"UITEST-Постачальник-mtczfiwv934-фільтр [run=mtczfiwv934]","at":"2026-08-28T13:24:26.688Z"}
+{"kind":"supplier","id":"58d9ec5f-43be-4a71-a3e0-5745e764dcdc","note":"UITEST-Постачальник-mtczh0ae500-повнота [run=mtczh0ae500]","at":"2026-08-28T13:24:37.012Z"}
+{"kind":"supplier","id":"86d16d60-2f64-4c73-af85-0e8d92d9e565","note":"UITEST-Постачальник-mtczh0ae500-пошук-київ [run=mtczh0ae500]","at":"2026-08-28T13:24:41.935Z"}
+{"kind":"supplier","id":"66435cb8-4e98-44c3-93b8-c7dd9cf17a08","note":"UITEST-Постачальник-mtczh0ae500-сміття [run=mtczh0ae500]","at":"2026-08-28T13:24:47.240Z"}
+{"kind":"supplier","id":"023a400b-93f0-4a1c-b068-c45df68e5f15","note":"UITEST-Постачальник-mtczh0ae500-видалення [run=mtczh0ae500]","at":"2026-08-28T13:24:55.295Z"}
+{"kind":"supplier","id":"1b469224-4198-4ba4-a028-be4b7cb06e8e","note":"UITEST-Постачальник-mtczinmx870-створення [run=mtczinmx870]","at":"2026-08-28T13:25:58.550Z"}
+{"kind":"supplier","id":"e171a57f-8ad2-44ae-8afe-9939d8a1a02e","note":"UITEST-Постачальник-mtczinmx870-дублікат-1 [run=mtczinmx870]","at":"2026-08-28T13:26:03.249Z"}
+{"kind":"supplier","id":"1042e828-9349-482b-8f8e-0f74dfef9b07","note":"UITEST-Постачальник-mtczinmx870-назва-дубль [run=mtczinmx870]","at":"2026-08-28T13:26:07.973Z"}
+{"kind":"supplier","id":"244ecb3d-7089-409f-9552-5e2b231ef2d4","note":"UITEST-Постачальник-mtczinmx870-редагування [run=mtczinmx870]","at":"2026-08-28T13:26:12.678Z"}
+{"kind":"supplier","id":"fcc58c9e-e353-468c-8df1-36b1e1dad423","note":"UITEST-Постачальник-mtczinmx870-пауза [run=mtczinmx870]","at":"2026-08-28T13:26:17.415Z"}
+{"kind":"supplier","id":"801f1384-a05f-40b9-9d72-5fafd97661c3","note":"UITEST-Постачальник-mtczinmx870-фільтр [run=mtczinmx870]","at":"2026-08-28T13:26:23.602Z"}
+{"kind":"supplier","id":"779dbf71-3d72-4dae-9aea-3be7222d3287","note":"UITEST-Постачальник-mtczinmx870-доступ [run=mtczinmx870]","at":"2026-08-28T13:26:27.888Z"}
+{"kind":"supplier","id":"1dfc16fa-ad84-444d-919f-2be6ba9b7e42","note":"UITEST-Постачальник-mtczinmx870-повнота [run=mtczinmx870]","at":"2026-08-28T13:26:35.547Z"}
+{"kind":"supplier","id":"81a2dd4a-3547-42c5-994e-222a8184be6e","note":"UITEST-Постачальник-mtczinmx870-пошук-київ [run=mtczinmx870]","at":"2026-08-28T13:26:40.431Z"}
+{"kind":"supplier","id":"04797ac0-858e-4854-9392-d311086369a8","note":"UITEST-Постачальник-mtczinmx870-сміття [run=mtczinmx870]","at":"2026-08-28T13:26:45.503Z"}
+{"kind":"supplier","id":"b44ab17f-5d78-4111-8d67-8d698ee70805","note":"UITEST-Постачальник-mtczinmx870-видалення [run=mtczinmx870]","at":"2026-08-28T13:26:53.675Z"}
+{"kind":"supplier","id":"a5cfe553-9240-43bc-be18-00723880a8d5","note":"UITEST-Постачальник-mtczk4qa211-доступ [run=mtczk4qa211]","at":"2026-08-28T13:27:26.713Z"}
+{"kind":"supplier","id":"65c47e1b-e45a-4c9d-bdd5-d05b2ec42520","note":"UITEST-Постачальник-mtczk4qa211-створення [run=mtczk4qa211]","at":"2026-08-28T13:27:36.368Z"}
+{"kind":"supplier","id":"31f2475d-c381-4126-b4ae-fb3843a3f096","note":"UITEST-Постачальник-mtczk4qa211-дублікат-1 [run=mtczk4qa211]","at":"2026-08-28T13:27:40.454Z"}
+{"kind":"supplier","id":"bca20550-deec-4f06-b157-9263ab5a6881","note":"UITEST-Постачальник-mtczk4qa211-назва-дубль [run=mtczk4qa211]","at":"2026-08-28T13:27:45.208Z"}
+{"kind":"supplier","id":"bc3b0a01-9661-47d4-bcdb-b8c9bf14ca5e","note":"UITEST-Постачальник-mtczk4qa211-редагування [run=mtczk4qa211]","at":"2026-08-28T13:27:49.913Z"}
+{"kind":"supplier","id":"cfa17096-6e65-4e2c-bc24-13150cdcd09c","note":"UITEST-Постачальник-mtczk4qa211-пауза [run=mtczk4qa211]","at":"2026-08-28T13:27:54.396Z"}
+{"kind":"supplier","id":"4110b99d-1d5c-4c96-8983-edcb000b2d36","note":"UITEST-Постачальник-mtczk4qa211-фільтр [run=mtczk4qa211]","at":"2026-08-28T13:28:00.350Z"}
+{"kind":"supplier","id":"d98ed8c0-67e3-4421-b60d-b084c6054bdd","note":"UITEST-Постачальник-mtczlkr9881-повнота [run=mtczlkr9881]","at":"2026-08-28T13:28:09.831Z"}
+{"kind":"supplier","id":"a06edca1-7a1c-4cc0-8a23-db5eb39cd61b","note":"UITEST-Постачальник-mtczlkr9881-пошук-київ [run=mtczlkr9881]","at":"2026-08-28T13:28:14.807Z"}
+{"kind":"supplier","id":"82d3bc0e-cd21-4f26-91c9-0a6a4023f897","note":"UITEST-Постачальник-mtczlkr9881-сміття [run=mtczlkr9881]","at":"2026-08-28T13:28:19.980Z"}
+{"kind":"supplier","id":"f4ccfeeb-303f-42a9-b0b4-98beeef3ee6b","note":"UITEST-Постачальник-mtczlkr9881-видалення [run=mtczlkr9881]","at":"2026-08-28T13:28:28.435Z"}
+{"kind":"supplier","id":"bac7c97a-5e5b-4b84-82e5-ff4df1dcc83c","note":"UITEST-Постачальник-mtczm65k750-доступ [run=mtczm65k750]","at":"2026-08-28T13:29:02.142Z"}
+{"kind":"supplier","id":"4c9c3296-5f04-4b50-890f-172cf4f2cc64","note":"UITEST-Постачальник-mtczm65k750-створення [run=mtczm65k750]","at":"2026-08-28T13:29:11.770Z"}
+{"kind":"supplier","id":"e0ee2121-b065-4123-a7b5-98d10cf9427c","note":"UITEST-Постачальник-mtczm65k750-дублікат-1 [run=mtczm65k750]","at":"2026-08-28T13:29:16.268Z"}
+{"kind":"supplier","id":"8fcfec09-e1ef-47a5-a5c6-8d5736f0a61e","note":"UITEST-Постачальник-mtczm65k750-назва-дубль [run=mtczm65k750]","at":"2026-08-28T13:29:20.898Z"}
+{"kind":"supplier","id":"5ffe420e-5ce5-4c4f-8707-b31fe845c0b5","note":"UITEST-Постачальник-mtczm65k750-редагування [run=mtczm65k750]","at":"2026-08-28T13:29:25.627Z"}
+{"kind":"supplier","id":"8aeade94-4246-480b-bfbc-57d9d2a9d5f0","note":"UITEST-Постачальник-mtczm65k750-пауза [run=mtczm65k750]","at":"2026-08-28T13:29:30.158Z"}
+{"kind":"supplier","id":"b24a9bf1-fa97-4d66-8655-c52cd3f0159c","note":"UITEST-Постачальник-mtczm65k750-фільтр [run=mtczm65k750]","at":"2026-08-28T13:29:36.224Z"}
+{"kind":"supplier","id":"0abf6f0d-8dd5-4f89-b14f-c85a123181f8","note":"UITEST-Постачальник-mtcznmfv855-повнота [run=mtcznmfv855]","at":"2026-08-28T13:29:45.454Z"}
+{"kind":"supplier","id":"0f5706c2-dddc-463f-a7e1-ed15f1b4956a","note":"UITEST-Постачальник-mtcznmfv855-пошук-київ [run=mtcznmfv855]","at":"2026-08-28T13:29:50.280Z"}
+{"kind":"supplier","id":"80a6689b-fde8-409f-ac8c-ce6e46c77577","note":"UITEST-Постачальник-mtcznmfv855-сміття [run=mtcznmfv855]","at":"2026-08-28T13:29:55.323Z"}
+{"kind":"supplier","id":"dc5cd537-dd14-4951-8865-20b5e301f1a0","note":"UITEST-Постачальник-mtcznmfv855-видалення [run=mtcznmfv855]","at":"2026-08-28T13:30:03.911Z"}
+{"kind":"supplier","id":"695ac03a-b15e-4858-a7c3-ac208b1fa648","note":"UITEST-Постачальник-mtczo7of261-доступ [run=mtczo7of261]","at":"2026-08-28T13:30:38.407Z"}
+{"kind":"supplier","id":"1b56a6fd-14dd-450a-afb9-76f7d17bab5e","note":"UITEST-Постачальник-mtczo7of261-створення [run=mtczo7of261]","at":"2026-08-28T13:30:48.410Z"}
+{"kind":"supplier","id":"d2cded54-48cc-4058-bf66-8682dfa2f9cb","note":"UITEST-Постачальник-mtczo7of261-дублікат-1 [run=mtczo7of261]","at":"2026-08-28T13:30:52.471Z"}
+{"kind":"supplier","id":"cf30d5e4-9956-424e-8dad-5bafa97de670","note":"UITEST-Постачальник-mtczo7of261-назва-дубль [run=mtczo7of261]","at":"2026-08-28T13:30:57.353Z"}
+{"kind":"supplier","id":"7c5c2ff6-2409-4757-b8f9-2572ef1f3aa7","note":"UITEST-Постачальник-mtczo7of261-редагування [run=mtczo7of261]","at":"2026-08-28T13:31:02.092Z"}
+{"kind":"supplier","id":"ab8c04c5-a96c-4b85-b0e7-91415e8d039e","note":"UITEST-Постачальник-mtczo7of261-пауза [run=mtczo7of261]","at":"2026-08-28T13:31:06.805Z"}
+{"kind":"supplier","id":"68208e1e-20f9-4ae6-ab26-bbcdf3fe29b7","note":"UITEST-Постачальник-mtczo7of261-фільтр [run=mtczo7of261]","at":"2026-08-28T13:31:12.666Z"}
+{"kind":"supplier","id":"ef61915c-448b-4f1c-9c52-6a137a0bc2d4","note":"UITEST-Постачальник-mtczpoy0389-повнота [run=mtczpoy0389]","at":"2026-08-28T13:31:21.983Z"}
+{"kind":"supplier","id":"3a0ac3cc-9096-4860-b5f8-13ffdb521a66","note":"UITEST-Постачальник-mtczpoy0389-пошук-київ [run=mtczpoy0389]","at":"2026-08-28T13:31:26.901Z"}
+{"kind":"supplier","id":"069d71d6-3dfd-4ceb-955e-463ea20de13b","note":"UITEST-Постачальник-mtczpoy0389-сміття [run=mtczpoy0389]","at":"2026-08-28T13:31:31.987Z"}
+{"kind":"supplier","id":"80112bdb-fcaa-4207-99f0-48231a529eed","note":"UITEST-Постачальник-mtczpoy0389-видалення [run=mtczpoy0389]","at":"2026-08-28T13:31:40.052Z"}
+{"kind":"supplier","id":"9219e8ee-66ae-4832-a149-3e83bd424eda","note":"UITEST-Постачальник-mtczrgwz752-логін-пароль [run=mtczrgwz752]","at":"2026-08-28T13:33:09.766Z"}
+{"kind":"supplier","id":"9c0b5971-dc6f-4892-b41e-6045e093f6ff","note":"UITEST-Постачальник-mtczrgwz752-створення [run=mtczrgwz752]","at":"2026-08-28T13:33:19.675Z"}
+{"kind":"supplier","id":"72eece80-51de-48d3-8c47-13bc59b3ad96","note":"UITEST-Постачальник-mtczrgwz752-дублікат-1 [run=mtczrgwz752]","at":"2026-08-28T13:33:23.881Z"}
+{"kind":"supplier","id":"79e45774-6056-4767-88c1-073ea6008edf","note":"UITEST-Постачальник-mtczrgwz752-назва-дубль [run=mtczrgwz752]","at":"2026-08-28T13:33:29.006Z"}
+{"kind":"supplier","id":"3e313917-f6c8-4f0c-bba2-2ae9f5f9b4e8","note":"UITEST-Постачальник-mtczrgwz752-редагування [run=mtczrgwz752]","at":"2026-08-28T13:33:33.731Z"}
+{"kind":"supplier","id":"72d6a482-d760-46bc-a74f-c3f96b5f8e8b","note":"UITEST-Постачальник-mtczrgwz752-пауза [run=mtczrgwz752]","at":"2026-08-28T13:33:38.533Z"}
+{"kind":"supplier","id":"3ebe5b12-482e-4fcd-bf18-5484aef2bd90","note":"UITEST-Постачальник-mtczrgwz752-фільтр [run=mtczrgwz752]","at":"2026-08-28T13:33:44.777Z"}
+{"kind":"supplier","id":"e236adae-da2a-4338-b39c-4c3853573870","note":"UITEST-Постачальник-mtczrgwz752-доступ [run=mtczrgwz752]","at":"2026-08-28T13:33:49.583Z"}
+{"kind":"supplier","id":"30948be8-ce29-45d4-a2bc-8ab14f22384e","note":"UITEST-Постачальник-mtczrgwz752-повнота [run=mtczrgwz752]","at":"2026-08-28T13:33:58.162Z"}
+{"kind":"supplier","id":"5eba609a-013d-497b-99aa-d731d5cf69c6","note":"UITEST-Постачальник-mtczrgwz752-пошук-київ [run=mtczrgwz752]","at":"2026-08-28T13:34:03.213Z"}
+{"kind":"supplier","id":"a6c31d50-ab2c-4386-aa81-d3244632cce9","note":"UITEST-Постачальник-mtczrgwz752-сміття [run=mtczrgwz752]","at":"2026-08-28T13:34:08.494Z"}
+{"kind":"supplier","id":"d516a9c4-75ac-4ad6-b78f-e919bdf8fb49","note":"UITEST-Постачальник-mtczrgwz752-видалення [run=mtczrgwz752]","at":"2026-08-28T13:34:17.038Z"}
+{"kind":"supplier","id":"c1e87782-428f-4b17-a50b-07b464d7dee2","note":"UITEST-Постачальник-mtcztn0s534-логін-пароль [run=mtcztn0s534]","at":"2026-08-28T13:34:49.408Z"}
+{"kind":"supplier","id":"e93396bc-c0bb-43ab-9118-4b88f179be23","note":"UITEST-Постачальник-mtcztn0s534-створення [run=mtcztn0s534]","at":"2026-08-28T13:34:59.080Z"}
+{"kind":"supplier","id":"e8fd2695-d485-405f-80b1-bb7205fa6e43","note":"UITEST-Постачальник-mtcztn0s534-дублікат-1 [run=mtcztn0s534]","at":"2026-08-28T13:35:03.548Z"}
+{"kind":"supplier","id":"1d9e463b-7003-43f8-8fa8-dba67a3f1696","note":"UITEST-Постачальник-mtcztn0s534-назва-дубль [run=mtcztn0s534]","at":"2026-08-28T13:35:08.271Z"}
+{"kind":"supplier","id":"3ba7401c-0682-4da8-ab6e-74311c8fe7ab","note":"UITEST-Постачальник-mtcztn0s534-редагування [run=mtcztn0s534]","at":"2026-08-28T13:35:12.998Z"}
+{"kind":"supplier","id":"3d2133a5-6a55-472e-bf4b-5cfe34cb70dc","note":"UITEST-Постачальник-mtcztn0s534-пауза [run=mtcztn0s534]","at":"2026-08-28T13:35:17.486Z"}
+{"kind":"supplier","id":"08b7dd32-5966-48c5-b4be-60ce3acda00c","note":"UITEST-Постачальник-mtcztn0s534-фільтр [run=mtcztn0s534]","at":"2026-08-28T13:35:23.427Z"}
+{"kind":"supplier","id":"5e55ab1a-5d47-4bc5-be10-026c7198cfc3","note":"UITEST-Постачальник-mtcztn0s534-доступ [run=mtcztn0s534]","at":"2026-08-28T13:35:27.662Z"}
+{"kind":"supplier","id":"c1404e6a-fb80-428f-a643-a2f7dcf9053d","note":"UITEST-Постачальник-mtcztn0s534-повнота [run=mtcztn0s534]","at":"2026-08-28T13:35:35.008Z"}
+{"kind":"supplier","id":"3fdffafd-b335-4f9b-823e-dc9a2c731372","note":"UITEST-Постачальник-mtcztn0s534-пошук-київ [run=mtcztn0s534]","at":"2026-08-28T13:35:39.678Z"}
+{"kind":"supplier","id":"9fbb17f1-9cf6-4202-9df0-6ffa1fabc6fc","note":"UITEST-Постачальник-mtcztn0s534-сміття [run=mtcztn0s534]","at":"2026-08-28T13:35:44.774Z"}
+{"kind":"supplier","id":"0c69740c-bf56-4aa7-a5fb-42bad8be7f31","note":"UITEST-Постачальник-mtcztn0s534-видалення [run=mtcztn0s534]","at":"2026-08-28T13:35:52.791Z"}
+{"kind":"supplier","id":"d33517d3-98aa-4171-9108-d239b872ba88","note":"UITEST-Постачальник-mtczvomw171-логін-пароль [run=mtczvomw171]","at":"2026-08-28T13:36:25.507Z"}
+{"kind":"supplier","id":"284eadd4-39a2-4ff3-98d9-0306293ede4b","note":"UITEST-Постачальник-mtczvomw171-створення [run=mtczvomw171]","at":"2026-08-28T13:36:35.287Z"}
+{"kind":"supplier","id":"a431f305-7b73-4749-bf46-47bbb7b11b73","note":"UITEST-Постачальник-mtczvomw171-дублікат-1 [run=mtczvomw171]","at":"2026-08-28T13:36:39.286Z"}
+{"kind":"supplier","id":"7c3a3a3f-4853-4fab-9650-9c8c58f9711f","note":"UITEST-Постачальник-mtczvomw171-назва-дубль [run=mtczvomw171]","at":"2026-08-28T13:36:43.885Z"}
+{"kind":"supplier","id":"84e28a2e-2120-4d5b-8545-25cc6161dae4","note":"UITEST-Постачальник-mtczvomw171-редагування [run=mtczvomw171]","at":"2026-08-28T13:36:48.501Z"}
+{"kind":"supplier","id":"674d3b14-c1a9-4a80-b8f5-03648e50ce07","note":"UITEST-Постачальник-mtczvomw171-пауза [run=mtczvomw171]","at":"2026-08-28T13:36:53.086Z"}
+{"kind":"supplier","id":"2e0cc4f1-0e2d-43fc-99a0-fdbc5d48997a","note":"UITEST-Постачальник-mtczvomw171-фільтр [run=mtczvomw171]","at":"2026-08-28T13:36:58.993Z"}
+{"kind":"supplier","id":"c5ef2141-0705-494b-acb2-c24bb3c4bc71","note":"UITEST-Постачальник-mtczvomw171-доступ [run=mtczvomw171]","at":"2026-08-28T13:37:03.210Z"}
+{"kind":"supplier","id":"cde07ed5-7f31-4d02-b972-f287f62d75e0","note":"UITEST-Постачальник-mtczvomw171-повнота [run=mtczvomw171]","at":"2026-08-28T13:37:10.515Z"}
+{"kind":"supplier","id":"a15de3e8-22ee-4aa0-a9a9-4aaa2bbb6357","note":"UITEST-Постачальник-mtczvomw171-пошук-київ [run=mtczvomw171]","at":"2026-08-28T13:37:15.244Z"}
+{"kind":"supplier","id":"ca6ae70d-923c-435e-91c1-b15d4913510f","note":"UITEST-Постачальник-mtczvomw171-сміття [run=mtczvomw171]","at":"2026-08-28T13:37:20.178Z"}
+{"kind":"supplier","id":"24c8bcf5-749b-4a53-857d-c9feb57bdf4d","note":"UITEST-Постачальник-mtczvomw171-видалення [run=mtczvomw171]","at":"2026-08-28T13:37:28.576Z"}
