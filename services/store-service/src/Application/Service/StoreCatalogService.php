@@ -126,6 +126,30 @@ final readonly class StoreCatalogService
         return $this->branches->cities(new BranchCriteria(scopedStoreIds: $storeScope));
     }
 
+    /**
+     * Довідник для фільтра «Місто» разом із кількістю філій БЕЗ міста.
+     *
+     * `items` не змінився (порожнє місто в ньому не зʼявляється — цей самий
+     * довідник читає кабінет постачальника). Окреме поле `withoutCity` дає
+     * адмінці зібрати варіант «(без міста)», без якого частина мережі не
+     * потрапляла в жоден пункт фільтра і лишалася недосяжною (STL-02).
+     *
+     * @param list<string>|null $storeScope скоуп магазинів актора (див. list())
+     *
+     * @return array{items: list<array{city: string, storeCount: int}>, withoutCity: int}
+     */
+    public function cityFilter(?array $storeScope = null): array
+    {
+        return [
+            'items' => $this->cities($storeScope),
+            'withoutCity' => $this->branches->search(new BranchCriteria(
+                cities: [BranchCriteria::CITY_NONE],
+                scopedStoreIds: $storeScope,
+                perPage: BranchCriteria::DEFAULT_PER_PAGE,
+            ))->total,
+        ];
+    }
+
     public function requireBranch(string $branchId): Branch
     {
         $branch = $this->branches->find($branchId);

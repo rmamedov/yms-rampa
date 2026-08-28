@@ -61,10 +61,15 @@ final readonly class InternalSupplierController
     public function list(Request $request): JsonResponse
     {
         $storeId = trim((string) $request->query->get('storeId', ''));
+        // status=any — режим довідника walk-in: потрібні всі контрагенти,
+        // включно з призупиненими, бо машина від них теж може приїхати.
+        $activeOnly = 'any' !== strtolower(trim((string) $request->query->get('status', '')));
+
         $page = $this->suppliers->catalogPage(
             storeId: '' === $storeId ? null : $storeId,
             limit: $request->query->getInt('limit', 100),
             offset: $request->query->getInt('offset'),
+            activeOnly: $activeOnly,
         );
 
         return new JsonResponse([

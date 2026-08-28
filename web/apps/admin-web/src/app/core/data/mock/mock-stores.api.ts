@@ -2,7 +2,7 @@ import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
   BulkResultRow,
-  CityOption,
+  CityFilter,
   DayOfWeek,
   Page,
   PageQuery,
@@ -81,7 +81,7 @@ export function matchesStoreFilter(
   row: StoreListRow,
   filter: StoreListFilter,
 ): boolean {
-  if (filter.cities.length > 0 && !filter.cities.includes(row.city)) {
+  if (filter.cities.length > 0 && !cityMatches(row.city, filter.cities)) {
     return false;
   }
   if (filter.statuses.length > 0 && !filter.statuses.includes(row.ymsStatus)) {
@@ -152,19 +152,24 @@ export class MockStoresApi extends StoresApi {
     }, this.latency);
   }
 
-  cities(): Observable<readonly CityOption[]> {
+  cities(): Observable<CityFilter> {
     return respond(() => {
       const counts = new Map<string, number>();
+      let withoutCity = 0;
       for (const store of this.scopedStores()) {
         const city = store.card.city.trim();
         if (city.length === 0) {
+          withoutCity += 1;
           continue;
         }
         counts.set(city, (counts.get(city) ?? 0) + 1);
       }
-      return [...counts.entries()]
-        .map(([city, storeCount]) => ({ city, storeCount }))
-        .sort((a, b) => a.city.localeCompare(b.city, 'uk'));
+      return {
+        items: [...counts.entries()]
+          .map(([city, storeCount]) => ({ city, storeCount }))
+          .sort((a, b) => a.city.localeCompare(b.city, 'uk')),
+        withoutCity,
+      };
     }, this.latency);
   }
 

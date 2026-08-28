@@ -23,6 +23,7 @@ import { SuppliersApi } from '../../core/data/suppliers.api';
 import { AuthService } from '../../core/auth/auth.service';
 import { ToastService } from '../../core/ui/toast.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { I18nService } from '../../core/i18n/i18n.service';
 import {
   MultiSelectComponent,
   SelectOption,
@@ -33,6 +34,17 @@ import { csvFileName } from '../../core/utils/csv.util';
 import { downloadTextFile } from '../../core/utils/download.util';
 import { AnalyticsPreset, presetRange } from './analytics-export';
 import { DEFAULT_STORE_FILTER } from '../../core/utils/query-state.util';
+
+/**
+ * Підпис філії у фільтрі: місто, а якщо його немає в довіднику MCP —
+ * назва або адреса. Порожній «хвіст» підпису робив вісім філій мережі
+ * невідрізнюваними, а прибирання їх зі списку — недосяжними для фільтра.
+ */
+export function storeOptionSuffix(row: StoreListRow, fallback: string): string {
+  return (
+    row.city?.trim() || row.displayName?.trim() || row.address?.trim() || fallback
+  );
+}
 
 /**
  * Дашборд аналітики. Форма даних — рівно та, що віддає analytics-service:
@@ -50,6 +62,7 @@ export class AnalyticsPage {
   private readonly storesApi = inject(StoresApi);
   private readonly suppliersApi = inject(SuppliersApi);
   private readonly toast = inject(ToastService);
+  private readonly i18n = inject(I18nService);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly auth = inject(AuthService);
 
@@ -238,10 +251,15 @@ export class AnalyticsPage {
               return;
             }
 
+            // Фільтрувати філії без міста тут не можна: у мережі їх вісім,
+            // і кожна з них так само має бронювання. Порожнє місто впливає
+            // лише на підпис — замість нього беремо назву, потім адресу.
+            const noCity = this.i18n.t('stores.filter.noCity');
             this.storeOptions.set(
-              collected
-                .filter((row) => row.city?.trim())
-                .map((row) => ({ value: row.id, label: `${row.externalId} — ${row.city}` })),
+              collected.map((row) => ({
+                value: row.id,
+                label: `${row.externalId} — ${storeOptionSuffix(row, noCity)}`,
+              })),
             );
           },
           error: () => this.storeOptions.set([]),

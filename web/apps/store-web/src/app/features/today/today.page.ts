@@ -126,6 +126,20 @@ export class TodayPage implements OnInit, OnDestroy {
     return this.store.risk().overrunBookingIds.includes(booking.id);
   }
 
+  /**
+   * Підказка чипа таймлайну.
+   *
+   * Підпис чипа — назва постачальника, і на реальній дошці вона в усіх чипів
+   * та сама (одна філія — один-два великі постачальники). Тому підказка має
+   * називати саме це бронювання: час слоту, постачальника і номер авто —
+   * інакше з таймлайну неможливо зрозуміти, про яку машину йдеться.
+   */
+  timelineTitle(booking: Booking): string {
+    return `${formatTime(booking.slotStart)}–${formatTime(booking.slotEnd)} · ${
+      booking.supplierName
+    } · ${booking.vehicle.plateNumber}`;
+  }
+
   placement(booking: Booking): { left: string; width: string } {
     const placed = placeOnTimeline(booking, this.store.timelineBounds());
     return {

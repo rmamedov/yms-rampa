@@ -115,7 +115,19 @@ final readonly class MongoBranchRepository implements BranchRepository
         $filter = [];
 
         if ([] !== $criteria->cities) {
-            $filter['city'] = ['$in' => $criteria->cities];
+            $named = array_values(array_filter(
+                $criteria->cities,
+                static fn (string $city): bool => BranchCriteria::CITY_NONE !== $city,
+            ));
+
+            // CITY_NONE — філії без міста. У Mongo це і порожній рядок, і
+            // відсутнє поле: `$in: [null]` покриває обидва випадки.
+            if (\count($named) !== \count($criteria->cities)) {
+                $named[] = '';
+                $named[] = null;
+            }
+
+            $filter['city'] = ['$in' => $named];
         }
 
         if ([] !== $criteria->statuses) {

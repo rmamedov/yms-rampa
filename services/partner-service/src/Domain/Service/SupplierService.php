@@ -241,14 +241,27 @@ final readonly class SupplierService
      *
      * @return array{items: list<SupplierAccessSnapshot>, total: int, limit: int, offset: int, hasMore: bool}
      */
-    public function catalogPage(?string $storeId = null, int $limit = 100, int $offset = 0): array
-    {
+    /**
+     * @param bool $activeOnly false — віддати і призупинених. Довіднику
+     *                         позапланового прибуття потрібні саме всі:
+     *                         призупинений постачальник цілком може під'їхати
+     *                         до рампи, і це якраз той випадок, який найважливіше
+     *                         зафіксувати за контрагентом, а не «поза системою».
+     *                         Статус їде у відповіді, тож інтерфейс може його показати.
+     */
+    public function catalogPage(
+        ?string $storeId = null,
+        int $limit = 100,
+        int $offset = 0,
+        bool $activeOnly = true,
+    ): array {
         $limit = max(1, min(200, $limit));
         $offset = max(0, $offset);
+        $status = $activeOnly ? SupplierStatus::Active : null;
 
         $snapshots = array_map(
             SupplierAccessSnapshot::fromSupplier(...),
-            $this->suppliers->search(null, SupplierStatus::Active, $limit, $offset),
+            $this->suppliers->search(null, $status, $limit, $offset),
         );
 
         if (null !== $storeId && '' !== $storeId) {
@@ -258,7 +271,7 @@ final readonly class SupplierService
             ));
         }
 
-        $total = $this->suppliers->count(null, SupplierStatus::Active);
+        $total = $this->suppliers->count(null, $status);
 
         return [
             'items' => $snapshots,

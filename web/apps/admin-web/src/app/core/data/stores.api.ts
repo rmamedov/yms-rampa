@@ -2,7 +2,7 @@ import { Observable } from 'rxjs';
 import {
   BulkResultRow,
   CalendarException,
-  CityOption,
+  CityFilter,
   DayOfWeek,
   Page,
   PageQuery,
@@ -67,8 +67,8 @@ export abstract class StoresApi {
     query: PageQuery,
   ): Observable<Page<StoreListRow>>;
 
-  /** GET /stores/cities */
-  abstract cities(): Observable<readonly CityOption[]>;
+  /** GET /stores/cities → довідник міст + кількість філій без міста. */
+  abstract cities(): Observable<CityFilter>;
 
   /** GET /stores/{storeId} + /configurations/current + резерви + блокування. */
   abstract get(id: string): Observable<Store>;

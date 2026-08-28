@@ -118,8 +118,11 @@ final class HttpSupplierDirectory implements SupplierDirectory
             // позапланове, що постачальник міг не мати доступу. Приймальник
             // мусить бачити всіх активних, інакше заведе «поза системою»
             // замість справжнього контрагента.
+            // status=any — потрібні і призупинені: машина від такого
+            // постачальника теж може приїхати, і саме цей випадок найважливіше
+            // зафіксувати за контрагентом, а не завести «поза системою».
             $payload = $this->gateway->getJson(\sprintf(
-                '/internal/v1/suppliers?limit=%d&offset=%d',
+                '/internal/v1/suppliers?status=any&limit=%d&offset=%d',
                 self::PAGE_SIZE,
                 $offset,
             ));

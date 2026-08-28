@@ -295,6 +295,8 @@ final class HttpSupplierDirectoryTest extends TestCase
 
         self::assertStringContainsString('/internal/v1/suppliers?', $captured);
         self::assertStringNotContainsString('storeId=', $captured);
+        // Призупинені теж потрібні — вони можуть приїхати без попередження.
+        self::assertStringContainsString('status=any', $captured);
         self::assertStringContainsString('limit=100', $captured);
         self::assertStringNotContainsString('/api/', $captured);
     }

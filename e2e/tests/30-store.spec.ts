@@ -26,6 +26,7 @@ import {
   slotGrid,
   storeLogin,
   supplierAccessToken,
+  testPlate,
 } from '../support/store-fixtures';
 
 // ---------------------------------------------------------------------------
@@ -302,7 +303,7 @@ test.describe('M-00 Передумови контуру магазину', () =>
     const free = grid.slots.filter((s) => s.state === 'available' && s.selectable);
     expect(free.length, 'для walk-in потрібен вільний слот на сьогодні').toBeGreaterThan(0);
 
-    const plate = `UT${String(Math.floor(1000 + Math.random() * 9000))}XX`;
+    const plate = testPlate();
     const res = await ctx.post(`${HOSTS.store}/api/store/v1/bookings/walk-in`, {
       headers: { Authorization: `Bearer ${login.accessToken}` },
       data: {
@@ -491,10 +492,21 @@ test.describe('M-02 Дошка «Сьогодні»', () => {
     await page.waitForTimeout(500);
 
     await expect(page.locator('.timeline'), 'режим таймлайну має відкритися').toBeVisible();
-    const item = page.locator('.timeline__item').filter({ hasText: booking.supplierName }).first();
-    await expect(item, 'бронювання має бути на таймлайні').toBeVisible();
+
+    // Підпис чипа — назва постачальника, і в усіх бронювань філії вона та сама,
+    // тому своє бронювання шукаємо за підказкою: час, постачальник, номер авто.
+    const own = page.locator(
+      `.timeline__item[title*="${booking.vehicle.plateNumber}"]`,
+    );
+    await expect(own, 'бронювання має бути на таймлайні').toBeVisible();
+    await expect(own, 'підказка чипа має називати бронювання').toHaveAttribute(
+      'title',
+      new RegExp(
+        `${kyivTime(booking.slotStart)}.*${booking.vehicle.plateNumber}`,
+      ),
+    );
     await expect(
-      page.locator('.timeline__row').filter({ hasText: booking.supplierName }).first(),
+      page.locator('.timeline__row').filter({ has: own }),
       'рядок таймлайну підписаний рампою',
     ).toContainText(booking.store.ramps.find((r) => r.rampId === booking.rampId)?.name as string);
   });
@@ -733,7 +745,31 @@ test.describe('M-03 Дії магазину', () => {
     const multiRamp = stores.filter((s) => s.ramps.filter((r) => r.active !== false).length > 1);
     expect(multiRamp.length, 'для переведення потрібна філія з 2+ рампами').toBeGreaterThan(0);
     const target = multiRamp[0];
-    const booking = await createBooking(ctx, supplierToken, [target], { label: 'reassign' });
+
+    // Слот обирається свідомо: переводити є куди лише тоді, коли в ТОЙ САМИЙ
+    // час вільна ще одна рампа. Без цього бронювання лягало на «перший вільний»
+    // слот, попередні перевірки встигали зайняти сусідні рампи того ж часу,
+    // і кнопка переведення чесно вимикалася — тест падав не на дефекті.
+    const grid = await slotGrid(ctx, supplierToken, target.storeId, kyivDateKey());
+    const freePerStart = new Map<string, number>();
+    for (const slot of grid.slots) {
+      if (slot.state === 'available' && slot.selectable) {
+        freePerStart.set(slot.slotStart, (freePerStart.get(slot.slotStart) ?? 0) + 1);
+      }
+    }
+    const pairSlot = [...freePerStart.entries()]
+      .filter(([, count]) => count >= 2)
+      .map(([slotStart]) => slotStart)
+      .sort()[0];
+    expect(
+      pairSlot,
+      'для переведення потрібен час, у який на філії вільні щонайменше дві рампи',
+    ).toBeTruthy();
+
+    const booking = await createBooking(ctx, supplierToken, [target], {
+      label: 'reassign',
+      slotStart: pairSlot,
+    });
     created.push(booking.id);
 
     await openBoard(page, target);
@@ -852,7 +888,7 @@ test.describe('M-04 Позапланове прибуття', () => {
     const slots = await optionTexts(page, '#wi-slot');
     expect(slots.length, 'мають бути вільні слоти на сьогодні').toBeGreaterThan(0);
 
-    const plate = `UT${String(Math.floor(1000 + Math.random() * 9000))}XX`;
+    const plate = testPlate();
     await dialog.locator('#wi-supplier').selectOption({ label: suppliers[0] });
     await dialog.locator('#wi-plate').fill(plate);
     await dialog.locator('#wi-weight').fill('8');
@@ -888,7 +924,7 @@ test.describe('M-04 Позапланове прибуття', () => {
     await dialog.getByRole('button', { name: 'Поза системою' }).click();
     await expect(dialog.locator('#wi-external'), 'має зʼявитися поле назви').toBeVisible();
 
-    const plate = `UT${String(Math.floor(1000 + Math.random() * 9000))}XX`;
+    const plate = testPlate();
     const name = 'UITEST-Поза системою';
     await dialog.locator('#wi-external').fill(name);
     await dialog.locator('#wi-plate').fill(plate);

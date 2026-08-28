@@ -102,10 +102,23 @@ export function kyivTime(iso: string): string {
   }).format(new Date(iso));
 }
 
-/** Держномер тестового авто: UT<4 цифри>XX (маркер для прибирання). */
+let plateSeq = 0;
+
+/**
+ * Держномер тестового авто: UT<унікальний хвіст>XX (префікс UT — маркер для
+ * прибирання, довжина в межах 4–12 символів, які приймає бекенд).
+ *
+ * Хвіст навмисно не «4 випадкові цифри»: у пісочниці за добу накопичуються
+ * сотні тестових бронювань, а 9000 варіантів давали збіги — на дошці зʼявлялися
+ * дві картки з одним номером, і перевірка бралася за чужу (наприклад, за вже
+ * завершену, де дії магазину вже недоступні).
+ */
 export function testPlate(): string {
-  const digits = String(Math.floor(1000 + Math.random() * 9000));
-  return `UT${digits}XX`;
+  plateSeq += 1;
+  const tail = (Date.now().toString(36) + plateSeq.toString(36))
+    .toUpperCase()
+    .slice(-8);
+  return `UT${tail}XX`;
 }
 
 /** orderId тестового бронювання: UITEST-<мітка>. */
@@ -210,6 +223,8 @@ export async function createBooking(
     skipSlots?: number;
     /** Взяти слот на конкретній рампі. */
     rampId?: string;
+    /** Взяти слот, що починається саме в цей момент (ISO UTC). */
+    slotStart?: string;
   },
 ): Promise<MadeBooking> {
   const dateKey = options.dateKey ?? kyivDateKey();
@@ -221,6 +236,7 @@ export async function createBooking(
     const free = grid.slots
       .filter((s) => s.state === 'available' && s.selectable)
       .filter((s) => (options.rampId ? s.rampId === options.rampId : true))
+      .filter((s) => (options.slotStart ? s.slotStart === options.slotStart : true))
       .sort((a, b) => a.slotStart.localeCompare(b.slotStart));
     attempted.push(`${store.externalId}: вільних ${free.length}`);
 

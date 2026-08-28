@@ -11,7 +11,7 @@ import {
   AuthSession,
   AuthTokens,
   BulkResultRow,
-  CityOption,
+  CityFilter,
   PAGE_SIZES,
   Page,
   PageQuery,
@@ -237,10 +237,15 @@ export class HttpStoresApi extends StoresApi {
       .pipe(map((wire) => toPage(wire, toStoreListRow)));
   }
 
-  cities(): Observable<readonly CityOption[]> {
+  cities(): Observable<CityFilter> {
     return this.api
-      .get<{ items: WireCity[] }>('/stores/cities')
-      .pipe(map((wire) => (wire.items ?? []).map(toCityOption)));
+      .get<{ items: WireCity[]; withoutCity?: number }>('/stores/cities')
+      .pipe(
+        map((wire) => ({
+          items: (wire.items ?? []).map(toCityOption),
+          withoutCity: wire.withoutCity ?? 0,
+        })),
+      );
   }
 
   /**

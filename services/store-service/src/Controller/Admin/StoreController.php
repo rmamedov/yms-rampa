@@ -42,13 +42,18 @@ final class StoreController extends AbstractController
         return new JsonResponse($this->catalog->list($request->query->all(), $actor->storeScope()));
     }
 
-    /** Довідник міст для фільтра «місто» (STL-02). */
+    /**
+     * Довідник міст для фільтра «місто» (STL-02).
+     *
+     * `withoutCity` — скільки філій довідник міст НЕ покриває (порожнє місто
+     * в MCP). Фільтрувати їх можна значенням `city=__none__`.
+     */
     #[Route('/cities', methods: ['GET'])]
     public function cities(Request $request): JsonResponse
     {
         $actor = $this->actors->staff($request);
 
-        return new JsonResponse(['items' => $this->catalog->cities($actor->storeScope())]);
+        return new JsonResponse($this->catalog->cityFilter($actor->storeScope()));
     }
 
     /** Картка магазину, вкладка «Загальне» (STC-01, STC-02). */

@@ -124,7 +124,7 @@
           @if (effectiveDateError(); as error) {
             <div class="field-error">{{ error | t }}</div>
           }
-          @for (error of configErrors(); track error) {
+          @for (error of saveErrors(); track error) {
             <div class="field-error">{{ error | t }}</div>
           }
         </div>

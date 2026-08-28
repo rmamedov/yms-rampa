@@ -358,6 +358,20 @@ export interface CityOption {
   readonly storeCount: number;
 }
 
+/**
+ * Значення фільтра «Місто» для філій, у яких місто в довіднику MCP порожнє.
+ * Довідник /stores/cities таких філій не повертає, тому без окремого варіанта
+ * вони не потрапляли в жоден пункт фільтра (STL-02).
+ * Мусить збігатися з BranchCriteria::CITY_NONE у store-service.
+ */
+export const NO_CITY = '__none__';
+
+/** GET /stores/cities: довідник міст + скільки філій він НЕ покриває. */
+export interface CityFilter {
+  readonly items: readonly CityOption[];
+  readonly withoutCity: number;
+}
+
 /** PATCH /api/admin/v1/stores/{storeId}: лише YMS-поля, MCP-поля read-only. */
 export interface StoreGeneralPatch {
   readonly displayName: string | null;

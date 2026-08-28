@@ -120,7 +120,7 @@
                 [class.timeline__item--risk]="isAtRisk(booking)"
                 [style.left]="placement(booking).left"
                 [style.width]="placement(booking).width"
-                [title]="booking.supplierName"
+                [title]="timelineTitle(booking)"
                 (click)="onAction(booking, 'log')"
               >
                 {{ booking.supplierName }}

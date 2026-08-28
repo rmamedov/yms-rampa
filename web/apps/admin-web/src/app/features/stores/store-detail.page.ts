@@ -133,6 +133,19 @@ export class StoreDetailPage {
     configBlockingErrors(this.draft()),
   );
 
+  /**
+   * Те саме, але без помилок, які активна вкладка вже показує біля свого поля:
+   * ключі помилок вкладок збігаються з їхніми ідентифікаторами
+   * (`receiving.error.*`, `slots.error.*`, `limits.error.*`). Без цього фільтра
+   * одне й те саме речення стояло на екрані двічі — біля поля і біля кнопки
+   * «Зберегти». Помилки з ІНШИХ вкладок лишаються: інакше заблокована кнопка
+   * не мала б жодного пояснення.
+   */
+  protected readonly saveErrors = computed<readonly string[]>(() => {
+    const prefix = `${this.activeTab()}.error.`;
+    return this.configErrors().filter((key) => !key.startsWith(prefix));
+  });
+
   /** «Зберегти» активна лише для валідної чернетки — як на вкладці «Загальне». */
   protected readonly canSave = computed(
     () =>
