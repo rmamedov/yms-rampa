@@ -15,11 +15,11 @@ import { HOSTS, api } from '../support/env';
 import {
   TestBooking,
   TestDriver,
+  arrivalSandbox,
   captureExternalOpens,
   createBooking,
   createDriver,
   kyivDateKey,
-  kyivStores,
   mark,
   openRouteSheet,
   pointCard,
@@ -38,15 +38,17 @@ let cleanup: { ctx: Awaited<ReturnType<typeof api>>; token: string } | null = nu
 test.beforeAll(async () => {
   const ctx = await api();
   const token = await supplierAuth(ctx);
-  const stores = await kyivStores(ctx, token);
   const label = mark();
   driver = await createDriver(ctx, token, `${label}-моб`);
+  // D-08 міряє тач-цілі всіх кнопок картки, серед них «На місці». Вона
+  // показується лише у вікні відмітки (розділ 8), тому бронюємо найближчий
+  // слот у цілодобовій філії-пісочниці — там воно відкрите о будь-якій годині.
   booking = await createBooking(ctx, token, {
     date: kyivDateKey(),
     driverId: driver.id,
     label: `${label}-моб`,
-    which: 'last',
-    stores,
+    which: 'soonest',
+    stores: await arrivalSandbox(ctx, token),
   });
   cleanup = { ctx, token };
 });

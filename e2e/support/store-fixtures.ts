@@ -6,13 +6,16 @@
  * інтерфейсу постачальника і не «зеленіє» через спільний баг у ньому.
  */
 import { APIRequestContext, expect } from '@playwright/test';
-import { CREDS, HOSTS, registerArtifact } from './env';
+import { ARRIVAL_SANDBOX_EXTERNAL_ID, CREDS, HOSTS, registerArtifact } from './env';
 
 /**
  * Пісочниця: філії Харкова. Інші перевірки на них не спираються, тож дані,
  * створені тут, нікому не заважають.
  */
 export const SANDBOX_EXTERNAL_IDS = ['2226', '2227', '2229', '2230'] as const;
+
+/** Ширина вікна відмітки «На місці» — StorePolicy::ARRIVAL_WINDOW_MINUTES. */
+export const ARRIVAL_WINDOW_MINUTES = 60;
 
 /**
  * Довідники причин. Значення взяті з бекенду — enum'ів booking-service
@@ -183,6 +186,56 @@ export async function sandboxStores(
     `у пісочниці мають бути філії ${SANDBOX_EXTERNAL_IDS.join(', ')}`,
   ).toBeGreaterThan(0);
   return sandbox;
+}
+
+/**
+ * Цілодобова філія-пісочниця для перевірок, які доводять бронювання до
+ * «На місці» (див. ARRIVAL_SANDBOX_EXTERNAL_ID у env.ts).
+ *
+ * Домен приймає відмітку лише у вікні «slotStart − 60 хв … кінець слоту»
+ * (розділ 8). У звичайної філії прийом денний, тож нічний прогін не міг би
+ * відмітити прибуття взагалі; у цій — прийом цілодобовий і lead time 0,
+ * тому найближчий слот завжди всередині вікна.
+ */
+export async function arrivalSandboxStore(
+  ctx: APIRequestContext,
+  supplierToken: string,
+): Promise<SandboxStore> {
+  const res = await ctx.get(
+    `${HOSTS.supplier}/api/supplier/v1/stores?city=${encodeURIComponent('Харків')}`,
+    { headers: { Authorization: `Bearer ${supplierToken}` } },
+  );
+  expect(res.ok(), `каталог філій Харкова: ${res.status()}`).toBeTruthy();
+
+  const store = ((await res.json()).items as SandboxStore[]).find(
+    (s) => s.externalId === ARRIVAL_SANDBOX_EXTERNAL_ID,
+  );
+  expect(
+    store,
+    `філія ${ARRIVAL_SANDBOX_EXTERNAL_ID} має бути активною і видимою постачальникам — ` +
+      'без неї відмітку «На місці» неможливо перевірити поза годинами прийому ' +
+      '(як відновити — див. коментар ARRIVAL_SANDBOX_EXTERNAL_ID у support/env.ts)',
+  ).toBeTruthy();
+
+  // Перевіряємо не лише наявність філії, а й ту єдину властивість, заради
+  // якої вона існує: слот, доступний до бронювання ПРЯМО ЗАРАЗ, чиє вікно
+  // відмітки вже відкрите. Інакше падіння виглядало б як загадкове «кнопки
+  // немає», а причина була б у конфігурації стенду.
+  const grid = await slotGrid(ctx, supplierToken, store!.storeId, kyivDateKey());
+  const now = Date.parse(grid.now) || Date.now();
+  const ready = grid.slots.filter(
+    (s) =>
+      s.state === 'available' &&
+      s.selectable &&
+      Date.parse(s.slotStart) - ARRIVAL_WINDOW_MINUTES * 60_000 <= now,
+  );
+  expect(
+    ready.length,
+    `у філії ${ARRIVAL_SANDBOX_EXTERNAL_ID} має бути вільний слот із уже відкритим вікном ` +
+      'відмітки «На місці» — саме заради цього вона налаштована цілодобово',
+  ).toBeGreaterThan(0);
+
+  return store!;
 }
 
 export async function slotGrid(

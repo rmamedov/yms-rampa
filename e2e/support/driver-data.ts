@@ -12,7 +12,7 @@
  *   бронювання — orderId `UITEST-<мітка>`
  */
 import { APIRequestContext, Page, expect } from '@playwright/test';
-import { CREDS, HOSTS, registerArtifact } from './env';
+import { ARRIVAL_SANDBOX_EXTERNAL_ID, CREDS, HOSTS, registerArtifact } from './env';
 
 // --- Дати в календарі Києва -------------------------------------------------
 
@@ -151,17 +151,99 @@ export async function kyivStores(ctx: APIRequestContext, token: string): Promise
   return (await res.json()).items as CatalogStore[];
 }
 
+/** Ширина вікна відмітки «На місці» — StorePolicy::ARRIVAL_WINDOW_MINUTES. */
+export const ARRIVAL_WINDOW_MINUTES = 60;
+
 /**
- * Філії, впорядковані за найранішим вільним слотом дати. Філії без вільних
- * слотів ідуть у кінець — вони все одно будуть пропущені.
+ * Філія, у якій відмітку «На місці» можна перевіряти о будь-якій годині:
+ * цілодобовий прийом і lead time 0 (див. ARRIVAL_SANDBOX_EXTERNAL_ID у env.ts).
+ *
+ * Повертається списком, бо саме список приймає createBooking. Перевірка тут
+ * не формальна: якщо філію на стенді скинули або переналаштували, тест має
+ * впасти з поясненням, ЩО саме відновити, а не з незрозумілим «немає слотів».
  */
-async function byEarliestFreeSlot(
+export async function arrivalSandbox(
+  ctx: APIRequestContext,
+  token: string,
+): Promise<CatalogStore[]> {
+  const res = await ctx.get(
+    `${HOSTS.supplier}/api/supplier/v1/stores?city=${encodeURIComponent('Харків')}`,
+    { headers: bearer(token) },
+  );
+  expect(res.ok(), `каталог філій Харкова: ${res.status()}`).toBeTruthy();
+
+  const store = ((await res.json()).items as CatalogStore[]).find(
+    (s) => s.externalId === ARRIVAL_SANDBOX_EXTERNAL_ID,
+  );
+  expect(
+    store,
+    `філія ${ARRIVAL_SANDBOX_EXTERNAL_ID} має бути активною і видимою постачальникам — ` +
+      'без неї відмітку «На місці» неможливо перевірити поза годинами прийому ' +
+      '(як відновити — див. коментар ARRIVAL_SANDBOX_EXTERNAL_ID у support/env.ts)',
+  ).toBeTruthy();
+
+  const grid = await ctx.get(
+    `${HOSTS.supplier}/api/supplier/v1/stores/${store!.storeId}/slots?date=${kyivDateKey()}`,
+    { headers: bearer(token) },
+  );
+  expect(grid.ok(), `сітка слотів ${ARRIVAL_SANDBOX_EXTERNAL_ID}: ${grid.status()}`).toBeTruthy();
+
+  const body = await grid.json();
+  const now = Date.parse(body.now ?? '') || Date.now();
+  const open = ((body.slots ?? []) as GridSlot[]).filter(
+    (s) =>
+      s.state === 'available' &&
+      s.selectable !== false &&
+      Date.parse(s.slotStart) - ARRIVAL_WINDOW_MINUTES * 60_000 <= now,
+  );
+  expect(
+    open.length,
+    `у філії ${ARRIVAL_SANDBOX_EXTERNAL_ID} має бути слот із уже відкритим вікном відмітки ` +
+      `(lead time ${body.leadTimeMinutes} хв, вільних слотів ${(body.slots ?? []).length}); ` +
+      'саме заради цього вона налаштована цілодобово',
+  ).toBeGreaterThan(0);
+
+  return [store!];
+}
+
+interface GridSlot {
+  readonly rampId: string;
+  readonly slotStart: string;
+  readonly state: string;
+  readonly selectable?: boolean;
+}
+
+interface SlotCandidate {
+  readonly store: CatalogStore;
+  readonly slot: GridSlot;
+}
+
+/**
+ * Кандидати на бронювання, впорядковані під потребу тесту.
+ *
+ * `first`/`last` — по одному кандидату на філію в порядку каталогу
+ * (історична поведінка: найраніший або найпізніший вільний слот філії).
+ *
+ * `soonest` — усі вільні слоти всіх філій, і спершу ті, чиє ВІКНО ВІДМІТКИ
+ * вже відкрите (`slotStart − 60 хв ≤ зараз`). Саме такий слот потрібен
+ * тестам, які доводять точку до «На місці».
+ *
+ * ЧОМУ ЦЕ НЕ ЗАВЖДИ МОЖЛИВО. Lead time бронювання і ширина вікна відмітки
+ * однакові — 60 хв. Отже найраніший слот, який узагалі можна забронювати,
+ * лежить рівно на межі вікна, і «вже відкритий» слот трапляється лише там,
+ * де lead time філії менший за 60 хв (на стенді це філія 1995, lead 5 хв).
+ * Якщо такої філії серед відчинених немає, повертається найближчий слот —
+ * і його вікно відкриється за кілька хвилин, а не миттєво.
+ */
+async function slotCandidates(
   ctx: APIRequestContext,
   token: string,
   stores: CatalogStore[],
   date: string,
-): Promise<CatalogStore[]> {
-  const earliest = new Map<string, string>();
+  which: 'first' | 'last' | 'soonest',
+): Promise<SlotCandidate[]> {
+  const candidates: SlotCandidate[] = [];
+  let now = Date.now();
 
   for (const store of stores) {
     const res = await ctx.get(
@@ -169,19 +251,38 @@ async function byEarliestFreeSlot(
       { headers: bearer(token) },
     );
     if (!res.ok()) continue;
-    const slots = ((await res.json()).slots ?? []) as { rampId: string; slotStart: string; state: string }[];
-    const free = slots
+    const grid = await res.json();
+    // Час беремо з відповіді сітки — це годинник сервера, а не машини тесту.
+    now = Date.parse(grid.now ?? '') || now;
+
+    const free = ((grid.slots ?? []) as GridSlot[])
       .filter((s) => s.state === 'available')
       .filter((s) => !takenSlots.has(`${store.storeId}|${s.rampId}|${s.slotStart}`))
-      .map((s) => s.slotStart)
-      .sort();
-    if (free.length > 0) earliest.set(store.storeId, free[0]);
+      .sort((a, b) => a.slotStart.localeCompare(b.slotStart));
+    if (free.length === 0) continue;
+
+    if (which === 'soonest') {
+      // Слоти, які сітка вже не дає бронювати (lead time), відсіюємо тут —
+      // інакше вони з'їдали б спроби перед справді доступними.
+      candidates.push(
+        ...free.filter((s) => s.selectable !== false).map((slot) => ({ store, slot })),
+      );
+    } else {
+      candidates.push({ store, slot: which === 'last' ? free[free.length - 1] : free[0] });
+    }
   }
 
-  return [...stores].sort(
-    (a, b) =>
-      (earliest.get(a.storeId) ?? '9999').localeCompare(earliest.get(b.storeId) ?? '9999'),
-  );
+  if (which !== 'soonest') {
+    return candidates;
+  }
+
+  const windowOpen = (slot: GridSlot): boolean =>
+    Date.parse(slot.slotStart) - ARRIVAL_WINDOW_MINUTES * 60_000 <= now;
+
+  return candidates.sort((a, b) => {
+    const byWindow = Number(windowOpen(b.slot)) - Number(windowOpen(a.slot));
+    return byWindow !== 0 ? byWindow : a.slot.slotStart.localeCompare(b.slot.slotStart);
+  });
 }
 
 /**
@@ -191,12 +292,11 @@ async function byEarliestFreeSlot(
  * створювати точки НЕ в хронологічному порядку і чесно перевірити
  * сортування маршрутного листа.
  *
- * `which: 'soonest'` бере найближчий вільний слот СЕРЕД УСІХ філій набору —
- * саме він потрібен тестам, які доводять точку до «На місці»: відмітка
- * приймається лише у вікні «slotStart − 60 хв … кінець слоту» (розділ 8),
- * і найближчий слот — єдиний, який гарантовано в нього потрапляє. Лишається
- * природне обмеження: філія має бути відчинена (або відчинятися протягом
- * години) — до відкриття прийому таких слотів у сітці просто немає.
+ * `which: 'soonest'` бере слот, чиє вікно відмітки «На місці» вже відкрите
+ * (а якщо такого немає — найближчий), перебираючи ВСІ філії набору. Саме він
+ * потрібен тестам, які доводять точку до «На місці»: відмітка приймається
+ * лише у вікні «slotStart − 60 хв … кінець слоту» (розділ 8). Подробиці
+ * і межі можливого — у slotCandidates().
  */
 export async function createBooking(
   ctx: APIRequestContext,
@@ -210,32 +310,24 @@ export async function createBooking(
     stores?: CatalogStore[];
   },
 ): Promise<TestBooking> {
-  const all = options.stores ?? (await kyivStores(ctx, token));
+  const stores = options.stores ?? (await kyivStores(ctx, token));
   const palletsCount = options.palletsCount ?? 12;
   const orderId = `UITEST-${options.label}`;
   const plateNumber = `UT${String(Math.floor(Math.random() * 9000) + 1000)}XX`;
 
-  // Для 'soonest' філії перебираються в порядку найранішого вільного слоту,
-  // а не в порядку каталогу: найближчий слот може бути в третій філії.
-  const stores =
-    options.which === 'soonest' ? await byEarliestFreeSlot(ctx, token, all, options.date) : all;
+  const candidates = await slotCandidates(
+    ctx,
+    token,
+    stores,
+    options.date,
+    options.which ?? 'first',
+  );
+  /** Кандидати, яких бекенд не прийняв, — для зрозумілого повідомлення. */
+  const rejected: string[] = [];
 
-  for (const store of stores) {
-    const gridRes = await ctx.get(
-      `${HOSTS.supplier}/api/supplier/v1/stores/${store.storeId}/slots?date=${options.date}`,
-      { headers: bearer(token) },
-    );
-    if (!gridRes.ok()) continue;
-    const grid = await gridRes.json();
-    const free = (grid.slots as { rampId: string; slotStart: string; state: string }[])
-      .filter((s) => s.state === 'available')
-      .filter((s) => !takenSlots.has(`${store.storeId}|${s.rampId}|${s.slotStart}`))
-      .sort((a, b) => a.slotStart.localeCompare(b.slotStart));
-    if (free.length === 0) continue;
+  for (const { store, slot } of candidates) {
+    if (takenSlots.has(`${store.storeId}|${slot.rampId}|${slot.slotStart}`)) continue;
 
-    // 'first' і 'soonest' беруть найраніший вільний слот; різниця лише
-    // в порядку перебору філій (див. byEarliestFreeSlot вище).
-    const slot = options.which === 'last' ? free[free.length - 1] : free[0];
     const key = { storeId: store.storeId, rampId: slot.rampId, slotStart: slot.slotStart };
     takenSlots.add(`${store.storeId}|${slot.rampId}|${slot.slotStart}`);
 
@@ -261,7 +353,15 @@ export async function createBooking(
       },
     });
     if (!bookRes.ok()) {
-      throw new Error(`Створення бронювання: ${bookRes.status()} ${await bookRes.text()}`);
+      const detail = normalize(await bookRes.text());
+      // Слот міг стати недоступним між читанням сітки і бронюванням (його
+      // перехопили, або він уже не проходить за lead time) — беремо наступного
+      // кандидата. Решта відмов — справжні помилки, і мовчати про них не можна.
+      if (bookRes.status() === 409 || bookRes.status() === 422) {
+        rejected.push(`${store.externalId} ${slot.slotStart}: ${bookRes.status()} ${detail.slice(0, 120)}`);
+        continue;
+      }
+      throw new Error(`Створення бронювання: ${bookRes.status()} ${detail}`);
     }
     const booking = await bookRes.json();
     const bookingId = booking.id ?? booking.bookingId;
@@ -289,7 +389,15 @@ export async function createBooking(
       store,
     };
   }
-  throw new Error(`Немає вільних слотів на ${options.date} у жодній київській філії`);
+  throw new Error(
+    `Немає вільних слотів на ${options.date} у жодній київській філії` +
+      (rejected.length > 0 ? `; відмови бекенду: ${rejected.slice(0, 5).join(' | ')}` : ''),
+  );
+}
+
+/** Текст відповіді в один рядок — щоб повідомлення про помилку читалося. */
+function normalize(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
 }
 
 /** Точки маршрутного листа водія прямо з API — еталон для звірки з екраном. */

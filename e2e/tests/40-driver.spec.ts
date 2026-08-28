@@ -16,6 +16,7 @@ import {
   TestBooking,
   TestDriver,
   addDays,
+  arrivalSandbox,
   captureExternalOpens,
   createBooking,
   createDriver,
@@ -41,6 +42,12 @@ interface Shared {
   ctx: APIRequestContext;
   supplierToken: string;
   stores: CatalogStore[];
+  /**
+   * Цілодобова філія-пісочниця: єдина, де вікно відмітки «На місці» відкрите
+   * о будь-якій годині (розділ 8, D-04). Тільки для точок, які тест доводить
+   * до «На місці»; решта лишається на київських філіях.
+   */
+  arrivalStores: CatalogStore[];
   /** Водій із трьома точками: дві на сьогодні, одна на завтра. */
   driver: TestDriver;
   /** Водій без жодного маршрутного листа — порожній стан і чужі точки. */
@@ -58,6 +65,7 @@ test.beforeAll(async () => {
   const ctx = await api();
   const supplierToken = await supplierAuth(ctx);
   const stores = await kyivStores(ctx, supplierToken);
+  const arrivalStores = await arrivalSandbox(ctx, supplierToken);
   const label = mark();
   const driver = await createDriver(ctx, supplierToken, label);
   const emptyDriver = await createDriver(ctx, supplierToken, `${label}-порожній`);
@@ -77,7 +85,10 @@ test.beforeAll(async () => {
     date: tomorrow, driverId: driver.id, label: `${label}-C`, which: 'first', palletsCount: 5, stores,
   });
 
-  shared = { ctx, supplierToken, stores, driver, emptyDriver, today, tomorrow, early, late, next };
+  shared = {
+    ctx, supplierToken, stores, arrivalStores,
+    driver, emptyDriver, today, tomorrow, early, late, next,
+  };
 });
 
 /**
@@ -377,15 +388,15 @@ test.describe('D-04/D-05 «На місці» і номер замовлення'
 
   test.beforeAll(async () => {
     // Ланцюжок доводить точку до «На місці», а відмітка приймається лише
-    // у вікні «slotStart − 60 хв … кінець слоту» (розділ 8, D-04). Тому слот
-    // потрібен найближчий, а не найпізніший слот доби: lead time бронювання —
-    // теж 60 хв, тож щойно створене бронювання одразу потрапляє у вікно.
+    // у вікні «slotStart − 60 хв … кінець слоту» (розділ 8, D-04). Тому
+    // бронюємо найближчий слот у цілодобовій філії-пісочниці — єдиній, де
+    // таке вікно відкрите о будь-якій годині (див. arrivalSandbox).
     booking = await createBooking(shared.ctx, shared.supplierToken, {
       date: shared.today,
       driverId: shared.driver.id,
       label: `${mark()}-цикл`,
       which: 'soonest',
-      stores: shared.stores,
+      stores: shared.arrivalStores,
     });
     driverToken = await driverAuth(shared.ctx, shared.driver.phone, shared.driver.password);
     staffToken = await storeStaffAuth(shared.ctx);
@@ -607,13 +618,13 @@ test.describe('D-07 Робота без звʼязку', () => {
 
   test.beforeAll(async () => {
     // Набір доводить точку до «На місці» через офлайн-чергу, тож слот має
-    // бути у вікні відмітки (розділ 8, D-04) — найближчий вільний.
+    // бути у вікні відмітки (розділ 8, D-04) — беремо цілодобову пісочницю.
     booking = await createBooking(shared.ctx, shared.supplierToken, {
       date: shared.today,
       driverId: shared.driver.id,
       label: `${mark()}-офлайн`,
       which: 'soonest',
-      stores: shared.stores,
+      stores: shared.arrivalStores,
     });
   });
 

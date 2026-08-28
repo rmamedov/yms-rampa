@@ -7,11 +7,14 @@
  * з API, а не з голови автора, — інакше тест закріпить той самий зріз, який
  * показує інтерфейс.
  *
- * Робота ведеться на філіях-пісочницях Харкова (2226, 2227, 2229, 2230).
+ * Робота ведеться на філіях-пісочницях Харкова (2226, 2227, 2229, 2230), а
+ * перевірки, які доводять бронювання до «На місці», — на цілодобовій філії
+ * 2231: вікно відмітки (розділ 8) у денної філії вночі просто зачинене.
  */
 import { APIRequestContext, expect, Page, request, test } from '@playwright/test';
 import { CREDS, HOSTS, hasHorizontalScroll, loginUi, pageText, registerArtifact } from '../support/env';
 import {
+  arrivalSandboxStore,
   Booking,
   createBooking,
   DELAY_REASONS,
@@ -36,6 +39,13 @@ import {
 let ctx: APIRequestContext;
 let supplierToken: string;
 let stores: SandboxStore[];
+/**
+ * Цілодобова філія-пісочниця. Відмітку «На місці» домен приймає лише у вікні
+ * «slotStart − 60 хв … кінець слоту» (розділ 8), а прийом звичайної філії
+ * денний — тож нічний прогін не відмітив би прибуття взагалі. Усе, що
+ * доводить бронювання до «На місці», створюється саме тут.
+ */
+let arrivalStore: SandboxStore;
 /** Усе створене — щоб прибрати наприкінці. */
 const created: string[] = [];
 
@@ -43,6 +53,7 @@ test.beforeAll(async () => {
   ctx = await request.newContext({ ignoreHTTPSErrors: true });
   supplierToken = await supplierAccessToken(ctx);
   stores = await sandboxStores(ctx, supplierToken);
+  arrivalStore = await arrivalSandboxStore(ctx, supplierToken);
 });
 
 test.afterAll(async () => {
@@ -276,7 +287,7 @@ test.describe('M-00 Передумови контуру магазину', () =>
   test('M-00.1 бекенд дозволяє цьому обліковому запису повний ланцюжок дій', async () => {
     test.setTimeout(120_000);
     const login = await storeLogin(ctx);
-    const booking = await makeBooking('backend-chain');
+    const booking = await makeBooking('backend-chain', { store: arrivalStore });
 
     for (const [action, body, expected] of [
       ['arrived', {}, 'arrived'],
@@ -547,7 +558,7 @@ test.describe('M-03 Дії магазину', () => {
 
   test('M-03.1 прибуття: booked → «Очікує на території»', async ({ page }) => {
     test.setTimeout(120_000);
-    const booking = await makeBooking('arrive');
+    const booking = await makeBooking('arrive', { store: arrivalStore });
     await openBoard(page, booking.store);
 
     const card = cardByPlate(page, booking.vehicle.plateNumber);
@@ -563,7 +574,7 @@ test.describe('M-03 Дії магазину', () => {
 
   test('M-03.2 початок розвантаження: arrived → «Розвантаження»', async ({ page }) => {
     test.setTimeout(120_000);
-    const booking = await makeBooking('unload');
+    const booking = await makeBooking('unload', { store: arrivalStore });
     await openBoard(page, booking.store);
 
     const card = cardByPlate(page, booking.vehicle.plateNumber);
@@ -580,7 +591,7 @@ test.describe('M-03 Дії магазину', () => {
 
   test('M-03.3 завершення з фактичною кількістю палет', async ({ page }) => {
     test.setTimeout(120_000);
-    const booking = await makeBooking('complete', { palletsCount: 12 });
+    const booking = await makeBooking('complete', { palletsCount: 12, store: arrivalStore });
     await openBoard(page, booking.store);
 
     const plate = booking.vehicle.plateNumber;
@@ -608,7 +619,7 @@ test.describe('M-03 Дії магазину', () => {
 
   test('M-03.4 часткове розвантаження вимагає причину з довідника', async ({ page }) => {
     test.setTimeout(120_000);
-    const booking = await makeBooking('partial', { palletsCount: 10 });
+    const booking = await makeBooking('partial', { palletsCount: 10, store: arrivalStore });
     await openBoard(page, booking.store);
 
     const plate = booking.vehicle.plateNumber;
@@ -649,7 +660,7 @@ test.describe('M-03 Дії магазину', () => {
 
   test('M-03.5 відмова в прийомі з причиною з довідника', async ({ page }) => {
     test.setTimeout(120_000);
-    const booking = await makeBooking('reject');
+    const booking = await makeBooking('reject', { store: arrivalStore });
     await openBoard(page, booking.store);
 
     const plate = booking.vehicle.plateNumber;
@@ -1151,7 +1162,7 @@ test.describe('M-06 Інші дати і тиждень', () => {
 test.describe('M-07 Журнал дій', () => {
   test('M-07.1 журнал містить щойно виконані переходи з автором і часом', async ({ page }) => {
     test.setTimeout(120_000);
-    const booking = await makeBooking('audit');
+    const booking = await makeBooking('audit', { store: arrivalStore });
     const login = await storeLogin(ctx);
 
     await openBoard(page, booking.store);
