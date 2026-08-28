@@ -263,7 +263,22 @@ export async function fieldErrors(page: Page): Promise<string[]> {
 }
 
 /** Відкрити вкладку картки магазину/постачальника за підписом. */
+/**
+ * Перехід до розділу налаштувань магазину.
+ *
+ * Вкладок більше немає: усі секції лежать на одній сторінці й зберігаються
+ * однією кнопкою. Тому «відкрити вкладку» тепер означає прокрутити до секції.
+ * Назва помічника збережена навмисно — перевірки, написані для вкладок,
+ * лишаються чинними, бо перевіряють ті самі поля.
+ */
 export async function openTab(page: Page, title: string): Promise<void> {
+  const anchor = page.locator('.section-nav a', { hasText: title }).first();
+  if (await anchor.count()) {
+    await anchor.click();
+    await page.waitForTimeout(250);
+    return;
+  }
+  // Інші сторінки (наприклад, список магазинів) досі мають звичайні вкладки.
   await page.locator('.tabs button', { hasText: title }).first().click();
   await page.waitForTimeout(250);
 }

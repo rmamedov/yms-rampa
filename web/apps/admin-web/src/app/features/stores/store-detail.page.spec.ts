@@ -75,8 +75,19 @@ describe('Картка магазину — збереження конфігу�
     host = fixture.nativeElement as HTMLElement;
   }
 
+  /**
+   * Вкладок більше немає — усі секції на одній сторінці. Помічник лишається
+   * під тією ж назвою, бо перевірки нижче адресують ті самі поля; тепер він
+   * просто переконується, що секція є в DOM.
+   */
   function openTab(label: string): void {
-    buttonWithText(required(host.querySelector('.tabs'), 'Вкладок'), label).click();
+    const nav = required(host.querySelector('.section-nav'), 'Навігації розділів');
+    required(
+      Array.from(nav.querySelectorAll('a')).find((a) =>
+        (a.textContent ?? '').includes(label),
+      ),
+      `Розділу «${label}»`,
+    );
     fixture.detectChanges();
   }
 
@@ -90,8 +101,23 @@ describe('Картка магазину — збереження конфігу�
     );
   }
 
+  /**
+   * Секції тепер рендеряться одночасно, і `table.data` на сторінці не одна
+   * (є ще календар винятків, резерви, блокування). Тому шукаємо саме в секції
+   * слотів — інакше тест мовчки перевіряв би чужу таблицю.
+   */
+  /** Дає мокам віддати відповідь (MOCK_LATENCY = 0) і перемальовує шаблон. */
+  async function settle(): Promise<void> {
+    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+  }
+
   function rampsTable(): Element {
-    return required(host.querySelector('table.data'), 'Таблиці рамп');
+    return required(
+      host.querySelector('app-store-slots-tab table.data'),
+      'Таблиці рамп',
+    );
   }
 
   function deleteButtons(): HTMLButtonElement[] {
@@ -189,5 +215,47 @@ describe('Картка магазину — збереження конфігу�
 
     expect(days[6].querySelectorAll('.interval-row')).toHaveLength(1);
     expect(saveButton().disabled).toBe(false);
+  });
+  /**
+   * Регресія: одна кнопка має зберігати ОБИДВІ половини сторінки.
+   *
+   * Спершу «Загальне» зберігалося порожнім: ефект секції читав власні поля
+   * через buildPatch(), тому кожне введення перезапускало його і повертало
+   * значення з картки — на сервер їхав уже скинутий стан.
+   */
+  it('одна кнопка зберігає і картку магазину, і конфігурацію', async () => {
+    await setup();
+    render();
+    await settle();
+
+    const phone = required(
+      host.querySelector<HTMLInputElement>('#phone'),
+      'Поля телефону',
+    );
+    phone.value = '+380441234567';
+    phone.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    const lead = required(
+      host.querySelector<HTMLInputElement>('#lead-time'),
+      'Поля lead time',
+    );
+    lead.value = '25';
+    lead.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(saveButton().disabled).toBe(false);
+    saveButton().click();
+    await settle();
+
+    const saved = required(
+      db.state.stores.find((s) => s.card.id === store.card.id),
+      'Магазину в пісочниці',
+    );
+    // телефон із секції «Загальне»
+    expect(saved.card.phone).toBe('+380441234567');
+    // і нова версія конфігурації з новим lead time — одним натисканням
+    const latest = saved.configurations[saved.configurations.length - 1];
+    expect(latest.leadTimeMinutes).toBe(25);
   });
 });

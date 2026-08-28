@@ -113,6 +113,12 @@ export const UK_DICTIONARY: Readonly<Record<string, string>> = {
   'stores.bulk.visible.off': 'Приховати від постачальників',
 
   // ---- картка магазину
+  'store.sections': 'Розділи налаштувань',
+  'store.requiredLegend':
+    'Поля, позначені зірочкою (*), обовʼязкові. Усі налаштування зберігаються однією кнопкою внизу сторінки.',
+  'store.section.immediate': 'застосовується одразу, окремою дією',
+  'store.save.noChanges': 'Немає незбережених змін',
+  'store.save.discard': 'Скасувати зміни',
   'store.tab.general': 'Загальне',
   'store.tab.receiving': 'Прийом поставок',
   'store.tab.slots': 'Слоти',
@@ -141,7 +147,7 @@ export const UK_DICTIONARY: Readonly<Record<string, string>> = {
   'store.configured.no': 'Магазин не налаштовано',
   'store.configured.missing': 'Бракує: {items}',
   'store.readonlyNotice':
-    'У вашій ролі конфігураційні вкладки доступні лише для перегляду',
+    'У вашій ролі налаштування магазину доступні лише для перегляду',
 
   // валідації магазину
   'store.error.displayName': 'Назва — від 1 до 120 символів',

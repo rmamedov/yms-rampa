@@ -800,3 +800,75 @@ table.data {
     color: $c-success;
   }
 }
+
+// ---------------------------------------------------------------- обовʼязкові поля
+// Зірочка біля підпису поля. aria-hidden — бо для читача екрана обовʼязковість
+// несе `required`/`aria-required` на самому полі, а не декоративний символ.
+.req {
+  color: $c-danger;
+  margin-left: 2px;
+  font-weight: 600;
+}
+
+// ---------------------------------------------------------------- секції сторінки
+// Магазин налаштовується однією сторінкою: секції йдуть підряд, а не вкладками.
+.section-nav {
+  display: flex;
+  gap: $sp-1;
+  flex-wrap: wrap;
+  margin-bottom: $sp-4;
+  padding-bottom: $sp-2;
+  border-bottom: 1px solid $c-border;
+}
+
+.section-nav a {
+  padding: 6px 12px;
+  font-size: $fs-md;
+  color: $c-text-muted;
+  text-decoration: none;
+  border-radius: $radius;
+
+  &:hover {
+    color: $c-brand;
+    background: $c-surface-alt;
+  }
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  gap: $sp-2;
+  margin: $sp-5 0 $sp-3;
+  scroll-margin-top: $sp-4;
+}
+
+.section-head h2 {
+  font-size: $fs-lg;
+  font-weight: 600;
+  margin: 0;
+}
+
+.section-head .section-note {
+  font-size: $fs-sm;
+  color: $c-text-muted;
+}
+
+// Панель збереження прилипає до низу вікна: сторінка довга, і кнопка не має
+// губитися під скролом.
+.save-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  background: $c-surface;
+  border: 1px solid $c-border;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-md;
+  padding: $sp-4;
+  margin-top: $sp-5;
+}
+
+@media (max-width: 720px) {
+  .save-bar {
+    padding: $sp-3;
+  }
+}

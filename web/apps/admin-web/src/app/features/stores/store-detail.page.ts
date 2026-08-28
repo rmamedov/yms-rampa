@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
+import { Observable, of, switchMap } from 'rxjs';
 import {
   CalendarException,
   Ramp,
@@ -31,8 +32,7 @@ import {
   BreadcrumbsComponent,
   Crumb,
 } from '../../shared/ui/breadcrumbs.component';
-import { ModalComponent } from '../../shared/ui/modal.component';
-import { StoreGeneralTabComponent } from './tabs/general-tab.component';
+import { GeneralChange, StoreGeneralTabComponent } from './tabs/general-tab.component';
 import {
   ReceivingChange,
   StoreReceivingTabComponent,
@@ -60,6 +60,7 @@ export type StoreTabId =
   | 'reserves'
   | 'blocks';
 
+/** Порядок секцій на сторінці; ті самі ключі використовує навігація-якорі. */
 const TABS: readonly StoreTabId[] = [
   'general',
   'receiving',
@@ -70,10 +71,20 @@ const TABS: readonly StoreTabId[] = [
 ];
 
 /**
- * Картка магазину. Вкладки «Прийом», «Слоти», «Обмеження» редагують ЧЕРНЕТКУ
- * конфігурації і зберігаються однією новою версією
- * (POST /stores/{id}/configurations, DATA-09).
- * «Резерви» і «Блокування» — окремі ресурси зі своїм CRUD, зберігаються одразу.
+ * Картка магазину — ОДНА сторінка з однією кнопкою збереження.
+ *
+ * Раніше налаштування були розкидані вкладками, і кожна мала свою долю:
+ * «Загальне» зберігалося власною кнопкою, «Прийом/Слоти/Обмеження» — спільною,
+ * але лише на цих трьох вкладках, а «Резерви» і «Блокування» застосовувалися
+ * одразу. Через це виглядало, ніби зберегти не можна ніде.
+ *
+ * Тепер «Загальне» + «Прийом» + «Слоти» + «Обмеження» редагуються разом і
+ * зберігаються однією кнопкою: PATCH картки і НОВА версія конфігурації
+ * (POST /stores/{id}/configurations, DATA-09) — рівно те, що змінилося.
+ *
+ * «Резерви» і «Блокування» лишаються на тій самій сторінці окремими секціями
+ * зі своїми діями: це не поля форми, а записи, які додають і знімають
+ * поштучно, і застосовуються вони негайно. Секції про це прямо попереджають.
  */
 @Component({
   selector: 'app-store-detail-page',
@@ -81,7 +92,6 @@ const TABS: readonly StoreTabId[] = [
   imports: [
     TranslatePipe,
     BreadcrumbsComponent,
-    ModalComponent,
     StoreGeneralTabComponent,
     StoreReceivingTabComponent,
     StoreSlotsTabComponent,
@@ -105,9 +115,14 @@ export class StoreDetailPage {
   protected readonly suppliers = signal<readonly Supplier[]>([]);
   protected readonly activeTab = signal<StoreTabId>('general');
   protected readonly draft = signal<ConfigFormState | null>(null);
-  protected readonly dirty = signal(false);
+  /** Чернетка конфігурації змінена — потрібна нова версія. */
+  protected readonly configDirty = signal(false);
+  /** Поля картки магазину змінені — потрібен PATCH. */
+  protected readonly generalDirty = signal(false);
+  protected readonly generalPatch = signal<StoreGeneralPatch | null>(null);
+  protected readonly generalInvalid = signal(false);
+  protected readonly dirty = computed(() => this.configDirty() || this.generalDirty());
   protected readonly saving = signal(false);
-  protected readonly pendingTab = signal<StoreTabId | null>(null);
 
   /** STC-60: перша версія може набрати чинності вже сьогодні. */
   protected readonly isFirstVersion = computed(
@@ -153,41 +168,40 @@ export class StoreDetailPage {
   );
 
   /**
-   * Те саме, але без помилок, які активна вкладка вже показує біля свого поля:
-   * ключі помилок вкладок збігаються з їхніми ідентифікаторами
-   * (`receiving.error.*`, `slots.error.*`, `limits.error.*`). Без цього фільтра
-   * одне й те саме речення стояло на екрані двічі — біля поля і біля кнопки
-   * «Зберегти». Помилки з ІНШИХ вкладок лишаються: інакше заблокована кнопка
-   * не мала б жодного пояснення.
+   * Пояснення до заблокованої кнопки.
+   *
+   * Секції тепер видно одночасно, тож ховати помилки «поточної» вкладки нема
+   * від чого: біля поля стоїть та сама причина, а тут — повний перелік того,
+   * що заважає зберегти. Без нього сіра кнопка не мала б жодного пояснення,
+   * і саме так виглядало, ніби налаштування «заблоковані».
    */
-  protected readonly saveErrors = computed<readonly string[]>(() => {
-    const prefix = `${this.activeTab()}.error.`;
-    return this.configErrors().filter((key) => !key.startsWith(prefix));
-  });
+  protected readonly saveErrors = computed<readonly string[]>(() =>
+    this.configErrors(),
+  );
 
-  /** «Зберегти» активна лише для валідної чернетки — як на вкладці «Загальне». */
+  /**
+   * «Зберегти» активна, лише коли є що зберігати і воно валідне — в ОБОХ
+   * половинах сторінки: і картка магазину, і конфігурація.
+   */
   protected readonly canSave = computed(
     () =>
       this.canConfigure() &&
       this.dirty() &&
       !this.saving() &&
+      !this.generalInvalid() &&
       this.configErrors().length === 0 &&
       this.effectiveDateError() === null,
   );
 
   protected readonly crumbs = computed<readonly Crumb[]>(() => {
     const store = this.store();
-    const tabLabel = this.i18n.t(`store.tab.${this.activeTab()}`);
     if (!store) {
       return [{ label: this.i18n.t('stores.title'), link: ['/stores'] }];
     }
+    // Третьої ланки більше немає: сторінка одна, вкладок для неї не існує.
     return [
       { label: this.i18n.t('stores.title'), link: ['/stores'] },
-      {
-        label: `${store.city}, філія ${store.externalId}`,
-        link: ['/stores', store.id],
-      },
-      { label: tabLabel },
+      { label: `${store.city}, філія ${store.externalId}` },
     ];
   });
 
@@ -223,37 +237,48 @@ export class StoreDetailPage {
   private applyStore(store: Store): void {
     this.store.set(store);
     this.draft.set(toFormState(store));
-    this.dirty.set(false);
+    this.configDirty.set(false);
+    this.generalDirty.set(false);
+    // Секція «Загальне» перезаповниться зі свого effect і сама віддасть стан;
+    // скидаємо, щоб порівняння «перший емiт vs правка» почалося заново.
+    this.generalPatch.set(null);
     this.effectiveFrom.set(minimumEffectiveDate(store.configuration === null));
   }
 
-  /** UI-05: незбережені зміни при спробі покинути вкладку. */
-  protected selectTab(tab: StoreTabId): void {
-    if (tab === this.activeTab()) {
-      return;
-    }
-    if (this.dirty()) {
-      this.pendingTab.set(tab);
-      return;
-    }
+  /** Навігація-якорі: секції всі на сторінці, тому просто прокручуємо до неї. */
+  protected scrollToSection(tab: StoreTabId, event: Event): void {
+    event.preventDefault();
     this.activeTab.set(tab);
+    document
+      .getElementById(`section-${tab}`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  protected confirmLeave(): void {
-    const tab = this.pendingTab();
+  /**
+   * Скасувати незбережені правки.
+   *
+   * Замінює колишню модалку «вийти без збереження»: вона з'являлася лише при
+   * перемиканні вкладок, а вкладок більше немає. Явна кнопка чесніша —
+   * користувач сам вирішує, коли відкотитися.
+   */
+  protected discardChanges(): void {
     const store = this.store();
     if (store) {
-      this.draft.set(toFormState(store));
-    }
-    this.dirty.set(false);
-    this.pendingTab.set(null);
-    if (tab) {
-      this.activeTab.set(tab);
+      this.applyStore(store);
     }
   }
 
-  protected cancelLeave(): void {
-    this.pendingTab.set(null);
+  /** Секція «Загальне» піднімає свій стан на кожну правку. */
+  protected onGeneralChange(change: GeneralChange): void {
+    const previous = this.generalPatch();
+    this.generalPatch.set(change.patch);
+    this.generalInvalid.set(change.invalid);
+    // Перший емiт після завантаження лише наповнює стан — це ще не правка
+    // користувача, інакше кнопка «Зберегти» світилася б на щойно відкритій
+    // сторінці, де ніхто нічого не міняв.
+    if (previous !== null && !samePatch(previous, change.patch)) {
+      this.generalDirty.set(true);
+    }
   }
 
   protected onReceivingChange(change: ReceivingChange): void {
@@ -280,7 +305,7 @@ export class StoreDetailPage {
       return;
     }
     this.draft.set({ ...current, ...patch });
-    this.dirty.set(true);
+    this.configDirty.set(true);
   }
 
   protected setEffectiveFrom(value: string): void {
@@ -291,41 +316,52 @@ export class StoreDetailPage {
     return minimumEffectiveDate(this.isFirstVersion());
   }
 
-  /** DATA-09: збереження створює НОВУ версію конфігурації. */
+  /**
+   * Одна кнопка — обидві половини сторінки.
+   *
+   * Надсилаємо рівно те, що змінилося: зайвий PATCH зайвий раз штовхав би
+   * статус магазину, а зайва версія конфігурації засмічувала б історію, яку
+   * читає аналітика. Спершу картка, потім конфігурація: якщо друга впаде на
+   * валідації, перша вже збережена і користувач не втратить обидві правки.
+   */
   protected save(): void {
     const store = this.store();
-    const draft = this.draft();
-    if (!store || !draft || this.saving()) {
+    if (!store || this.saving() || !this.canSave()) {
       return;
     }
-    if (this.effectiveDateError() !== null) {
-      this.toast.errorKey('conflicts.error.effectiveFrom');
-      return;
-    }
-    const blocking = this.configErrors();
-    if (blocking.length > 0) {
-      this.toast.errorKey(blocking[0]);
-      return;
-    }
-    if (draft.slotSizeMinutes === null || draft.maxVehicleWeightTons === null) {
-      this.toast.errorKey('store.error.configIncomplete');
-      return;
-    }
+
+    const general = this.generalDirty() ? this.generalPatch() : null;
+    const config = this.configDirty() ? this.draft() : null;
+
     this.saving.set(true);
-    this.api
-      .createConfiguration(store.id, {
-        effectiveFrom: this.effectiveFrom(),
-        slotSizeMinutes: draft.slotSizeMinutes,
-        maxVehicleWeightTons: draft.maxVehicleWeightTons,
-        receivingWindows: draft.receivingWindows,
-        ramps: draft.ramps,
-        calendarExceptions: draft.calendarExceptions,
-        leadTimeMinutes: draft.leadTimeMinutes,
-        bookingHorizonDays: draft.bookingHorizonDays,
-        noShowGraceMinutes: draft.noShowGraceMinutes,
-        holdMaxMinutes: draft.holdMaxMinutes,
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
+
+    // Явний тип: інакше гілки дають union із двох Observable, і .pipe()
+    // не може вибрати перевантаження.
+    const generalStep: Observable<Store | null> = general
+      ? this.api.updateGeneral(store.id, general)
+      : of(null);
+
+    generalStep
+      .pipe(
+        switchMap(() => {
+          if (!config || config.slotSizeMinutes === null || config.maxVehicleWeightTons === null) {
+            return of(null);
+          }
+          return this.api.createConfiguration(store.id, {
+            effectiveFrom: this.effectiveFrom(),
+            slotSizeMinutes: config.slotSizeMinutes,
+            maxVehicleWeightTons: config.maxVehicleWeightTons,
+            receivingWindows: config.receivingWindows,
+            ramps: config.ramps,
+            calendarExceptions: config.calendarExceptions,
+            leadTimeMinutes: config.leadTimeMinutes,
+            bookingHorizonDays: config.bookingHorizonDays,
+            noShowGraceMinutes: config.noShowGraceMinutes,
+            holdMaxMinutes: config.holdMaxMinutes,
+          });
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
         next: () => {
           this.saving.set(false);
@@ -335,28 +371,9 @@ export class StoreDetailPage {
         error: (error: unknown) => {
           this.saving.set(false);
           this.toast.error(error);
-        },
-      });
-  }
-
-  protected saveGeneral(patch: StoreGeneralPatch): void {
-    const store = this.store();
-    if (!store) {
-      return;
-    }
-    this.saving.set(true);
-    this.api
-      .updateGeneral(store.id, patch)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (updated) => {
-          this.saving.set(false);
-          this.applyStore(updated);
-          this.toast.success('conflicts.saved');
-        },
-        error: (error: unknown) => {
-          this.saving.set(false);
-          this.toast.error(error);
+          // Картка могла зберегтися, а конфігурація — ні. Перечитуємо, щоб на
+          // екрані був справжній стан, а не суміш збереженого й ні.
+          this.reload();
         },
       });
   }
@@ -477,4 +494,21 @@ export function toFormState(store: Store): ConfigFormState {
     receivingWindows: normalizeReceivingWindows(config.receivingWindows),
     calendarExceptions: config.calendarExceptions.map((e) => ({ ...e })),
   };
+}
+
+/**
+ * Чи однакові два стани картки магазину.
+ *
+ * Потрібне, щоб відрізнити «секція щойно віддала початковий стан» від
+ * «користувач щось змінив»: інакше кнопка «Зберегти» ставала активною одразу
+ * після відкриття сторінки, де ще нічого не чіпали.
+ */
+function samePatch(a: StoreGeneralPatch, b: StoreGeneralPatch): boolean {
+  return (
+    a.displayName === b.displayName &&
+    a.phone === b.phone &&
+    a.addressOverride === b.addressOverride &&
+    a.ymsStatus === b.ymsStatus &&
+    a.visibleToSuppliers === b.visibleToSuppliers
+  );
 }

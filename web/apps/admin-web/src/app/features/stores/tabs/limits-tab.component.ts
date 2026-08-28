@@ -35,7 +35,7 @@ export interface LimitsChange {
       <div class="card-title">{{ 'store.tab.limits' | t }}</div>
       <div class="grid-3">
         <div class="field">
-          <label for="max-weight">{{ 'limits.maxWeight' | t }}</label>
+          <label for="max-weight">{{ 'limits.maxWeight' | t }}<span class="req" aria-hidden="true">*</span></label>
           <input
             id="max-weight"
             type="number"
@@ -53,7 +53,7 @@ export interface LimitsChange {
         </div>
 
         <div class="field">
-          <label for="lead-time">{{ 'limits.leadTime' | t }}</label>
+          <label for="lead-time">{{ 'limits.leadTime' | t }}<span class="req" aria-hidden="true">*</span></label>
           <input
             id="lead-time"
             type="number"
@@ -71,7 +71,7 @@ export interface LimitsChange {
         </div>
 
         <div class="field">
-          <label for="horizon">{{ 'limits.horizon' | t }}</label>
+          <label for="horizon">{{ 'limits.horizon' | t }}<span class="req" aria-hidden="true">*</span></label>
           <input
             id="horizon"
             type="number"
@@ -88,7 +88,7 @@ export interface LimitsChange {
         </div>
 
         <div class="field">
-          <label for="no-show-grace">{{ 'limits.noShowGrace' | t }}</label>
+          <label for="no-show-grace">{{ 'limits.noShowGrace' | t }}<span class="req" aria-hidden="true">*</span></label>
           <input
             id="no-show-grace"
             type="number"
@@ -106,7 +106,7 @@ export interface LimitsChange {
         </div>
 
         <div class="field">
-          <label for="hold-max">{{ 'limits.holdMax' | t }}</label>
+          <label for="hold-max">{{ 'limits.holdMax' | t }}<span class="req" aria-hidden="true">*</span></label>
           <input
             id="hold-max"
             type="number"

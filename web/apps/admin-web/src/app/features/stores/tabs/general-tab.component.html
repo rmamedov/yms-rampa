@@ -75,7 +75,7 @@
 
   <div class="grid-2">
     <div class="field">
-      <label for="displayName">{{ 'store.field.displayName' | t }}</label>
+      <label for="displayName">{{ 'store.field.displayName' | t }}<span class="req" aria-hidden="true">*</span></label>
       <input
         id="displayName"
         type="text"
@@ -128,8 +128,12 @@
         [disabled]="!canEdit()"
         (change)="setStatus($event)"
       >
+        <!-- `selected` на опціях — з тієї ж причини, що й у виборі ролі
+             користувача: інакше select не знаходить щойно відрендерену опцію. -->
         @for (status of availableStatuses(); track status) {
-          <option [value]="status">{{ 'ymsStatus.' + status | t }}</option>
+          <option [value]="status" [selected]="ymsStatus() === status">
+            {{ 'ymsStatus.' + status | t }}
+          </option>
         }
       </select>
       @if (activationBlocked()) {
@@ -154,16 +158,4 @@
     </div>
   </div>
 
-  @if (canEdit()) {
-    <button
-      type="button"
-      class="btn btn-primary"
-      [disabled]="invalid()"
-      (click)="save()"
-    >
-      {{ 'common.save' | t }}
-    </button>
-  } @else {
-    <div class="notice notice-info">{{ 'store.readonlyNotice' | t }}</div>
-  }
 </div>

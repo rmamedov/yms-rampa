@@ -6,6 +6,7 @@ import {
   input,
   output,
   signal,
+  untracked,
 } from '@angular/core';
 import { Store, StoreGeneralPatch, YMS_STATUSES, YmsStatus } from '../../../core/models';
 import { TranslatePipe } from '../../../core/i18n/translate.pipe';
@@ -15,7 +16,20 @@ import {
   validatePhone,
 } from '../../../core/utils/validators.util';
 
-/** Вкладка «Загальне»: MCP read-only + editable YMS-поля (STC-01…STC-07). */
+/** Зміни секції «Загальне»: стан форми плюс ознака придатності до збереження. */
+export interface GeneralChange {
+  readonly patch: StoreGeneralPatch;
+  readonly invalid: boolean;
+}
+
+/**
+ * Секція «Загальне»: дані МСР лише для читання + редаговані YMS-поля
+ * (STC-01…STC-07).
+ *
+ * Власної кнопки збереження не має свідомо: сторінка магазину зберігається
+ * однією кнопкою внизу, разом із конфігурацією. Тому секція віддає свій стан
+ * назовні на КОЖНУ зміну, а не за натисканням.
+ */
 @Component({
   selector: 'app-store-general-tab',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -25,8 +39,7 @@ import {
 export class StoreGeneralTabComponent {
   readonly store = input.required<Store>();
   readonly canEdit = input(false);
-  readonly patchChange = output<StoreGeneralPatch>();
-  readonly dirtyChange = output<boolean>();
+  readonly changed = output<GeneralChange>();
 
   protected readonly displayName = signal('');
   protected readonly phone = signal('');
@@ -74,16 +87,27 @@ export class StoreGeneralTabComponent {
   constructor() {
     effect(() => {
       const store = this.store();
-      this.displayName.set(store.displayName ?? '');
-      this.phone.set(store.phone ?? '');
-      this.addressOverride.set(store.addressOverride ?? '');
-      this.ymsStatus.set(store.ymsStatus);
-      this.visibleToSuppliers.set(store.visibleToSuppliers);
+      // ВСЕ, що нижче, — в untracked. Інакше ефект підписався б на власні
+      // поля через buildPatch()/invalid(), і кожне введення користувача
+      // перезапускало б його, повертаючи значення з картки: телефон
+      // «зберігався» порожнім, бо на сервер їхав уже скинутий стан.
+      untracked(() => {
+        this.displayName.set(store.displayName ?? '');
+        this.phone.set(store.phone ?? '');
+        this.addressOverride.set(store.addressOverride ?? '');
+        this.ymsStatus.set(store.ymsStatus);
+        this.visibleToSuppliers.set(store.visibleToSuppliers);
+        // Початковий стан теж піднімаємо: сторінці потрібен повний набір полів,
+        // щоб зберегти «Загальне» разом із конфігурацією, навіть якщо тут
+        // нічого не чіпали.
+        this.changed.emit({ patch: this.buildPatch(), invalid: this.invalid() });
+      });
     });
   }
 
+  /** Будь-яка правка одразу піднімається на сторінку — та вирішує, коли зберігати. */
   protected touch(): void {
-    this.dirtyChange.emit(true);
+    this.changed.emit({ patch: this.buildPatch(), invalid: this.invalid() });
   }
 
   protected buildPatch(): StoreGeneralPatch {
@@ -99,13 +123,6 @@ export class StoreGeneralTabComponent {
       // зберігалися й усі інші поля.
       visibleToSuppliers: this.ymsStatus() === 'active' ? this.visibleToSuppliers() : false,
     };
-  }
-
-  protected save(): void {
-    if (this.invalid()) {
-      return;
-    }
-    this.patchChange.emit(this.buildPatch());
   }
 
   protected setStatus(event: Event): void {
