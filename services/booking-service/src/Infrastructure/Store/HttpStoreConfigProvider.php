@@ -68,10 +68,22 @@ final readonly class HttpStoreConfigProvider implements StoreConfigProvider
         $windows = [];
         foreach ((array) ($payload['receivingWindows'] ?? []) as $window) {
             $window = (array) $window;
+            $intervals = self::intervals($window['intervals'] ?? []);
+
+            // День без інтервалів — це «прийому немає», а не помилка: саме так
+            // store-service описує вихідний. Наш ReceivingWindow порожній
+            // список не приймає, тож такі дні просто пропускаємо — слотів вони
+            // однаково не дають.
+            //
+            // Без цього будь-яка філія з явно порожнім днем валила побудову
+            // сітки: постачальник отримував 502 і не бачив слотів узагалі.
+            if ([] === $intervals) {
+                continue;
+            }
 
             $windows[] = new ReceivingWindow(
                 (int) ($window['dayOfWeek'] ?? 0),
-                self::intervals($window['intervals'] ?? []),
+                $intervals,
             );
         }
 

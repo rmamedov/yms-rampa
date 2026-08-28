@@ -134,6 +134,29 @@ final class HttpStoreConfigProviderTest extends TestCase
     }
 
     /**
+     * День без інтервалів — це «прийому немає», а не помилка формату.
+     *
+     * Саме так store-service описує вихідний, і на такій філії побудова сітки
+     * падала: постачальник отримував 502 і не бачив слотів узагалі.
+     */
+    public function testDayWithoutIntervalsIsSkippedInsteadOfFailing(): void
+    {
+        $settings = $this->provider(new MockResponse(StoreSettingsPayload::json([
+            'receivingWindows' => [
+                ['dayOfWeek' => 1, 'intervals' => [['from' => '09:00', 'to' => '12:00']]],
+                ['dayOfWeek' => 7, 'intervals' => []],
+            ],
+        ])))->settingsFor(StoreSettingsPayload::STORE_ID);
+
+        $days = array_map(
+            static fn ($w): int => $w->dayOfWeek,
+            $settings->config->receivingWindows,
+        );
+
+        self::assertSame([1], $days, 'порожня неділя не має ані ламати мапінг, ані давати слоти');
+    }
+
+    /**
      * Запит іде на службовий маршрут внутрішнього шлюзу, БЕЗ заголовків
      * ідентичності (їх там ніхто не перевіряє) і з таймаутом у кілька секунд.
      */
