@@ -70,7 +70,7 @@ export abstract class StoresApi {
   /** GET /stores/cities → довідник міст + кількість філій без міста. */
   abstract cities(): Observable<CityFilter>;
 
-  /** GET /stores/{storeId} + /configurations/current + резерви + блокування. */
+  /** GET /stores/{storeId} + /configurations/latest + резерви + блокування. */
   abstract get(id: string): Observable<Store>;
 
   /** PATCH /stores/{storeId} — лише YMS-поля (MCP-поля read-only, STC-01). */

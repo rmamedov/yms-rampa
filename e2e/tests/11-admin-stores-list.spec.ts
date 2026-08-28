@@ -244,16 +244,23 @@ test.describe('A-02 Список магазинів', () => {
   });
 
   test('A-02.14 комбінація фільтрів місто + статус', async ({ page }) => {
-    const expected = await apiStores(
-      `city=${encodeURIComponent('Харків')}&ymsStatus=active&perPage=20`,
-    );
+    const query = `city=${encodeURIComponent('Харків')}&ymsStatus=active&perPage=20`;
+
     await goto(page, '/stores');
     await multiSelectPick(page, 'Місто', 'Харків (');
     await multiSelectPick(page, 'Статус YMS', 'Активний');
-    await apply(page);
 
-    await expectTotal(page, expected.total, 'Харків + активні');
-    expect(await dataRowCount(page)).toBe(expected.items.length);
+    // Очікуване значення — рухома ціль: харківські філії-пісочниці паралельно
+    // перемикають статус інші набори (пауза/активація, сценарії прибуття).
+    // Тому список і API перечитуються РАЗОМ, доки не збігатимуться: перевірка
+    // лишається справжньою (інтерфейс мусить показувати те саме, що бекенд),
+    // але не падає через зміну, яка сталася між двома читаннями.
+    await expect(async () => {
+      await apply(page);
+      const expected = await apiStores(query);
+      expect(await paginationTotal(page)).toBe(expected.total);
+      expect(await dataRowCount(page)).toBe(expected.items.length);
+    }).toPass({ timeout: 30_000 });
   });
 
   test('A-02.15 X-03 фільтри зберігаються при переході між сторінками', async ({ page }) => {

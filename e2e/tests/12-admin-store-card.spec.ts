@@ -344,6 +344,71 @@ test.describe('A-04 Вкладка «Прийом поставок»', () => {
     ).toEqual([]);
   });
 
+  /**
+   * Регресія на реальний дефект: розклад прийому на неділю «не зберігався».
+   *
+   * Насправді він зберігався — картка магазину читала /configurations/current,
+   * тобто версію, чинну СЬОГОДНІ, а нова за STC-60 набирає чинності не раніше
+   * завтра. Після збереження екран перемальовувався старою версією, і щойно
+   * введене вікно зникало з очей.
+   *
+   * Тому перевірка йде саме через ЕКРАН після перезавантаження: попередні
+   * тести звіряли збережене через API, де все завжди було правильно.
+   */
+  test('A-04.3б збережене вікно на неділю лишається на екрані після перезавантаження', async ({
+    page,
+  }) => {
+    const store = await openStore(page, '2229');
+    const before = await apiGet<any>(`/stores/${store.branchId}/configurations/latest`);
+
+    await openTab(page, 'Прийом поставок');
+    const sunday = page.locator('.day-row').nth(6);
+
+    // Починаємо з порожньої неділі, щоб результат не залежав від стану стенду.
+    for (let left = await sunday.locator('.interval-row').count(); left > 0; left -= 1) {
+      await sunday.locator('button', { hasText: 'Видалити' }).first().click();
+    }
+    await sunday.locator('button', { hasText: 'Додати інтервал' }).click();
+    await sunday.locator('input[type=time]').first().fill('08:00');
+    await sunday.locator('input[type=time]').nth(1).fill('18:00');
+
+    await page.locator('#effective-from').fill(kyivDay(1));
+    await page.locator('button.btn-primary', { hasText: 'Зберегти' }).click();
+    expect(await waitForToast(page)).toContain('Конфігурацію збережено');
+
+    await goto(page, `/stores/${store.branchId}`);
+    await openTab(page, 'Прийом поставок');
+
+    await expect(
+      page.locator('.day-row').nth(6).locator('.interval-row'),
+      'збережене вікно на неділю має бути видно після перезавантаження картки',
+    ).toHaveCount(1);
+    await expect(
+      page.locator('.day-row').nth(6).locator('input[type=time]').first(),
+    ).toHaveValue('08:00');
+
+    // Версія ще не чинна — екран мусить про це сказати, інакше виглядатиме,
+    // ніби зміну застосували в магазині вже сьогодні.
+    await expect(
+      page.locator('.notice-info', { hasText: 'набирає чинності' }),
+      'екран має попередити, що відкрита версія ще не чинна',
+    ).toBeVisible();
+
+    // Повертаємо неділю до вихідного стану ще однією версією.
+    await apiRaw('post', `/stores/${store.branchId}/configurations`, {
+      effectiveFrom: `${kyivDay(1)}T00:00:00+00:00`,
+      slotSizeMinutes: before.slotSizeMinutes,
+      maxVehicleWeightTons: before.maxVehicleWeightTons,
+      receivingWindows: before.receivingWindows,
+      ramps: before.ramps,
+      calendarExceptions: before.calendarExceptions,
+      leadTimeMinutes: before.leadTimeMinutes,
+      bookingHorizonDays: before.bookingHorizonDays,
+      noShowGraceMinutes: before.noShowGraceMinutes,
+      holdMaxMinutes: before.holdMaxMinutes,
+    });
+  });
+
   test('A-04.4 перетин інтервалів одного дня відхиляється', async ({ page }) => {
     await openStore(page, '2229');
     await openTab(page, 'Прийом поставок');

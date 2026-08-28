@@ -264,7 +264,7 @@ export class HttpStoresApi extends StoresApi {
   get(id: string): Observable<Store> {
     return forkJoin({
       card: this.api.get<WireStoreCard>(`/stores/${id}`),
-      configuration: this.currentConfiguration(id),
+      configuration: this.latestConfiguration(id),
       reservedRules: this.reservedRules(id),
       slotBlocks: this.slotBlocks(id),
     }).pipe(
@@ -274,8 +274,16 @@ export class HttpStoresApi extends StoresApi {
     );
   }
 
-  private currentConfiguration(id: string): Observable<StoreConfiguration | null> {
-    return this.api.get<WireConfiguration>(`/stores/${id}/configurations/current`).pipe(
+  /**
+   * Екран налаштувань редагує ОСТАННЮ версію, а не чинну сьогодні.
+   *
+   * Нова версія за STC-60 набирає чинності не раніше завтра. Поки тут читалася
+   * /configurations/current, одразу після збереження екран перемальовувався
+   * старою чинною версією — щойно введене вікно прийому зникало, і виглядало
+   * це як «не зберігається». Саме так виявився невидимим розклад на неділю.
+   */
+  private latestConfiguration(id: string): Observable<StoreConfiguration | null> {
+    return this.api.get<WireConfiguration>(`/stores/${id}/configurations/latest`).pipe(
       map(toConfiguration),
       catchError((error: unknown) => {
         if (error instanceof ApiError && error.status === 404) {

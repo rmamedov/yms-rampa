@@ -160,6 +160,47 @@ final class StoreConfigurationServiceTest extends TestCase
         self::assertSame(20.0, $this->configurations->current(BranchFactory::KYIV_ID)['maxVehicleWeightTons']);
     }
 
+    /**
+     * Екран налаштувань має бачити щойно збережену версію, навіть поки вона
+     * не набрала чинності: current() її не показує — це робота latest().
+     *
+     * Без цього розмежування збережена зміна зникає з екрана одразу після
+     * збереження, і виглядає це як «не зберігається». Саме так проявився
+     * дефект із розкладом прийому на неділю.
+     */
+    public function testLatestSeesFutureVersionWhileCurrentStillShowsEffectiveOne(): void
+    {
+        $this->configs->save(BranchFactory::completeConfiguration(maxWeight: 10.0));
+
+        $this->configurations->createVersion(
+            BranchFactory::KYIV_ID,
+            $this->payload(['maxVehicleWeightTons' => 20.0, 'effectiveFrom' => '2026-09-10T00:00:00+00:00']),
+        );
+
+        self::assertSame(10.0, $this->configurations->current(BranchFactory::KYIV_ID)['maxVehicleWeightTons']);
+        self::assertSame(20.0, $this->configurations->latest(BranchFactory::KYIV_ID)['maxVehicleWeightTons']);
+    }
+
+    /** Вікно на неділю (ISO 7) зберігається і читається без втрат. */
+    public function testSundayReceivingWindowSurvivesRoundTrip(): void
+    {
+        $windows = [];
+
+        foreach ([1, 2, 3, 4, 5, 6, 7] as $day) {
+            $windows[] = ['dayOfWeek' => $day, 'intervals' => [['from' => '09:00', 'to' => '12:00']]];
+        }
+
+        $this->configurations->createVersion(
+            BranchFactory::KYIV_ID,
+            $this->payload(['receivingWindows' => $windows]),
+        );
+
+        $latest = $this->configurations->latest(BranchFactory::KYIV_ID);
+        $days = array_map(static fn (array $w): int => $w['dayOfWeek'], $latest['receivingWindows']);
+
+        self::assertSame([1, 2, 3, 4, 5, 6, 7], $days);
+    }
+
     /** STC-42: резерв поза вікном прийому відхиляється. */
     public function testReservedRuleOutsideReceivingWindowIsRejected(): void
     {

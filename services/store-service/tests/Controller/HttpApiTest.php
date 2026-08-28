@@ -139,6 +139,43 @@ final class HttpApiTest extends TestCase
         self::assertSame('CONFIG_VALIDATION_FAILED', $this->json($response)['code']);
     }
 
+    /**
+     * Щойно створена версія доступна через /configurations/latest ще до дати
+     * набуття чинності — саме її читає екран налаштувань.
+     */
+    public function testLatestReturnsJustCreatedVersionIncludingSunday(): void
+    {
+        $this->seedBranch();
+
+        $this->request(
+            'POST',
+            '/api/admin/v1/stores/'.BranchFactory::KYIV_ID.'/configurations',
+            content: json_encode([
+                'slotSizeMinutes' => 30,
+                'maxVehicleWeightTons' => 12.5,
+                'receivingWindows' => [
+                    ['dayOfWeek' => 1, 'intervals' => [['from' => '06:00', 'to' => '12:00']]],
+                    ['dayOfWeek' => 7, 'intervals' => [['from' => '08:00', 'to' => '18:00']]],
+                ],
+                'ramps' => [['rampId' => 'r1', 'number' => 1]],
+            ], \JSON_THROW_ON_ERROR),
+        );
+
+        $response = $this->request(
+            'GET',
+            '/api/admin/v1/stores/'.BranchFactory::KYIV_ID.'/configurations/latest',
+        );
+
+        self::assertSame(Response::HTTP_OK, $response->getStatusCode());
+
+        $days = array_map(
+            static fn (array $w): int => $w['dayOfWeek'],
+            $this->json($response)['receivingWindows'],
+        );
+
+        self::assertContains(7, $days, 'неділя має лишатися у збереженій версії');
+    }
+
     public function testConfigurationIsCreatedWithVersionOne(): void
     {
         $this->seedBranch();

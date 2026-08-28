@@ -70,6 +70,29 @@ final readonly class StoreConfigurationService
     }
 
     /**
+     * Остання за версією конфігурація — включно з тією, що ще не набрала чинності.
+     *
+     * Навіщо окремо від current(): нова версія за STC-60 діє «з дати X», не
+     * раніше завтра. Якщо екран налаштувань читає current(), то одразу після
+     * збереження він показує стару, ще чинну версію — і щойно введена зміна
+     * зникає з очей. Адміністратор бачить не «збережено на завтра», а «не
+     * збереглося», і повторює спробу.
+     *
+     * @return array<string, mixed>
+     */
+    public function latest(string $storeId): array
+    {
+        $this->catalog->requireBranch($storeId);
+        $config = $this->configurations->findLatest($storeId);
+
+        if (!$config instanceof StoreConfiguration) {
+            throw NotFoundException::configuration($storeId);
+        }
+
+        return ConfigurationPresenter::configuration($config);
+    }
+
+    /**
      * DATA-09: створення НОВОЇ версії конфігурації; наявна версія ніколи не оновлюється.
      *
      * @return array<string, mixed>

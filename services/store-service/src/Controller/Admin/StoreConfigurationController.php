@@ -44,6 +44,18 @@ final class StoreConfigurationController extends AbstractController
         return new JsonResponse($this->configurations->current($storeId));
     }
 
+    /**
+     * Остання версія — та, яку редагує екран налаштувань, навіть якщо вона
+     * ще не набрала чинності. Див. StoreConfigurationService::latest().
+     */
+    #[Route('/latest', methods: ['GET'])]
+    public function latest(string $storeId, Request $request): JsonResponse
+    {
+        $this->actors->staff($request)->assertCanReadStore($storeId);
+
+        return new JsonResponse($this->configurations->latest($storeId));
+    }
+
     /** STC-60: нова версія набирає чинності «з дати X» (не раніше завтра). */
     #[Route('', methods: ['POST'])]
     public function create(string $storeId, Request $request): JsonResponse

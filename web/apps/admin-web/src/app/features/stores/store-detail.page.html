@@ -108,6 +108,11 @@
   }
 
   @if (activeTab() === 'receiving' || activeTab() === 'slots' || activeTab() === 'limits') {
+    @if (pendingSince(); as since) {
+      <div class="notice notice-info">
+        {{ 'conflicts.pending' | t: { date: formatDate(since) } }}
+      </div>
+    }
     <div class="card">
       <div class="row">
         <div>

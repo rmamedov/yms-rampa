@@ -50,6 +50,7 @@ import {
   normalizeReceivingWindows,
   validateEffectiveDate,
 } from '../../core/utils/store-config.util';
+import { formatDate, kyivDate } from '../../core/utils/time.util';
 
 export type StoreTabId =
   | 'general'
@@ -124,6 +125,24 @@ export class StoreDetailPage {
   protected readonly effectiveDateError = computed(() =>
     validateEffectiveDate(this.effectiveFrom(), this.isFirstVersion()),
   );
+
+  /**
+   * Дата набуття чинності відкритої версії, якщо вона ще попереду.
+   *
+   * Екран редагує ОСТАННЮ версію, а нова за STC-60 діє не раніше завтра. Без
+   * цієї позначки збережена зміна виглядає так, ніби її застосували негайно,
+   * а в магазині сьогодні ще діє попередня версія.
+   */
+  protected readonly pendingSince = computed<string | null>(() => {
+    const config = this.store()?.configuration;
+    if (!config) {
+      return null;
+    }
+    const effective = config.effectiveFrom.slice(0, 10);
+    return effective > kyivDate() ? effective : null;
+  });
+
+  protected readonly formatDate = formatDate;
 
   /**
    * Усе, що робить чернетку незбережуваною: бракує обовʼязкових полів
