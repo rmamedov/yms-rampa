@@ -810,15 +810,24 @@ test.describe('M-04 Позапланове прибуття', () => {
   async function allSuppliers(): Promise<{ id: string; name: string }[]> {
     const login = await ctx.post(`${HOSTS.admin}/api/admin/v1/auth/login`, { data: CREDS.admin });
     const token = (await login.json()).accessToken as string;
-    const res = await ctx.get(`${HOSTS.admin}/api/admin/v1/suppliers?perPage=100`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const body = await res.json();
-    const items = body.items as { id: string; name: string; status?: string }[];
+    // Еталон теж треба збирати посторінково: у partner-service ліміт сторінки
+    // свій, і одна сторінка вже не вміщає всіх постачальників стенду.
+    const items: { id: string; name: string; status?: string }[] = [];
+    let total = 0;
+    for (let offset = 0; ; offset += 100) {
+      const page = await ctx.get(`${HOSTS.admin}/api/admin/v1/suppliers?limit=100&offset=${offset}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = await page.json();
+      const chunk = (body.items ?? []) as { id: string; name: string; status?: string }[];
+      total = body.total ?? chunk.length;
+      items.push(...chunk);
+      if (chunk.length === 0 || items.length >= total) break;
+    }
     expect(
       items.length,
-      `сторінка повернула ${items.length} із ${body.total} — довідник для звірки неповний`,
-    ).toBe(body.total as number);
+      `зібрано ${items.length} із ${total} — довідник для звірки неповний`,
+    ).toBe(total);
     return items.filter((s) => s.status !== 'archived');
   }
 

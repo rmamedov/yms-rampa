@@ -305,7 +305,13 @@ final class RouteSheetTest extends TestCase
             Scenario::kyiv('2026-08-27 12:45'),
             $scenario->now(),
         );
-        $scenario->driverBookings->markArrived($scenario->driver('du-7'), $booking->id, $scenario->now());
+        // Прибуття відмічається у вікні «На місці» (ArrivalWindow): для слоту
+        // 12:00 воно відкривається об 11:00, а `$scenario->now()` — це 09:00.
+        $scenario->driverBookings->markArrived(
+            $scenario->driver('du-7'),
+            $booking->id,
+            Scenario::kyiv('2026-08-27 11:40'),
+        );
 
         // Свіже читання листа — рівно те, що зробить полінг після F5.
         $point = $scenario->routeSheets->forDriver('du-7', '2026-08-27')[0]['points'][0];
@@ -313,7 +319,7 @@ final class RouteSheetTest extends TestCase
         self::assertTrue($point['delayed']['flag']);
         self::assertSame('затори', $point['delayed']['reason']);
         self::assertSame('2026-08-27T09:45:00Z', $point['delayed']['eta']);
-        self::assertSame('2026-08-27T06:00:00Z', $point['arrivedAt']);
+        self::assertSame('2026-08-27T08:40:00Z', $point['arrivedAt']);
         self::assertSame('arrived', $point['status']);
     }
 

@@ -74,13 +74,13 @@
       >
         {{ (pending() ? 'point.arriveSending' : 'point.arrive') | t }}
       </button>
-    } @else if (arrivalOpensOn(); as day) {
+    } @else if (arrivalOpensHint(); as hint) {
       <!-- Вікно відмітки ще не відкрилося (ArrivalWindow, розділ 8). Кнопка
            дії тут не показується взагалі: бекенд її відхилить, а випадковий
            дотик поставив би в чергу магазину машину, якої немає. Замість неї —
-           неактивна кнопка, яка називає день, коли відмітка стане доступною. -->
+           неактивна кнопка, яка називає час, коли відмітка стане доступною. -->
       <button type="button" class="btn arrive-locked tall" disabled>
-        {{ 'point.arriveOpensOn' | t: { date: day } }}
+        {{ hint.key | t: hint.params }}
       </button>
     }
 

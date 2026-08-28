@@ -376,11 +376,15 @@ test.describe('D-04/D-05 «На місці» і номер замовлення'
   let staffToken: string;
 
   test.beforeAll(async () => {
+    // Ланцюжок доводить точку до «На місці», а відмітка приймається лише
+    // у вікні «slotStart − 60 хв … кінець слоту» (розділ 8, D-04). Тому слот
+    // потрібен найближчий, а не найпізніший слот доби: lead time бронювання —
+    // теж 60 хв, тож щойно створене бронювання одразу потрапляє у вікно.
     booking = await createBooking(shared.ctx, shared.supplierToken, {
       date: shared.today,
       driverId: shared.driver.id,
       label: `${mark()}-цикл`,
-      which: 'last',
+      which: 'soonest',
       stores: shared.stores,
     });
     driverToken = await driverAuth(shared.ctx, shared.driver.phone, shared.driver.password);
@@ -602,11 +606,13 @@ test.describe('D-07 Робота без звʼязку', () => {
   let booking: TestBooking;
 
   test.beforeAll(async () => {
+    // Набір доводить точку до «На місці» через офлайн-чергу, тож слот має
+    // бути у вікні відмітки (розділ 8, D-04) — найближчий вільний.
     booking = await createBooking(shared.ctx, shared.supplierToken, {
       date: shared.today,
       driverId: shared.driver.id,
       label: `${mark()}-офлайн`,
-      which: 'last',
+      which: 'soonest',
       stores: shared.stores,
     });
   });

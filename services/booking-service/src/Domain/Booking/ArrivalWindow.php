@@ -5,60 +5,47 @@ declare(strict_types=1);
 namespace App\Domain\Booking;
 
 use App\Domain\Slot\StoreConfig;
+use App\Domain\Store\StorePolicy;
 use DateTimeImmutable;
 use DateTimeZone;
 
 /**
  * Вікно відмітки «На місці» (розділ 8, блок DRV).
  *
- * Специфікація описує вікно ВЧАСНОГО прибуття як «від −60 хв до кінця слоту»,
- * а все, що пізніше за кінець слоту, — як прибуття із запізненням. Обидві
- * межі живуть тут, а не розсипані по контролерах: питання «чи можна зараз
- * відмітити прибуття» має рівно одну відповідь для всіх контурів.
+ * Специфікація: відмітка доступна ВІД −60 ХВ ДО КІНЦЯ СЛОТУ, а після кінця
+ * слоту приймається з позначкою запізнення. Обидві межі живуть тут, а не
+ * розсипані по контролерах: питання «чи можна зараз відмітити прибуття» має
+ * рівно одну відповідь для всіх контурів.
  *
- * ТРИ МОМЕНТИ, а не два:
+ *   ──── opensAt ──── slotStart ──── closesAt ────▶
+ *        (−60 хв)                   (кінець слоту)
+ *     ↑                ↑                    ↑
+ *  відмова        вчасно               із запізненням
+ *  ARRIVAL_TOO_EARLY                   (late = true)
  *
- *   dayOfVisitStart ──── opensAt ──── slotStart ──── closesAt ────▶
- *   (київська північ)   (−60 хв)                    (кінець слоту)
- *        │                  │                            │
- *   раніше — відмова    зарано (early)   вчасно      із запізненням (late)
+ * ШИРИНА ВІКНА — `StorePolicy::ARRIVAL_WINDOW_MINUTES`, і лише там: щоб
+ * змінити правило, достатньо однієї константи. Застосунок водія дзеркалить
+ * те саме значення (`ARRIVAL_WINDOW_MINUTES` у route-sheet.model.ts), інакше
+ * кнопка з'являлася б раніше, ніж бекенд готовий прийняти відмітку.
  *
- * ЧОМУ ЖОРСТКА МЕЖА — ДОБА, А НЕ −60 ХВ. Дефект, який закриває це правило
- * (ISSUE-13), — «На місці» можна натиснути ЗА ДОБУ до слоту: випадковий дотик
- * ставить у чергу магазину машину, якої немає, і водій не може це відкотити.
- * Саме доба й відсікається: раніше за київську північ дати слоту відмітка
- * не приймається взагалі.
- *
- * Робити жорсткою межею саме −60 хв не можна: маршрутний лист водій відкриває
- * вранці, а точки в ньому — на весь день, тож о 03:10 відмітити прибуття на
- * власну точку о 13:00 було б неможливо навіть тоді, коли машина вже під
- * рампою. Тому −60 хв лишається межею ВЧАСНОСТІ (`early`/`on_time`), а не
- * забороною; ширину жорсткого вікна має остаточно закріпити продукт.
+ * ЧОМУ МЕЖА ЖОРСТКА. Без неї «На місці» можна натиснути хоч за добу (ISSUE-13):
+ * випадковий дотик о 06:00 ставить у чергу магазину машину, яку чекають о 22:00,
+ * і водій не може це відкотити. Вікно і lead time бронювання узгоджені: слот
+ * можна забронювати не раніше ніж за годину від «зараз», тому для щойно
+ * створеного бронювання вікно прибуття відкривається практично одразу.
  */
 final readonly class ArrivalWindow
 {
-    /** Наскільки раніше за слот відкривається вікно вчасного прибуття. */
-    public const int OPENS_BEFORE_SLOT_MINUTES = 60;
-
-    /** Прибуття раніше, ніж відкрилося вікно вчасності. */
-    public const string EARLY = 'early';
-
-    /** Прибуття у вікні «−60 хв … кінець слоту». */
-    public const string ON_TIME = 'on_time';
-
-    /** Прибуття після кінця слоту — та сама «позначка запізнення». */
-    public const string LATE = 'late';
-
     private function __construct(
-        /** Київська північ дати слоту — раніше за неї відмітка неможлива. */
-        public DateTimeImmutable $dayOfVisitStart,
-        /** slotStart − 60 хв: відкриття вікна вчасного прибуття. */
+        /** slotStart − StorePolicy::ARRIVAL_WINDOW_MINUTES: відкриття вікна. */
         public DateTimeImmutable $opensAt,
         /** Кінець слоту: далі прибуття вважається запізненням. */
         public DateTimeImmutable $closesAt,
         /** Локальна дата візиту, Y-m-d у зоні магазину. */
         public string $localDate,
-        /** Локальний час початку слоту, H:i у зоні магазину. */
+        /** Локальний час відкриття вікна, H:i. */
+        public string $localOpensAt,
+        /** Локальний час початку слоту, H:i. */
         public string $localSlotTime,
     ) {
     }
@@ -66,29 +53,22 @@ final readonly class ArrivalWindow
     public static function forSlot(DateTimeImmutable $slotStart, DateTimeImmutable $slotEnd): self
     {
         $timezone = new DateTimeZone(StoreConfig::TIMEZONE);
-        $local = $slotStart->setTimezone($timezone);
+        $opensAt = $slotStart->modify(\sprintf('-%d minutes', StorePolicy::ARRIVAL_WINDOW_MINUTES));
 
         return new self(
-            dayOfVisitStart: $local->setTime(0, 0),
-            opensAt: $slotStart->modify(\sprintf('-%d minutes', self::OPENS_BEFORE_SLOT_MINUTES)),
+            opensAt: $opensAt,
             closesAt: $slotEnd,
-            localDate: $local->format('Y-m-d'),
-            localSlotTime: $local->format('H:i'),
+            localDate: $slotStart->setTimezone($timezone)->format('Y-m-d'),
+            localOpensAt: $opensAt->setTimezone($timezone)->format('H:i'),
+            localSlotTime: $slotStart->setTimezone($timezone)->format('H:i'),
         );
     }
 
     /**
-     * Момент ще не настав у календарі магазину: візит призначено на іншу,
-     * пізнішу добу. Порівнюються абсолютні моменти, тому зона `$now` значення
-     * не має.
+     * Вікно ще не відкрилося. Порівнюються абсолютні моменти, тому зона
+     * `$now` значення не має.
      */
-    public function isBeforeDayOfVisit(DateTimeImmutable $now): bool
-    {
-        return $now < $this->dayOfVisitStart;
-    }
-
-    /** Раніше за −60 хв: машина на місці задовго до слоту. */
-    public function isEarly(DateTimeImmutable $now): bool
+    public function isBeforeOpening(DateTimeImmutable $now): bool
     {
         return $now < $this->opensAt;
     }
@@ -99,19 +79,18 @@ final readonly class ArrivalWindow
         return $now > $this->closesAt;
     }
 
-    /** early | on_time | late — рівно те, що бачить магазин і аналітика. */
-    public function punctuality(DateTimeImmutable $now): string
+    /** Дата відкриття вікна у вигляді, придатному для повідомлення водієві. */
+    public function opensOnLocalDate(): string
     {
-        if ($this->isLate($now)) {
-            return self::LATE;
-        }
-
-        return $this->isEarly($now) ? self::EARLY : self::ON_TIME;
+        return $this->opensAt->setTimezone(new DateTimeZone(StoreConfig::TIMEZONE))->format('d.m.Y');
     }
 
-    /** Дата візиту у вигляді, придатному для повідомлення водієві. */
-    public function localDayLabel(): string
+    /** Локальна дата моменту — щоб не називати дату там, де подія сьогоднішня. */
+    public function isSameLocalDay(DateTimeImmutable $moment): bool
     {
-        return $this->dayOfVisitStart->format('d.m.Y');
+        $timezone = new DateTimeZone(StoreConfig::TIMEZONE);
+
+        return $moment->setTimezone($timezone)->format('Y-m-d')
+            === $this->opensAt->setTimezone($timezone)->format('Y-m-d');
     }
 }

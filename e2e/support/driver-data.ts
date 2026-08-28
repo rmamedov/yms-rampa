@@ -152,11 +152,51 @@ export async function kyivStores(ctx: APIRequestContext, token: string): Promise
 }
 
 /**
+ * Філії, впорядковані за найранішим вільним слотом дати. Філії без вільних
+ * слотів ідуть у кінець — вони все одно будуть пропущені.
+ */
+async function byEarliestFreeSlot(
+  ctx: APIRequestContext,
+  token: string,
+  stores: CatalogStore[],
+  date: string,
+): Promise<CatalogStore[]> {
+  const earliest = new Map<string, string>();
+
+  for (const store of stores) {
+    const res = await ctx.get(
+      `${HOSTS.supplier}/api/supplier/v1/stores/${store.storeId}/slots?date=${date}`,
+      { headers: bearer(token) },
+    );
+    if (!res.ok()) continue;
+    const slots = ((await res.json()).slots ?? []) as { rampId: string; slotStart: string; state: string }[];
+    const free = slots
+      .filter((s) => s.state === 'available')
+      .filter((s) => !takenSlots.has(`${store.storeId}|${s.rampId}|${s.slotStart}`))
+      .map((s) => s.slotStart)
+      .sort();
+    if (free.length > 0) earliest.set(store.storeId, free[0]);
+  }
+
+  return [...stores].sort(
+    (a, b) =>
+      (earliest.get(a.storeId) ?? '9999').localeCompare(earliest.get(b.storeId) ?? '9999'),
+  );
+}
+
+/**
  * Бронює вільний слот і призначає на нього водія.
  *
  * `which: 'last'` бере найпізніший вільний слот дня — це потрібно, щоб
  * створювати точки НЕ в хронологічному порядку і чесно перевірити
  * сортування маршрутного листа.
+ *
+ * `which: 'soonest'` бере найближчий вільний слот СЕРЕД УСІХ філій набору —
+ * саме він потрібен тестам, які доводять точку до «На місці»: відмітка
+ * приймається лише у вікні «slotStart − 60 хв … кінець слоту» (розділ 8),
+ * і найближчий слот — єдиний, який гарантовано в нього потрапляє. Лишається
+ * природне обмеження: філія має бути відчинена (або відчинятися протягом
+ * години) — до відкриття прийому таких слотів у сітці просто немає.
  */
 export async function createBooking(
   ctx: APIRequestContext,
@@ -165,15 +205,20 @@ export async function createBooking(
     date: string;
     driverId: string;
     label: string;
-    which?: 'first' | 'last';
+    which?: 'first' | 'last' | 'soonest';
     palletsCount?: number;
     stores?: CatalogStore[];
   },
 ): Promise<TestBooking> {
-  const stores = options.stores ?? (await kyivStores(ctx, token));
+  const all = options.stores ?? (await kyivStores(ctx, token));
   const palletsCount = options.palletsCount ?? 12;
   const orderId = `UITEST-${options.label}`;
   const plateNumber = `UT${String(Math.floor(Math.random() * 9000) + 1000)}XX`;
+
+  // Для 'soonest' філії перебираються в порядку найранішого вільного слоту,
+  // а не в порядку каталогу: найближчий слот може бути в третій філії.
+  const stores =
+    options.which === 'soonest' ? await byEarliestFreeSlot(ctx, token, all, options.date) : all;
 
   for (const store of stores) {
     const gridRes = await ctx.get(
@@ -188,6 +233,8 @@ export async function createBooking(
       .sort((a, b) => a.slotStart.localeCompare(b.slotStart));
     if (free.length === 0) continue;
 
+    // 'first' і 'soonest' беруть найраніший вільний слот; різниця лише
+    // в порядку перебору філій (див. byEarliestFreeSlot вище).
     const slot = options.which === 'last' ? free[free.length - 1] : free[0];
     const key = { storeId: store.storeId, rampId: slot.rampId, slotStart: slot.slotStart };
     takenSlots.add(`${store.storeId}|${slot.rampId}|${slot.slotStart}`);

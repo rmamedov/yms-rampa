@@ -401,10 +401,11 @@ final class Booking
      * ST-01: booked → arrived. Виконує водій («На місці» у driver-web) або
      * store_operator/store_manager у store-web.
      *
-     * Доступність за часом — ArrivalWindow: раніше за добу візиту відмітка
-     * відхиляється (ISSUE-13), після кінця слоту приймається з позначкою
-     * запізнення. Правило спільне для обох контурів: магазин так само не має
-     * ставити в чергу машину, яку чекають лише завтра.
+     * Доступність за часом — ArrivalWindow: раніше ніж за
+     * StorePolicy::ARRIVAL_WINDOW_MINUTES до слоту відмітка відхиляється
+     * (ISSUE-13), після кінця слоту приймається з позначкою запізнення.
+     * Правило спільне для обох контурів: магазин так само не має ставити
+     * в чергу машину, яку чекають лише ввечері.
      *
      * Перевірка стоїть ПЕРЕД переходом навмисно: на вже позначеному бронюванні
      * (магазин відмітив прибуття першим) сюди не заходять узагалі —
@@ -416,8 +417,8 @@ final class Booking
     {
         $window = $this->arrivalWindow();
 
-        if ($window->isBeforeDayOfVisit($now)) {
-            throw new ArrivalTooEarlyException($window);
+        if ($window->isBeforeOpening($now)) {
+            throw new ArrivalTooEarlyException($window, $now);
         }
 
         $this->transition($actor, BookingStatus::Arrived, $now);
@@ -428,7 +429,6 @@ final class Booking
             'delayed' => $this->delayed->flag,
             // Позначка запізнення їде разом із подією: магазин і аналітика
             // не мусять перераховувати її зі slotEnd самостійно.
-            'punctuality' => $window->punctuality($now),
             'late' => $window->isLate($now),
         ]);
     }

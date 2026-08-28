@@ -11,11 +11,16 @@ import { TranslatePipe } from '../../core/i18n/i18n.service';
 import { StatusBadgeComponent } from '../../shared/ui/status-badge.component';
 import {
   arrivalAvailable,
+  arrivalOpensAt,
   rampLabel,
   type RoutePoint,
 } from '../../core/models/route-sheet.model';
 import { isClosedPoint } from '../../core/state/route-sheet.store';
-import { formatKyivDayMonth, formatKyivTime } from '../../core/util/time.util';
+import {
+  formatKyivDayMonth,
+  formatKyivTime,
+  kyivDateKey,
+} from '../../core/util/time.util';
 
 /** Дії водія доступні рівно доти, доки бекенд їх приймає (Booking, 6.5). */
 const OPEN_FOR_DRIVER: readonly RoutePoint['status'][] = ['booked', 'arrived'];
@@ -75,14 +80,27 @@ export class PointCardComponent {
   );
 
   /**
-   * Дата, з якої відмітка стане доступною, або null — коли пояснювати нічого
-   * (вікно вже відкрите або точка вже не в статусі «Очікує виїзду»).
+   * Пояснення, коли відмітка стане доступною, або null — коли пояснювати
+   * нічого (вікно вже відкрите або точка вже не в статусі «Очікує виїзду»).
+   *
+   * Дата додається лише для чужої доби: у звичайному випадку («ще рано,
+   * приходьте за годину») вона тільки заважає.
    */
-  protected readonly arrivalOpensOn = computed(() =>
-    this.point().status === 'booked' && !this.arrivalOpen()
-      ? formatKyivDayMonth(this.point().slotStart)
-      : null,
-  );
+  protected readonly arrivalOpensHint = computed(() => {
+    if (this.point().status !== 'booked' || this.arrivalOpen()) {
+      return null;
+    }
+    const opensAt = arrivalOpensAt(this.point());
+    const sameDay = kyivDateKey(opensAt) === kyivDateKey(this.now());
+
+    return {
+      key: sameDay ? 'point.arriveOpensAt' : 'point.arriveOpensOn',
+      params: {
+        time: formatKyivTime(opensAt),
+        date: formatKyivDayMonth(opensAt),
+      },
+    };
+  });
 
   protected readonly canEdit = computed(() =>
     OPEN_FOR_DRIVER.includes(this.point().status),

@@ -1,5 +1,10 @@
-import { NO_DELAY, arrivalAvailable, type RoutePoint } from './route-sheet.model';
-import { kyivDateKey } from '../util/time.util';
+import {
+  ARRIVAL_WINDOW_MINUTES,
+  NO_DELAY,
+  arrivalAvailable,
+  arrivalOpensAt,
+  type RoutePoint,
+} from './route-sheet.model';
 
 function point(slotStart: string): RoutePoint {
   return {
@@ -34,44 +39,49 @@ describe('доступність відмітки «На місці» (ArrivalWi
   // 2026-08-28 13:00 за Києвом = 10:00Z (літній час, UTC+3).
   const slot = '2026-08-28T10:00:00Z';
 
-  it('на завтрашню точку відмітити прибуття не можна', () => {
-    const now = Date.parse('2026-08-27T12:00:00Z');
-
-    expect(arrivalAvailable(point(slot), now)).toBe(false);
+  it('ширина вікна збігається з доменною константою', () => {
+    expect(ARRIVAL_WINDOW_MINUTES).toBe(60);
+    expect(arrivalOpensAt(point(slot))).toBe(Date.parse('2026-08-28T09:00:00Z'));
   });
 
-  /**
-   * Маршрутний лист водій відкриває вранці, а точки в ньому — на весь день:
-   * о 03:10 точка о 13:00 має лишатися доступною, інакше застосунок сам собі
-   * забороняє те, що бекенд приймає.
-   */
-  it('у день візиту відмітка доступна навіть задовго до слоту', () => {
-    const now = Date.parse('2026-08-28T00:10:00Z'); // 03:10 за Києвом
-
-    expect(arrivalAvailable(point(slot), now)).toBe(true);
-  });
-
-  it('після кінця слоту відмітка лишається доступною — це запізнення, не заборона', () => {
-    const now = Date.parse('2026-08-28T18:00:00Z');
-
-    expect(arrivalAvailable(point(slot), now)).toBe(true);
-  });
-
-  /** Межа рахується за календарем Києва, а не за UTC. */
-  it('київська північ, а не UTC, відкриває вікно', () => {
-    // 2026-08-27 22:00Z = вже 01:00 28 серпня в Києві.
-    expect(arrivalAvailable(point(slot), Date.parse('2026-08-27T22:00:00Z'))).toBe(
+  it('за годину до слоту вікно вже відкрите', () => {
+    expect(arrivalAvailable(point(slot), Date.parse('2026-08-28T09:00:00Z'))).toBe(
       true,
     );
-    // 2026-08-27 20:59Z = 23:59 27 серпня в Києві — ще зарано.
-    expect(arrivalAvailable(point(slot), Date.parse('2026-08-27T20:59:00Z'))).toBe(
+  });
+
+  it('за хвилину до відкриття — ще ні', () => {
+    expect(arrivalAvailable(point(slot), Date.parse('2026-08-28T08:59:00Z'))).toBe(
       false,
     );
   });
 
-  it('за замовчуванням порівнюється з поточним моментом', () => {
-    const todaySlot = `${kyivDateKey()}T00:00:00Z`;
+  /**
+   * Рівно та шкода, заради якої правило й писалося: вранці відмітити
+   * прибуття на вечірню точку не можна — інакше магазин цілий день бачить
+   * у черзі машину, якої немає.
+   */
+  it('вранці на вечірню точку відмітити прибуття не можна', () => {
+    expect(arrivalAvailable(point(slot), Date.parse('2026-08-28T03:00:00Z'))).toBe(
+      false,
+    );
+  });
 
-    expect(arrivalAvailable(point(todaySlot))).toBe(true);
+  it('на завтрашню точку — тим паче', () => {
+    expect(arrivalAvailable(point(slot), Date.parse('2026-08-27T12:00:00Z'))).toBe(
+      false,
+    );
+  });
+
+  it('після кінця слоту відмітка лишається доступною — це запізнення, не заборона', () => {
+    expect(arrivalAvailable(point(slot), Date.parse('2026-08-28T18:00:00Z'))).toBe(
+      true,
+    );
+  });
+
+  it('за замовчуванням порівнюється з поточним моментом', () => {
+    const passed = new Date(Date.now() - 60 * 60_000).toISOString();
+
+    expect(arrivalAvailable(point(passed))).toBe(true);
   });
 });

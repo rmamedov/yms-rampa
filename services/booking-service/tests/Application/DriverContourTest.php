@@ -56,17 +56,18 @@ final class DriverContourTest extends TestCase
      * в агрегаті, тому прямий виклик API дає ту саму відмову, що й неактивна
      * кнопка в застосунку.
      */
-    public function testDriverCannotMarkArrivalTheDayBeforeTheSlot(): void
+    public function testDriverCannotMarkArrivalBeforeTheWindowOpens(): void
     {
         $scenario = new Scenario();
         $booking = $scenario->book('2026-08-28 10:00', driverId: self::DRIVER_ID);
 
         $this->expectException(ArrivalTooEarlyException::class);
 
+        // Вікно відкривається о 09:00 — за годину до слоту.
         $scenario->driverBookings->markArrived(
             $scenario->driver(self::DRIVER_ID),
             $booking->id,
-            Scenario::kyiv('2026-08-27 09:55'),
+            Scenario::kyiv('2026-08-28 06:30'),
         );
     }
 
