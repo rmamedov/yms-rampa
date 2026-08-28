@@ -278,6 +278,12 @@ export interface RouteSheetPoint {
   readonly plateNumber: string;
   readonly driverId: string | null;
   readonly status: BookingStatus;
+  /**
+   * EDIT-02: до цього моменту точку ще можна скасувати або перенести.
+   * null — філія не відповіла; тоді не блокуємо, рішення лишається за бекендом.
+   */
+  readonly editableUntil: string | null;
+  readonly editDeadlineHours: number | null;
 }
 
 /** GET /route-sheets?date=YYYY-MM-DD (RSHT-03). */

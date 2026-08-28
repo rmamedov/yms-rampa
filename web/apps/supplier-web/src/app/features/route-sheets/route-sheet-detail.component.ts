@@ -22,6 +22,7 @@ import type {
 } from '../../core/models/models';
 import {
   canCancel,
+  withinEditDeadline,
   canChangeDriverOrVehicle,
   canTransfer,
 } from '../../core/util/booking-rules';
@@ -128,18 +129,27 @@ export class RouteSheetDetailComponent implements OnInit {
   }
 
   protected canTransfer(point: RouteSheetPoint): boolean {
-    return canTransfer(point.status);
+    return canTransfer(point.status) && withinEditDeadline(point.editableUntil);
   }
 
   protected canCancel(point: RouteSheetPoint): boolean {
-    return canCancel(point.status);
+    return canCancel(point.status) && withinEditDeadline(point.editableUntil);
   }
 
   protected canChangeDriver(point: RouteSheetPoint): boolean {
     return canChangeDriverOrVehicle(point.status);
   }
 
+  /**
+   * Пояснення, чому дій немає. Дедлайн і статус — різні причини, і плутати їх
+   * не можна: у першому випадку допоможе дзвінок у магазин, у другому — ні.
+   */
   protected lockedHint(point: RouteSheetPoint): string {
+    if (canCancel(point.status) && !withinEditDeadline(point.editableUntil)) {
+      return this.i18n.t('rs.deadlineHint', {
+        hours: String(point.editDeadlineHours ?? ''),
+      });
+    }
     return this.i18n.t('rs.lockedHint', {
       status: this.i18n.t(`status.${point.status}`),
     });

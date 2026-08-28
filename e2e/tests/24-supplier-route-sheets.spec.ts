@@ -429,6 +429,48 @@ test.describe('S-08 Маршрутні листи', () => {
     ).toBe(true);
   });
 
+  /**
+   * EDIT-02: кабінет пропонує скасування рівно там, де воно спрацює.
+   *
+   * Дефект був у тому, що кнопки показувалися для будь-якої точки у статусі
+   * «Заброньовано», і натискання давало голе «Редагування вже недоступне» без
+   * пояснення, чому і що робити.
+   */
+  test('S-08.11 кнопки скасування є лише там, де дедлайн ще не минув', async ({ page }) => {
+    const today = kyivToday();
+    const sheet = await api.sheet(today);
+    const points: any[] = sheet.points ?? [];
+    test.skip(points.length === 0, 'на сьогодні немає маршрутного листа');
+
+    const editable = points.filter(
+      (pt) =>
+        pt.status === 'booked' &&
+        (!pt.editableUntil || new Date(pt.editableUntil).getTime() >= Date.now()),
+    );
+    const lockedByDeadline = points.filter(
+      (pt) =>
+        pt.status === 'booked' &&
+        pt.editableUntil &&
+        new Date(pt.editableUntil).getTime() < Date.now(),
+    );
+
+    await loginSupplier(page);
+    await goto(page, `/route-sheets/${today}`);
+    await expect(page.locator('.table tbody tr').first()).toBeVisible();
+
+    await expect(
+      page.locator('.table tbody button:has-text("Скасувати")'),
+      'кнопок скасування має бути рівно стільки, скільки точок ще можна скасувати',
+    ).toHaveCount(editable.length);
+
+    if (lockedByDeadline.length > 0) {
+      await expect(
+        page.locator('.table tbody'),
+        'замість кнопок після дедлайну має бути пояснення з кількістю годин',
+      ).toContainText('не пізніше ніж за');
+    }
+  });
+
   test('S-08.9 X-07 маршрутні листи українською, без ключів перекладу', async ({ page }) => {
     const date = workingDay(4);
     await loginSupplier(page);

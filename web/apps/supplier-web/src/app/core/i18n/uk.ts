@@ -228,6 +228,8 @@ export const UK_DICTIONARY: Record<string, string> = {
   'rs.cancelTitle': 'Скасувати бронювання?',
   'rs.cancelReason': 'Причина (необовʼязково)',
   'rs.cancelled': 'Бронювання скасовано, слот звільнено',
+  'rs.deadlineHint':
+    'Скасувати або перенести можна не пізніше ніж за {hours} год до слоту. Звʼяжіться з магазином.',
   'rs.lockedHint': 'Дії недоступні для статусу «{status}»',
   'rs.col.time': 'Час',
   'rs.col.store': 'Магазин',

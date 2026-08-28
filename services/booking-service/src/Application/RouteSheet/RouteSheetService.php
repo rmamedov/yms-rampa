@@ -259,6 +259,16 @@ final readonly class RouteSheetService
             // Позначка запізнення (розділ 8) — щоб застосунок водія і друкована
             // форма не рахували її самі з slotEnd, розходячись із доменом.
             'arrivedLate' => $booking->arrivedLate(),
+            // EDIT-02: до цього моменту постачальник ще може скасувати або
+            // перенести точку. Віддаємо готовий строк, щоб кабінет не рахував
+            // його сам і не розходився з доменом — інакше кнопки пропонують
+            // дію, яку бекенд гарантовано відхилить.
+            'editableUntil' => null === $settings
+                ? null
+                : $booking->slotStart
+                    ->modify(\sprintf('-%d hours', $settings->policy->editDeadlineHours))
+                    ->format('Y-m-d\TH:i:s\Z'),
+            'editDeadlineHours' => $settings?->policy->editDeadlineHours,
         ];
     }
 

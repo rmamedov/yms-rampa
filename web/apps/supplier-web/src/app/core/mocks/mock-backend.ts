@@ -188,6 +188,9 @@ function buildStore(
  * інакше моки знову розійдуться з дійсністю. Методи синхронні, тому
  * бізнес-правила покриваються юніт-тестами без Angular і HTTP.
  */
+/** StorePolicy::editDeadlineHours у демо-конфігурації. */
+const MOCK_EDIT_DEADLINE_HOURS = 2;
+
 export class MockBackend {
   readonly settings: NetworkSettings;
   private readonly stores: MockStore[];
@@ -910,6 +913,11 @@ export class MockBackend {
       plateNumber: booking.vehicle.plateNumber,
       driverId: booking.driverId,
       status: booking.status,
+      // Як і бекенд: строк, до якого точку ще можна скасувати чи перенести.
+      editableUntil: new Date(
+        new Date(booking.slotStart).getTime() - MOCK_EDIT_DEADLINE_HOURS * 3_600_000,
+      ).toISOString(),
+      editDeadlineHours: MOCK_EDIT_DEADLINE_HOURS,
     };
   }
 
