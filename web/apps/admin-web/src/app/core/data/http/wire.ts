@@ -721,6 +721,12 @@ export interface WireSupplier {
   readonly suspendReason: string | null;
   readonly createdAt: string | null;
   readonly updatedAt: string | null;
+  /** Приходить лише у відповіді на створення, якщо задавали логін. */
+  readonly account?: {
+    readonly login: string;
+    readonly password: string;
+    readonly passwordNotice?: string;
+  };
 }
 
 export function toSupplier(wire: WireSupplier): Supplier {

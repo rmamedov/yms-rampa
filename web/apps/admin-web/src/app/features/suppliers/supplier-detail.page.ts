@@ -84,6 +84,12 @@ export class SupplierDetailPage {
   protected readonly suspendOpen = signal(false);
   protected readonly suspendReason = signal('');
 
+  /** Доступ у кабінет — лише при створенні; обидва поля необовʼязкові. */
+  protected readonly login = signal('');
+  protected readonly password = signal('');
+  /** Видані креденшли: показуються один раз, одразу після створення. */
+  protected readonly issued = signal<{ login: string; password: string } | null>(null);
+
   protected readonly canManage = computed(() => this.auth.can('supplier.manage'));
 
   protected readonly nameError = computed(() =>
@@ -106,8 +112,29 @@ export class SupplierDetailPage {
   protected readonly contactNameError = computed(() =>
     this.contactName().trim() === '' ? 'suppliers.error.contactName' : null,
   );
+  /** Логін — робоча пошта: за нею постачальника шукають і відновлюють доступ. */
+  protected readonly loginError = computed(() =>
+    this.login().trim() === ''
+      ? null
+      : validateEmail(this.login(), 'suppliers.account.error.login'),
+  );
+
+  /**
+   * Пароль перевіряє контур ідентичності (мінімум 10 символів, літери й цифри).
+   * Тут — лише довжина: решту скаже сервер, і його повідомлення точніші.
+   */
+  protected readonly passwordError = computed(() => {
+    const value = this.password().trim();
+    if (value === '') {
+      return null;
+    }
+    return value.length < 10 ? 'suppliers.account.error.password' : null;
+  });
+
   protected readonly invalid = computed(
     () =>
+      this.loginError() !== null ||
+      this.passwordError() !== null ||
       this.nameError() !== null ||
       this.edrpouError() !== null ||
       this.phoneError() !== null ||
@@ -242,20 +269,42 @@ export class SupplierDetailPage {
           email: this.contactEmail().trim() === '' ? null : this.contactEmail().trim(),
         },
       ],
+      // Доступ задають лише при створенні — оновлення його не чіпає.
+      login: current ? null : this.login().trim() || null,
+      password: current ? null : this.password().trim() || null,
     };
-    const request$ = current
-      ? this.api.update(current.id, draft)
-      : this.api.create(draft);
 
-    request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (saved) => {
-        this.apply(saved);
-        this.isNew.set(false);
-        this.toast.success('conflicts.saved');
-        void this.router.navigate(['/suppliers', saved.id]);
-      },
-      error: (error: unknown) => this.toast.error(error),
-    });
+    if (current) {
+      this.api
+        .update(current.id, draft)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (saved) => {
+            this.apply(saved);
+            this.toast.success('conflicts.saved');
+          },
+          error: (error: unknown) => this.toast.error(error),
+        });
+      return;
+    }
+
+    this.api
+      .create(draft)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (created) => {
+          this.apply(created.supplier);
+          this.isNew.set(false);
+          this.toast.success('conflicts.saved');
+          // Пароль показуємо ДО навігації: після переходу картка
+          // перезавантажиться, і показати його вже не буде звідки.
+          if (created.account) {
+            this.issued.set(created.account);
+          }
+          void this.router.navigate(['/suppliers', created.supplier.id]);
+        },
+        error: (error: unknown) => this.toast.error(error),
+      });
   }
 
   /** SUP-02: призупинення окремим маршрутом, з необовʼязковою причиною. */

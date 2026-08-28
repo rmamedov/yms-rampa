@@ -30,6 +30,73 @@ final class SupplierServiceTest extends TestCase
         $this->env = new PartnerTestEnvironment();
     }
 
+    /**
+     * SUP-01: разом із контрагентом можна одразу завести вхід у кабінет.
+     * Пароль повертається один раз — далі в сховищі лише хеш.
+     */
+    public function testSupplierCanBeCreatedWithLoginAndPassword(): void
+    {
+        $result = $this->env->supplierService->register(
+            name: 'ТОВ «Дозвіл»',
+            login: 'Dozvil@Rampa.UA',
+            password: 'Nadiyn1yParol',
+        );
+
+        self::assertTrue($result->hasAccount());
+        // Логін нормалізується: пошту шукають без огляду на регістр.
+        self::assertSame('dozvil@rampa.ua', $result->login);
+        self::assertSame('Nadiyn1yParol', $result->password);
+        self::assertNotNull($this->env->suppliers->findById($result->supplier->id()));
+    }
+
+    /** Без пароля система згенерує його сама і поверне для передачі контрагенту. */
+    public function testPasswordIsGeneratedWhenOnlyLoginGiven(): void
+    {
+        $result = $this->env->supplierService->register(
+            name: 'ТОВ «Генерація»',
+            login: 'gen@rampa.ua',
+        );
+
+        self::assertNotNull($result->password);
+        self::assertNotSame('', $result->password);
+    }
+
+    /** Логін необовʼязковий: контрагента можна завести й без доступу. */
+    public function testSupplierWithoutLoginHasNoAccount(): void
+    {
+        $result = $this->env->supplierService->register(name: 'ТОВ «Без входу»');
+
+        self::assertFalse($result->hasAccount());
+        self::assertNull($result->password);
+    }
+
+    /** Логін постачальника — робоча пошта, інакше його не знайти й не відновити. */
+    public function testLoginMustBeAnEmail(): void
+    {
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('не схожий на адресу');
+
+        $this->env->supplierService->register(name: 'ТОВ «Логін»', login: '380501234567');
+    }
+
+    /**
+     * Зайнятий логін не має лишати напівстворений запис: інакше контрагента
+     * не можна ні використати, ні завести повторно під тією ж назвою.
+     */
+    public function testSupplierIsNotSavedWhenLoginIsTaken(): void
+    {
+        $this->env->supplierService->register(name: 'Перший', login: 'zaynyato@rampa.ua');
+
+        try {
+            $this->env->supplierService->register(name: 'Другий', login: 'zaynyato@rampa.ua');
+            self::fail('Очікувався конфлікт логіна');
+        } catch (ConflictException) {
+            // очікувано
+        }
+
+        self::assertNull($this->env->suppliers->findByName('Другий'));
+    }
+
     public function testCreatesActiveSupplierWithAllStoresAccessByDefault(): void
     {
         $supplier = $this->env->supplierService->create('ТОВ «Логістик Плюс»', '12345678');

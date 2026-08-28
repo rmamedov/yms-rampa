@@ -7,15 +7,20 @@ namespace App\Domain\Service;
 use App\Domain\Booking\BookingQueryPort;
 use App\Domain\Event\EventPublisher;
 use App\Domain\Event\SupplierSuspended;
+use App\Domain\Identity\CreateAccountCommand;
 use App\Domain\Identity\PartnerAccountGateway;
+use App\Domain\Identity\PartnerRole;
+use App\Domain\Security\PasswordGenerator;
 use App\Domain\Shared\Clock;
 use App\Domain\Shared\ConflictException;
 use App\Domain\Shared\IdGenerator;
 use App\Domain\Shared\NotFoundException;
+use App\Domain\Shared\ValidationException;
 use App\Domain\Supplier\StoreAccess;
 use App\Domain\Supplier\Supplier;
 use App\Domain\Supplier\SupplierAccessSnapshot;
 use App\Domain\Supplier\SupplierContact;
+use App\Domain\Supplier\SupplierRegistration;
 use App\Domain\Supplier\SupplierRepository;
 use App\Domain\Supplier\SupplierStatus;
 
@@ -30,6 +35,7 @@ final readonly class SupplierService
     public function __construct(
         private SupplierRepository $suppliers,
         private PartnerAccountGateway $accounts,
+        private PasswordGenerator $passwords,
         private EventPublisher $events,
         private BookingQueryPort $bookings,
         private IdGenerator $ids,
@@ -49,6 +55,30 @@ final readonly class SupplierService
         ?StoreAccess $storeAccess = null,
         array $contacts = [],
     ): Supplier {
+        return $this->register($name, $edrpou, $storeAccess, $contacts)->supplier;
+    }
+
+    /**
+     * SUP-01 разом зі створенням входу в кабінет.
+     *
+     * Логін необовʼязковий: контрагента можна завести й без доступу, а видати
+     * його пізніше. Якщо логін заданий, пароль можна не вказувати — тоді його
+     * згенерує система і поверне один раз (AUTH-24).
+     *
+     * Порядок важливий: акаунт створюється ДО збереження постачальника. Якщо
+     * логін уже зайнятий, у базі не лишиться напівстворений контрагент, якого
+     * потім не можна ні використати, ні завести повторно під тією ж назвою.
+     *
+     * @param list<SupplierContact> $contacts
+     */
+    public function register(
+        string $name,
+        ?string $edrpou = null,
+        ?StoreAccess $storeAccess = null,
+        array $contacts = [],
+        ?string $login = null,
+        ?string $password = null,
+    ): SupplierRegistration {
         $now = $this->clock->now();
 
         $supplier = new Supplier(
@@ -63,9 +93,40 @@ final readonly class SupplierService
         $this->assertNameFree($supplier->name(), null);
         $this->assertEdrpouFree($supplier->edrpou(), null);
 
+        $issued = null;
+        $normalizedLogin = null === $login ? null : mb_strtolower(trim($login));
+
+        if (null !== $normalizedLogin && '' !== $normalizedLogin) {
+            $this->assertLoginIsEmail($normalizedLogin);
+
+            $issued = $password ?? $this->passwords->generate();
+
+            $this->accounts->createAccount(new CreateAccountCommand(
+                login: $normalizedLogin,
+                password: $issued,
+                role: PartnerRole::SupplierAdmin,
+                supplierId: $supplier->id(),
+                // Згенерований пароль треба змінити при першому вході; заданий
+                // адміністратором — ні: його вибрали свідомо і вже передали
+                // контрагенту.
+                mustChangePassword: null === $password,
+            ));
+        }
+
         $this->suppliers->save($supplier);
 
-        return $supplier;
+        return new SupplierRegistration($supplier, $normalizedLogin, $issued);
+    }
+
+    /** Логін постачальника — робоча пошта: за нею його шукають і відновлюють доступ. */
+    private function assertLoginIsEmail(string $login): void
+    {
+        if (false === filter_var($login, \FILTER_VALIDATE_EMAIL)) {
+            throw new ValidationException(
+                \sprintf('Логін «%s» не схожий на адресу електронної пошти.', $login),
+                'SUPPLIER_LOGIN_INVALID',
+            );
+        }
     }
 
     /**

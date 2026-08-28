@@ -62,7 +62,7 @@ describe('MockSuppliersApi — постачальники (5.4)', () => {
   });
 
   it('створює нового постачальника з контактами і доступом до магазинів', async () => {
-    const created = await firstValueFrom(
+    const { supplier: created, account } = await firstValueFrom(
       api.create(draft({ allStores: false, storeIds: ['st-1', 'st-2'] })),
     );
     expect(created.id).toBeDefined();
@@ -72,6 +72,23 @@ describe('MockSuppliersApi — постачальники (5.4)', () => {
       storeIds: ['st-1', 'st-2'],
     });
     expect(created.contacts[0].name).toBe('Ірина Дуб');
+    // Логін не задавали — доступу немає, і це нормальний стан.
+    expect(account).toBeNull();
+  });
+
+  it('разом із постачальником можна одразу створити доступ у кабінет', async () => {
+    const { account } = await firstValueFrom(
+      api.create(draft({ login: 'Novyi@Rampa.UA', password: 'Nadiyn1yParol' })),
+    );
+    expect(account?.login).toBe('novyi@rampa.ua');
+    expect(account?.password).toBe('Nadiyn1yParol');
+  });
+
+  it('без пароля система генерує його сама', async () => {
+    const { account } = await firstValueFrom(
+      api.create(draft({ login: 'bez-parolya@rampa.ua' })),
+    );
+    expect(account?.password?.length ?? 0).toBeGreaterThan(0);
   });
 
   it('SUP-01: порожня назва відхиляється 422', async () => {
@@ -103,7 +120,7 @@ describe('MockSuppliersApi — постачальники (5.4)', () => {
   });
 
   it('постачальника без бронювань можна видалити', async () => {
-    const created = await firstValueFrom(api.create(draft()));
+    const { supplier: created } = await firstValueFrom(api.create(draft()));
     await firstValueFrom(api.remove(created.id));
     expect(db.state.suppliers.some((s) => s.id === created.id)).toBe(false);
   });

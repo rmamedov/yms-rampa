@@ -51,6 +51,7 @@ final class PartnerTestEnvironment
         $this->supplierService = new SupplierService(
             suppliers: $this->suppliers,
             accounts: $this->accounts,
+            passwords: new SecurePasswordGenerator(),
             events: $this->events,
             bookings: $this->bookings,
             ids: new SequenceIdGenerator('sp'),

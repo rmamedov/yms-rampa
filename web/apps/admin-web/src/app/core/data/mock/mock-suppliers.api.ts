@@ -7,7 +7,12 @@ import {
   Supplier,
   SupplierStatus,
 } from '../../models';
-import { SupplierDraft, SupplierFilter, SuppliersApi } from '../suppliers.api';
+import {
+  SupplierCreated,
+  SupplierDraft,
+  SupplierFilter,
+  SuppliersApi,
+} from '../suppliers.api';
 import { MockDb } from './mock-db';
 import {
   fail,
@@ -75,7 +80,7 @@ export class MockSuppliersApi extends SuppliersApi {
     return respond(() => copy(supplier), this.latency);
   }
 
-  create(draft: SupplierDraft): Observable<Supplier> {
+  create(draft: SupplierDraft): Observable<SupplierCreated> {
     if (draft.name.trim() === '') {
       return fail(
         422,
@@ -101,7 +106,19 @@ export class MockSuppliersApi extends SuppliersApi {
         updatedAt: new Date().toISOString(),
       };
       this.db.state.suppliers = [supplier, ...this.db.state.suppliers];
-      return copy(supplier);
+      const login = draft.login?.trim() ?? '';
+      return {
+        supplier: copy(supplier),
+        // Як і бекенд: пароль віддається один раз, а якщо його не задали —
+        // генерується.
+        account:
+          login === ''
+            ? null
+            : {
+                login: login.toLowerCase(),
+                password: draft.password?.trim() || `Rmp${this.db.nextId('pw')}x7`,
+              },
+      };
     }, this.latency);
   }
 

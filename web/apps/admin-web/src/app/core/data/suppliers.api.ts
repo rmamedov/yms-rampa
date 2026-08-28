@@ -21,6 +21,22 @@ export interface SupplierDraft {
   readonly allStores: boolean;
   readonly storeIds: readonly string[];
   readonly contacts: readonly SupplierContact[];
+  /**
+   * Пошта для входу в кабінет. Необовʼязкова: контрагента можна завести без
+   * доступу, а видати його пізніше. Надсилається лише при СТВОРЕННІ.
+   */
+  readonly login?: string | null;
+  /** Порожній — систему попросять згенерувати пароль (AUTH-24). */
+  readonly password?: string | null;
+}
+
+/** Створений постачальник разом із доступом, якщо його заводили. */
+export interface SupplierCreated {
+  readonly supplier: Supplier;
+  readonly account: {
+    readonly login: string;
+    readonly password: string;
+  } | null;
 }
 
 /** partner-service, адмін-контур постачальників. */
@@ -30,7 +46,8 @@ export abstract class SuppliersApi {
   /** Довідник для селектів — одна сторінка максимального розміру. */
   abstract all(): Observable<readonly Supplier[]>;
   abstract get(id: string): Observable<Supplier>;
-  abstract create(draft: SupplierDraft): Observable<Supplier>;
+  /** Пароль у відповіді приходить РІВНО ОДИН РАЗ — далі лише перегенерація. */
+  abstract create(draft: SupplierDraft): Observable<SupplierCreated>;
   abstract update(id: string, draft: SupplierDraft): Observable<Supplier>;
   /** SUP-02: POST /suppliers/{id}/suspend */
   abstract suspend(id: string, reason: string | null): Observable<Supplier>;

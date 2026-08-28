@@ -284,6 +284,18 @@ export const UK_DICTIONARY: Readonly<Record<string, string>> = {
   'suppliers.suspend': 'Призупинити',
   'suppliers.activate': 'Активувати',
   'suppliers.suspend.hint': 'Причина необовʼязкова; логіни постачальника буде заблоковано',
+  'suppliers.account.title': 'Доступ до кабінету',
+  'suppliers.account.hint':
+    'Необовʼязково. Якщо задати пошту, постачальник одразу зможе увійти в кабінет. Пароль показується один раз — запишіть його.',
+  'suppliers.account.login': 'E-mail для входу (логін)',
+  'suppliers.account.password': 'Пароль',
+  'suppliers.account.password.hint':
+    'Мінімум 10 символів, літери й цифри. Залиште порожнім — система згенерує пароль сама.',
+  'suppliers.account.error.login': 'Логін має бути коректною адресою пошти',
+  'suppliers.account.error.password': 'Пароль — щонайменше 10 символів',
+  'suppliers.account.issued': 'Доступ до кабінету створено',
+  'suppliers.account.issuedNotice':
+    'Передайте ці дані постачальнику. Пароль більше не показується — далі лише перегенерація.',
   'suppliers.suspendReason': 'Причина призупинення',
   'suppliers.deleted': 'Постачальника видалено',
   'suppliers.error.name': 'Назва обовʼязкова та має бути унікальною',

@@ -41,7 +41,12 @@ import {
   StoreConfigurationDraft,
   StoresApi,
 } from '../stores.api';
-import { SupplierDraft, SupplierFilter, SuppliersApi } from '../suppliers.api';
+import {
+  SupplierCreated,
+  SupplierDraft,
+  SupplierFilter,
+  SuppliersApi,
+} from '../suppliers.api';
 import {
   StaffUserDraft,
   StaffUserFilter,
@@ -467,10 +472,25 @@ export class HttpSuppliersApi extends SuppliersApi {
     return this.api.get<WireSupplier>(`/suppliers/${id}`).pipe(map(toSupplier));
   }
 
-  create(draft: SupplierDraft): Observable<Supplier> {
+  create(draft: SupplierDraft): Observable<SupplierCreated> {
+    const login = draft.login?.trim() ?? '';
+    const password = draft.password?.trim() ?? '';
     return this.api
-      .post<WireSupplier>('/suppliers', supplierBody(draft))
-      .pipe(map(toSupplier));
+      .post<WireSupplier>('/suppliers', {
+        ...supplierBody(draft),
+        // Порожні поля не надсилаємо взагалі: інакше бекенд вважатиме, що
+        // адміністратор свідомо задав порожній логін.
+        ...(login === '' ? {} : { login }),
+        ...(password === '' ? {} : { password }),
+      })
+      .pipe(
+        map((wire) => ({
+          supplier: toSupplier(wire),
+          account: wire.account
+            ? { login: wire.account.login, password: wire.account.password }
+            : null,
+        })),
+      );
   }
 
   update(id: string, draft: SupplierDraft): Observable<Supplier> {

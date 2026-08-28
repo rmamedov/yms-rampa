@@ -5,7 +5,7 @@
  * Тестові дані: назва `UITEST-Постачальник-<мітка>`, ЄДРПОУ 99000000–99009999.
  * Кожен створений постачальник реєструється через registerArtifact().
  */
-import { expect, test } from '@playwright/test';
+import { expect, request, test } from '@playwright/test';
 import {
   apiGet,
   apiRaw,
@@ -24,6 +24,7 @@ import {
   track,
   waitForToast,
 } from '../support/admin';
+import { HOSTS } from '../support/env';
 
 test.beforeEach(async ({ page }) => {
   await loginAdmin(page);
@@ -181,6 +182,60 @@ test.describe('A-10 Постачальники', () => {
     await expect(page.locator('.field-error')).toContainText('Телефон у форматі +380XXXXXXXXX');
     await page.locator('#sup-phone').fill('+380501234567');
     expect((await fieldErrors(page)).filter((e) => e.includes('Телефон'))).toEqual([]);
+  });
+
+  /**
+   * Доступ у кабінет можна видати одразу при створенні контрагента.
+   * Перевіряємо не лише форму, а й головне: цим логіном справді входять.
+   */
+  test('A-10.30 постачальника можна створити разом із логіном і паролем', async ({ page }) => {
+    const name = testSupplierName('доступ');
+    const login = `uitest.${Date.now().toString(36)}@rampa.ua`;
+    const password = 'Nadiyn1yParol';
+
+    await goto(page, '/suppliers/new');
+    await fillSupplierForm(page, {
+      name,
+      edrpou: nextTestEdrpou(),
+      contact: 'Ірина Тест',
+      phone: '+380501112233',
+      email: 'kontakt@rampa.ua',
+    });
+    await page.locator('#sup-login').fill(login);
+    await page.locator('#sup-password').fill(password);
+    await page.locator('button.btn-primary', { hasText: 'Зберегти' }).click();
+    await page.waitForURL(/\/suppliers\/(?!new)[0-9a-f-]{8}/, { timeout: 20_000 });
+
+    const id = page.url().split('/suppliers/')[1].split('?')[0];
+    track('supplier', id, name);
+
+    // Пароль показується один раз — модалкою одразу після створення.
+    await expect(page.locator('#issued-login')).toHaveValue(login);
+    await expect(page.locator('#issued-password')).toHaveValue(password);
+
+    // І цим доступом справді можна увійти в кабінет постачальника.
+    const ctx = await request.newContext({ ignoreHTTPSErrors: true });
+    const res = await ctx.post(`${HOSTS.supplier}/api/supplier/v1/auth/login`, {
+      data: { login, password },
+    });
+    expect(res.status(), 'виданим доступом має відкриватися кабінет').toBe(200);
+    await ctx.dispose();
+  });
+
+  test('A-10.31 логін не у форматі пошти відхиляється', async ({ page }) => {
+    await goto(page, '/suppliers/new');
+    await page.locator('#sup-login').fill('380501234567');
+    await expect(
+      page.locator('.field', { has: page.locator('#sup-login') }).locator('.field-error'),
+    ).toContainText('Логін має бути коректною адресою пошти');
+  });
+
+  test('A-10.32 короткий пароль відхиляється до відправки', async ({ page }) => {
+    await goto(page, '/suppliers/new');
+    await page.locator('#sup-password').fill('123');
+    await expect(
+      page.locator('.field', { has: page.locator('#sup-password') }).locator('.field-error'),
+    ).toContainText('Пароль — щонайменше 10 символів');
   });
 
   test('A-10.9 створення постачальника з усіма полями', async ({ page }) => {

@@ -11,6 +11,7 @@ use App\Infrastructure\Booking\HttpBookingQueryPort;
 use App\Infrastructure\InMemory\FixedClock;
 use App\Infrastructure\InMemory\InMemoryEventPublisher;
 use App\Infrastructure\InMemory\InMemoryPartnerAccountGateway;
+use App\Infrastructure\Security\SecurePasswordGenerator;
 use App\Infrastructure\InMemory\InMemorySupplierRepository;
 use App\Infrastructure\InMemory\SequenceIdGenerator;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -333,6 +334,7 @@ final class HttpBookingQueryPortTest extends TestCase
         return new SupplierService(
             suppliers: $suppliers,
             accounts: new InMemoryPartnerAccountGateway(),
+            passwords: new SecurePasswordGenerator(),
             events: new InMemoryEventPublisher(),
             bookings: $bookings,
             ids: new SequenceIdGenerator('sp'),

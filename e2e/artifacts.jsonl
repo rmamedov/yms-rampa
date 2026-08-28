@@ -37,3 +37,7 @@
 {"kind":"reserved-slot-rule","id":"2226/31877e5f-0d0b-4c3c-bed6-e1f698344b28","note":"резерв на 2026-08-29 [run=mtcvd5es127]","at":"2026-08-28T11:33:54.700Z"}
 {"kind":"slot-block","id":"2230/0dbd4b72-711c-41bf-af89-43a49e1a9d7f","note":"UITEST блокування mtcvit4f [run=mtcvd5es127]","at":"2026-08-28T11:33:57.839Z"}
 {"kind":"slot-block","id":"2226/7f24282e-a4d6-4494-9145-5c81388ba2d8","note":"UITEST рампа mtcvj53e [run=mtcvd5es127]","at":"2026-08-28T11:34:13.343Z"}
+{"kind":"supplier","id":"806eb53d-0082-4a11-9895-ef6856f2513b","note":"UITEST-Постачальник-mtcvvk4q413-доступ [run=mtcvvk4q413]","at":"2026-08-28T11:43:56.583Z"}
+{"kind":"supplier","id":"a9c9a005-633e-4401-9ca9-c6272069e620","note":"UITEST-Постачальник-mtcvvsy4355-видалення [run=mtcvvsy4355]","at":"2026-08-28T11:44:07.250Z"}
+{"kind":"supplier","id":"be4fc624-84df-4fc4-bac8-ce82f03bfae6","note":"UITEST-Постачальник-mtcvwaf4147-доступ [run=mtcvwaf4147]","at":"2026-08-28T11:44:30.666Z"}
+{"kind":"supplier","id":"a26e0f88-172a-4b04-b123-563fdf92dfa9","note":"UITEST-Постачальник-mtcvwaf4147-видалення [run=mtcvwaf4147]","at":"2026-08-28T11:44:40.616Z"}

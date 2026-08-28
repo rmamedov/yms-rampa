@@ -107,6 +107,46 @@
       </div>
     </div>
 
+    <!-- Доступ до кабінету задають лише при створенні: чинному постачальнику
+         логін міняють окремою дією, а пароль — перегенерацією. -->
+    @if (isNew() && canManage()) {
+      <div class="card-title" style="margin-top: 20px">
+        {{ 'suppliers.account.title' | t }}
+      </div>
+      <div class="field-hint" style="margin-bottom: 12px">
+        {{ 'suppliers.account.hint' | t }}
+      </div>
+      <div class="grid-2">
+        <div class="field">
+          <label for="sup-login">{{ 'suppliers.account.login' | t }}</label>
+          <input
+            id="sup-login"
+            type="email"
+            autocomplete="off"
+            [value]="login()"
+            (input)="login.set($any($event.target).value)"
+          />
+          @if (loginError(); as error) {
+            <div class="field-error">{{ error | t }}</div>
+          }
+        </div>
+        <div class="field">
+          <label for="sup-password">{{ 'suppliers.account.password' | t }}</label>
+          <input
+            id="sup-password"
+            type="text"
+            autocomplete="off"
+            [value]="password()"
+            (input)="password.set($any($event.target).value)"
+          />
+          <div class="field-hint">{{ 'suppliers.account.password.hint' | t }}</div>
+          @if (passwordError(); as error) {
+            <div class="field-error">{{ error | t }}</div>
+          }
+        </div>
+      </div>
+    }
+
     @if (supplier(); as current) {
       @if (current.status === 'suspended' && current.suspendReason) {
         <div class="notice notice-warn">
@@ -208,4 +248,23 @@
   </app-modal>
 }
 
+}
+
+@if (issued(); as account) {
+  <app-modal [title]="'suppliers.account.issued' | t" (closed)="issued.set(null)">
+    <p>{{ 'suppliers.account.issuedNotice' | t }}</p>
+    <div class="field">
+      <label for="issued-login">{{ 'suppliers.account.login' | t }}</label>
+      <input id="issued-login" type="text" class="mono" [value]="account.login" readonly />
+    </div>
+    <div class="field">
+      <label for="issued-password">{{ 'suppliers.account.password' | t }}</label>
+      <input id="issued-password" type="text" class="mono" [value]="account.password" readonly />
+    </div>
+    <ng-container modalFooter>
+      <button type="button" class="btn btn-primary" (click)="issued.set(null)">
+        {{ 'common.close' | t }}
+      </button>
+    </ng-container>
+  </app-modal>
 }

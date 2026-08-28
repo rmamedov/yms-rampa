@@ -74,14 +74,29 @@ final class AdminSupplierController
 
         $body = JsonBody::fromRequest($request);
 
-        $supplier = $this->suppliers->create(
+        // Логін і пароль необовʼязкові: контрагента можна завести без доступу
+        // до кабінету, а видати його пізніше.
+        $registration = $this->suppliers->register(
             name: $body->requiredString('name'),
             edrpou: $body->optionalString('edrpou'),
             storeAccess: self::storeAccess($body),
             contacts: self::contacts($body),
+            login: $body->optionalString('login'),
+            password: $body->optionalString('password'),
         );
 
-        return new JsonResponse(View::supplier($supplier), Response::HTTP_CREATED);
+        $view = View::supplier($registration->supplier);
+
+        if ($registration->hasAccount()) {
+            // Пароль показується один раз: у сховищі лише хеш (AUTH-24).
+            $view['account'] = [
+                'login' => $registration->login,
+                'password' => $registration->password,
+                'passwordNotice' => 'Запишіть пароль — повторно він не показується.',
+            ];
+        }
+
+        return new JsonResponse($view, Response::HTTP_CREATED);
     }
 
     #[Route('/{id}', name: 'admin_suppliers_get', methods: ['GET'])]
