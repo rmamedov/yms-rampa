@@ -15,12 +15,10 @@ import urllib.request
 from collections import Counter
 from pathlib import Path
 
-IP = "104.248.132.130"
-ADMIN = f"https://admin.{IP}.sslip.io"
-SUPPLIER = f"https://yms.{IP}.sslip.io"
+import credentials
 
-ADMIN_LOGIN = {"email": "admin@rampa.ua", "password": "${YMS_ADMIN_PASSWORD}"}
-SUPPLIER_LOGIN = {"login": "supplier@rampa.ua", "password": "${YMS_SUPPLIER_PASSWORD}"}
+ADMIN = credentials.ADMIN
+SUPPLIER = credentials.SUPPLIER
 
 REGISTRY = Path(__file__).resolve().parent.parent / "e2e" / "artifacts.jsonl"
 DRY = "--dry-run" in sys.argv
@@ -50,9 +48,9 @@ def main():
     stats = Counter()
     print("Прибирання тестових даних" + (" (пробний запуск)" if DRY else ""))
 
-    _, res = call("POST", ADMIN, "/api/admin/v1/auth/login", body=ADMIN_LOGIN)
+    _, res = call("POST", ADMIN, "/api/admin/v1/auth/login", body=credentials.admin_login())
     admin_token = res.get("accessToken")
-    _, res = call("POST", SUPPLIER, "/api/supplier/v1/auth/login", body=SUPPLIER_LOGIN)
+    _, res = call("POST", SUPPLIER, "/api/supplier/v1/auth/login", body=credentials.supplier_login())
     supplier_token = res.get("accessToken")
 
     if not admin_token:
@@ -155,4 +153,7 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except credentials.MissingCredential as e:
+        sys.exit(credentials.fail_fast(e))

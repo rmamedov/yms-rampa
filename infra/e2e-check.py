@@ -13,14 +13,12 @@ import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta
 
-IP = "104.248.132.130"
-SUPPLIER = f"https://yms.{IP}.sslip.io"
-DRIVER = f"https://driver.{IP}.sslip.io"
-STORE = f"https://store.{IP}.sslip.io"
-ADMIN = f"https://admin.{IP}.sslip.io"
+import credentials
 
-SUPPLIER_LOGIN = {"login": "supplier@rampa.ua", "password": "${YMS_SUPPLIER_PASSWORD}"}
-STAFF_LOGIN = {"email": "admin@rampa.ua", "password": "${YMS_ADMIN_PASSWORD}"}
+SUPPLIER = credentials.SUPPLIER
+DRIVER = credentials.DRIVER
+STORE = credentials.STORE
+ADMIN = credentials.ADMIN
 
 # Відмітку «На місці» домен приймає лише у вікні «slotStart − 60 хв … кінець
 # слоту» (StorePolicy::ARRIVAL_WINDOW_MINUTES). Тому основне бронювання на
@@ -80,12 +78,12 @@ def main():
     check("підроблені заголовки ідентичності не проходять", st == 401, f"отримано {st}")
 
     print("\n2. Вхід")
-    st, res = call("POST", SUPPLIER, "/api/supplier/v1/auth/login", body=SUPPLIER_LOGIN)
+    st, res = call("POST", SUPPLIER, "/api/supplier/v1/auth/login", body=credentials.supplier_login())
     if not check("постачальник входить", st == 200, f"{st} {res.get('detail','')}"):
         return report()
     stoken = res["accessToken"]
 
-    st, res = call("POST", STORE, "/api/store/v1/auth/login", body=STAFF_LOGIN)
+    st, res = call("POST", STORE, "/api/store/v1/auth/login", body=credentials.admin_login())
     if not check("співробітник входить", st == 200, f"{st} {res.get('detail','')}"):
         return report()
     ktoken = res["accessToken"]
@@ -281,4 +279,7 @@ def report():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except credentials.MissingCredential as e:
+        sys.exit(credentials.fail_fast(e))

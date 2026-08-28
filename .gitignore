@@ -22,3 +22,6 @@ node_modules/
 /web/dist/
 /web/.nx/
 /web/tmp/
+
+# Локальні доступи до стенду (див. .env.example)
+.env

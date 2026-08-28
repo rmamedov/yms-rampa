@@ -12,9 +12,9 @@ import sys
 import urllib.error
 import urllib.request
 
-BASE = "https://admin.104.248.132.130.sslip.io"
-ADMIN_EMAIL = "admin@rampa.ua"
-ADMIN_PASSWORD = "${YMS_ADMIN_PASSWORD}"
+import credentials
+
+BASE = credentials.ADMIN
 
 # Скільки філій налаштувати у кожному з міст.
 CITIES = {"Київ": 12, "Львів": 5, "Одеса": 5, "Дніпро": 4, "Харків": 4}
@@ -70,7 +70,7 @@ def configuration_payload(index):
 
 def main():
     status, res = call("POST", "/api/admin/v1/auth/login",
-                       body={"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD})
+                       body=credentials.admin_login())
     if status != 200:
         print("Не вдалося увійти:", status, res)
         return 1
@@ -118,4 +118,7 @@ def main():
 
 if __name__ == "__main__":
     import urllib.parse
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except credentials.MissingCredential as e:
+        sys.exit(credentials.fail_fast(e))

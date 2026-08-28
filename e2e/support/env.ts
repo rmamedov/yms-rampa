@@ -3,7 +3,26 @@ import { APIRequestContext, Page, request } from '@playwright/test';
 import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const IP = '104.248.132.130';
+const IP = process.env.YMS_IP ?? '104.248.132.130';
+
+/**
+ * Доступ зі змінної оточення — обовʼязково, без значення за замовчуванням.
+ *
+ * Паролі стенду раніше лежали просто в цьому файлі, тож репозиторій не можна
+ * було відкрити. Тихий fallback повернув би їх сюди першим же комітом «щоб
+ * тести працювали з коробки», тому відсутня змінна — це помилка запуску,
+ * а не привід підставити щось своє.
+ */
+function requireCredential(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(
+      `Не задано ${name}. Доступи до стенду беруться зі змінних оточення — ` +
+        `див. .env.example у корені репозиторію.\n  export ${name}='...'`,
+    );
+  }
+  return value;
+}
 
 export const HOSTS = {
   // SUPPLIER_HOST / DRIVER_HOST — той самий прийом, що й ADMIN_HOST нижче:
@@ -18,8 +37,14 @@ export const HOSTS = {
 };
 
 export const CREDS = {
-  admin: { email: 'admin@rampa.ua', password: '${YMS_ADMIN_PASSWORD}' },
-  supplier: { login: 'supplier@rampa.ua', password: '${YMS_SUPPLIER_PASSWORD}' },
+  admin: {
+    email: process.env.YMS_ADMIN_EMAIL ?? 'admin@rampa.ua',
+    password: requireCredential('YMS_ADMIN_PASSWORD'),
+  },
+  supplier: {
+    login: process.env.YMS_SUPPLIER_LOGIN ?? 'supplier@rampa.ua',
+    password: requireCredential('YMS_SUPPLIER_PASSWORD'),
+  },
 };
 
 /** Маркер тестових даних — за ним працює прибирання. */
