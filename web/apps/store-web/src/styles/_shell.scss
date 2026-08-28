@@ -583,20 +583,25 @@
   font-size: var(--fs-xs);
 }
 
+@media (max-width: 1023px) {
+  .listcard__scroll {
+    display: none;
+  }
+
+  .listcards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 767px) {
   .listcard {
     padding: var(--space-3);
     border-radius: var(--radius-md);
   }
 
-  // Таблиця з семи колонок на телефоні не влазить у принципі — показуємо картки.
-  .listcard__scroll {
-    display: none;
-  }
-
   .listcards {
-    display: flex;
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 }
 

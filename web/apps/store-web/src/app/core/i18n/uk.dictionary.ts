@@ -74,7 +74,7 @@ export const UK_DICTIONARY: Record<string, string> = {
   'board.mode.list': 'Список',
   'list.title': 'Список прибуття',
   'list.count': 'позицій: {n}',
-  'list.details': '{supplier}',
+  'list.details': 'Картка прибуття',
   'list.open': 'Відкрити картку прибуття',
   'list.order': 'Замовлення {order}',
   'list.col.slot': 'Час слоту',

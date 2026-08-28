@@ -1458,7 +1458,7 @@ test.describe('M-09 Оболонка й список прибуття', () => {
     await page.locator('.segmented__btn', { hasText: 'Список' }).click();
     await page.waitForTimeout(400);
 
-    for (const width of [320, 360, 414, 768]) {
+    for (const width of [320, 360, 414, 768, 900, 1024, 1280]) {
       await page.setViewportSize({ width, height: 800 });
       await page.waitForTimeout(300);
       expect(
@@ -1467,14 +1467,22 @@ test.describe('M-09 Оболонка й список прибуття', () => {
       ).toBe(false);
     }
 
-    // На вузькому екрані замість таблиці — картки.
-    await page.setViewportSize({ width: 360, height: 800 });
+    // До 1023 px включно замість таблиці — картки: сім колонок туди не влазять
+    // і обрізаються праворуч разом із колонкою дій.
+    for (const width of [360, 900, 1023]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.waitForTimeout(300);
+      await expect(page.locator('.listcards__item').first()).toBeVisible();
+      await expect(
+        page.locator('.listcard__scroll'),
+        `на ширині ${width}px таблиця має бути схована`,
+      ).toBeHidden();
+    }
+
+    // А на робочому екрані — навпаки, таблиця.
+    await page.setViewportSize({ width: 1280, height: 900 });
     await page.waitForTimeout(300);
-    await expect(page.locator('.listcards__item').first()).toBeVisible();
-    await expect(
-      page.locator('.listcard__scroll'),
-      'таблиця на телефоні має бути схована',
-    ).toBeHidden();
+    await expect(page.locator('.listtable')).toBeVisible();
   });
 
   test('M-09.6 бокове меню на телефоні відкривається кнопкою', async ({ page }) => {

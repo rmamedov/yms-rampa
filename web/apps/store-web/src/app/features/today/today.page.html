@@ -190,7 +190,6 @@
 @if (dialog() === 'details' && selected(); as booking) {
   <app-modal
     [titleKey]="'list.details'"
-    [titleParams]="{ supplier: booking.supplierName }"
     (closed)="closeDialog()"
   >
     <app-booking-card
