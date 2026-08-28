@@ -3,3 +3,6 @@
 test-results/
 playwright-report/
 results.json
+
+# Знімки, зроблені screenshots.mjs — у репозиторії не потрібні.
+screenshots/
