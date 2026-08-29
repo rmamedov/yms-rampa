@@ -101,11 +101,26 @@ def main():
     print(f"     магазин: {stores[0].get('name','')[:50]}")
 
     print("\n4. Сітка слотів")
-    day = (date.today() + timedelta(days=1)).isoformat()
-    st, grid = call("GET", SUPPLIER, f"/api/supplier/v1/stores/{store_id}/slots?date={day}", stoken)
-    slots = grid.get("slots", [])
-    if not check("сітка слотів будується", st == 200 and slots, f"{st}, слотів {len(slots)}"):
+    # «Завтра» брати не можна: філії не приймають щодня, і в неділю сітка
+    # порожня — перевірка падала щосуботи не через дефект, а через календар.
+    # Тому шукаємо найближчий день, у якому філія взагалі приймає.
+    day, grid, slots = None, {}, []
+    for offset in range(1, 8):
+        candidate = (date.today() + timedelta(days=offset)).isoformat()
+        st, candidate_grid = call(
+            "GET", SUPPLIER, f"/api/supplier/v1/stores/{store_id}/slots?date={candidate}", stoken
+        )
+        if st == 200 and candidate_grid.get("slots"):
+            day, grid, slots = candidate, candidate_grid, candidate_grid["slots"]
+            break
+
+    if not check(
+        "сітка слотів будується",
+        bool(slots),
+        "у найближчі 7 днів у філії немає жодного дня прийому",
+    ):
         return report()
+    print(f"     день: {day}")
     free = [s for s in slots if s["state"] == "available"]
     print(f"     слотів {len(slots)}, вільних {len(free)}, "
           f"тоннаж {grid.get('maxVehicleWeightTons')} т, слот {grid.get('slotSizeMinutes')} хв")
